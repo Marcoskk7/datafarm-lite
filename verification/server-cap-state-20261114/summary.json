@@ -40,7 +40,7 @@
   },
   "real_ready": false,
   "training_admission": false,
-  "email_status": "pending QQ Mail manual login; Gmail connector returned 403",
+  "email_status": "sent and SENT label / intended recipient / video ZIP attachment verified; private receipt retained locally",
   "outputs": [
     {
       "name": "episode.h5",
@@ -96,6 +96,11 @@
       "name": "video-review.png",
       "bytes": 57390,
       "sha256": "792a46610fbbc74760623d847d16e7b635ed0bda1aa5238de2003492a0dd1112"
+    },
+    {
+      "name": "Codex-ASPIRE-state-test-videos-20261114.zip",
+      "bytes": 171431,
+      "sha256": "ad35377d601b4d23acb3fe48b1e9e79d920551f2e798ecfbcf1d6221b27fceba"
     }
   ],
   "software_validation": {
