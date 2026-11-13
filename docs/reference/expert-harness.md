@@ -10,6 +10,10 @@ Package: `src/datafarm/expert/`; command line: `tools/expert_harness.py`; adapte
 
 ## 1. Role and messages
 
+For optional ASPIRE-inspired authoring (primitive inspection, population repair and
+verified repair-skill reuse), see [CaP search](cap-search.md). It uses the same
+broker and leaves the frozen judge, hidden holdout and expert admission unchanged.
+
 The role prompt is in `prompts/roles/task-expert-author.md` and is loaded explicitly by the launcher. The first, continue and final session messages stay separate, and backend and model come from the round's adapter. A round is a program: its budgets, sandbox and rollouts are enforced by code, every number comes from one config, and every outcome is recorded by the harness rather than by the agent.
 
 ## 2. One round in one paragraph
