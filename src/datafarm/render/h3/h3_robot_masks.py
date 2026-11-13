@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-"""Per-link robot label masks of the REAL episode, from the URDF posed with the real joint state.
+"""基于真实关节状态摆姿的 URDF，生成 REAL episode 的逐 link robot label mask。
 
-The reference heuristics in h3_episode_references.py assume the robot is the darkest thing in view.  For a robot with
-light links (white or silver arms) or a scene with dark furniture they pick the wrong pixels.  This tool poses the URDF
-visual meshes with the real robot state of each sampled frame and projects them with the real camera model; each
-sampled frame and camera gets a uint8 label image (0 = not robot, k = link k of links.json), links drawn far to near so
-nearer links win overlaps.
+h3_episode_references.py 中的参考启发式假设 robot 是视野中最暗的物体。对于带浅色 link 的 robot（白色或
+银色机械臂）或带深色家具的场景，它们会选错像素。本工具用每个采样帧的真实 robot 状态对 URDF 视觉 mesh
+摆姿，并用真实相机模型投影；每个采样帧和相机都会得到一张 uint8 label 图像（0 = 非 robot，k = links.json
+中的第 k 个 link），link 按由远及近绘制，使较近的 link 赢得重叠。
 
-The robot kinematics and the camera calibration are task products (validated in grounding).  The task provides a
-Python module with:
+robot 运动学与相机标定都是任务产物（在 grounding 中校验）。任务提供一个 Python 模块，包含：
 
-  URDF                          path of the robot URDF (mesh filenames: package://<pkg>/..., relative, or meshes/<name>)
-  real_states() -> array        robot state of every real frame (N x D), frame i = real video frame i
-  link_poses(state) -> dict     {link name: 4x4 world-from-link} for one state
-  camera(view, poses) -> tuple  (4x4 world-from-camera in the OpenCV optical frame: x right, y down, z forward,
-                                 3x3 K, distortion coefficients, width, height) of view cam_high / cam_left_wrist /
-                                 cam_right_wrist at that state (wrist cameras move with their links)
+  URDF                          robot URDF 的路径（mesh 文件名：package://<pkg>/...、相对路径，或 meshes/<name>）
+  real_states() -> array        每个真实帧的 robot 状态（N x D），frame i = 真实视频第 i 帧
+  link_poses(state) -> dict     针对一个状态返回 {link name: 4x4 world-from-link}
+  camera(view, poses) -> tuple  为该状态下的视图 cam_high / cam_left_wrist / cam_right_wrist 返回
+                                 （OpenCV 光学坐标系下的 4x4 world-from-camera：x 向右、y 向下、z 向前，
+                                 3x3 K、畸变系数、width、height）（wrist 相机会随其 link 移动）
 
   python h3_robot_masks.py --kinematics <task>/kinematics.py --out <run>/tasks/<task>/robot-masks [--step 15]
 
-Writes <out>/links.json, <out>/<view>/<frame:06d>.png and, last, <out>/done.json.  Needs numpy, opencv and trimesh.
+写出 <out>/links.json、<out>/<view>/<frame:06d>.png，最后写 <out>/done.json。需要 numpy、opencv 和 trimesh。
 """
 from __future__ import annotations
 
@@ -34,7 +32,7 @@ VIEWS = ("cam_high", "cam_left_wrist", "cam_right_wrist")
 
 
 def origin_matrix(el):
-    """4x4 from a URDF <origin xyz rpy> element (identity when absent)."""
+    """由 URDF 的 <origin xyz rpy> 元素得到 4x4 矩阵（缺失时为单位阵）。"""
     import numpy as np
     T = np.eye(4)
     if el is None:
@@ -65,7 +63,7 @@ def mesh_path(urdf: Path, filename: str) -> Path:
 
 
 def link_meshes(urdf: Path) -> tuple[list, dict]:
-    """(link names in URDF order, {link: [(vertices in the link frame, faces), ...]}) of every mesh visual."""
+    """返回每个 mesh visual 的（按 URDF 顺序排列的 link 名，{link: [(link 坐标系中的顶点, faces), ...]}）。"""
     import numpy as np
     import trimesh
     root = ET.parse(urdf).getroot()
@@ -88,8 +86,8 @@ def link_meshes(urdf: Path) -> tuple[list, dict]:
 
 
 def project_labels(links: list, meshes: dict, poses: dict, cam_T, K, dist, width: int, height: int):
-    """Label image of one camera: each link's triangles projected (inside ~the lens field of view only, where the
-    distortion polynomial is valid; no triangle edge longer than a quarter of the image), far links first."""
+    """某个相机的 label 图像：投影每个 link 的三角形（仅限约在镜头视场之内、畸变多项式有效的区域；没有
+    边长超过图像四分之一的三角形），先画较远的 link。"""
     import cv2
     import numpy as np
     lab = np.zeros((height, width), np.uint8)

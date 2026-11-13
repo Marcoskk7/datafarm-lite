@@ -1,1 +1,1 @@
-"""Running a coding agent on a task: context, sessions, metering and cost."""
+"""在任务上运行 coding agent：上下文、会话、计量与成本。"""

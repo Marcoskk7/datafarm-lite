@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""Resident Ref2VA + H3-Fun ControlNet (soft-HED) + inpaint hybrid worker, one process on one GPU.
+"""常驻 Ref2VA + H3-Fun ControlNet (soft-HED) + inpaint 混合 worker，一个 GPU 上一个进程。
 
-Renders packages built by h3_package.py.  It loads the VideoX-Fun MiniMaxH3ControlPipeline once (Ref2VA base
-transformer + MiniMax-H3-Fun-Controlnet-Union branch), claims <queue>/pending/<profile>/*.json by atomic rename into
-<queue>/running, and renders each package's chunks in order:
+渲染由 h3_package.py 构建的 package。它一次性加载 VideoX-Fun MiniMaxH3ControlPipeline（Ref2VA base
+transformer + MiniMax-H3-Fun-Controlnet-Union 分支），通过原子重命名把 <queue>/pending/<profile>/*.json
+领取到 <queue>/running，并按顺序渲染每个 package 的 chunk：
 
-  * render-policy gate first: datafarm.render.policy.check_h3_payload(manifest, contract)
-    (prompt file == compiled contract prompt, contract real reference images first), plus the
-    control-input audit (files, sha256, canvas, legal 17n+5 shapes);
-  * Ref2VA image references = the contract real references (images-first);
-  * control rows = VAE-encoded soft-HED chunk clip at control_context_scale, inpaint rows = white
-    chunk clip behind the active-panel repaint mask; both cover generated target rows only;
-  * chunks render independently; output: <output_root>/chunks/<chunk_id>/chunk-render.mp4 (full 1024x768 guttered
-    canvas, 24 fps, video only) + segment-manifest.json, so `h3_assemble.py <pkg>` applies.
+  * 先过 render-policy gate：datafarm.render.policy.check_h3_payload(manifest, contract)
+    （prompt 文件 == 编译后的 contract prompt，contract 的真实参考图在前），再加上
+    control-input 审计（文件、sha256、canvas、合法的 17n+5 形状）；
+  * Ref2VA 图像参考 = contract 真实参考图（images-first）；
+  * control 行 = 以 control_context_scale 经 VAE 编码的 soft-HED chunk clip，inpaint 行 =
+    active-panel 重绘遮罩之后的白色 chunk clip；二者都只覆盖生成的目标行；
+  * 各 chunk 独立渲染；输出：<output_root>/chunks/<chunk_id>/chunk-render.mp4（完整的 1024x768
+    gutter 画布，24 fps，仅视频）+ segment-manifest.json，因此可套用 `h3_assemble.py <pkg>`。
 
-Exits after --idle-exit seconds without work or when <queue>/STOP exists, releasing the lease.
+在无工作达到 --idle-exit 秒后或 <queue>/STOP 存在时退出，并释放 lease。
 
-Deployment bindings (h3_paths.py, no built-in machine paths): H3_VIDEOX_FUN (VideoX-Fun checkout with
-vendor/videox_fun applied; required at start), H3_MODELS (default --base-model/--control-checkpoint),
---turbo-lora from H3_TURBO_LORA in launch_control_worker.sh.  Arguments are parsed before torch/VideoX-Fun are imported,
-so `--help` needs neither a GPU nor the bindings.
+部署绑定（h3_paths.py，没有内置机器路径）：H3_VIDEOX_FUN（应用了
+vendor/videox_fun 的 VideoX-Fun checkout；启动时必需），H3_MODELS（默认 --base-model/--control-checkpoint），
+--turbo-lora 来自 launch_control_worker.sh 中的 H3_TURBO_LORA。参数在导入 torch/VideoX-Fun 之前解析，
+因此 `--help` 既不需要 GPU 也不需要这些绑定。
 """
 from __future__ import annotations
 
@@ -59,12 +59,12 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
-# Parse before the runtime imports below: --help and argument errors need no torch, GPU or deployment binding.
+# 在下方运行时导入之前解析：--help 与参数错误既不需要 torch、GPU，也不需要部署绑定。
 ARGS = build_parser().parse_args() if __name__ == "__main__" else None
 
 
 def default(key: str) -> str:
-    """Model/repo default from the deployment bindings (fails closed when the binding is absent)."""
+    """从部署绑定取得模型/仓库默认值（绑定缺失时失败关闭）。"""
     return h3_paths.default_model_path(key)
 
 
@@ -85,7 +85,7 @@ from videox_fun.utils import MiniMaxH3Scheduler  # noqa: E402
 from videox_fun.utils.utils import get_video_to_video_latent  # noqa: E402
 
 H, W, FPS = h3_package.SPATIAL.canvas_height, h3_package.SPATIAL.canvas_width, 24
-OUTPUT_NAME = "chunk-render.mp4"  # the name h3_assemble.py reads
+OUTPUT_NAME = "chunk-render.mp4"  # h3_assemble.py 读取的文件名
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -102,7 +102,7 @@ def videox_provenance(repo: Path) -> dict:
 
 
 class HybridEngine:
-    """VideoX-Fun MiniMaxH3ControlPipeline, loaded once (same construction as predict_v2v_control.py)."""
+    """VideoX-Fun MiniMaxH3ControlPipeline，只加载一次（与 predict_v2v_control.py 的构造一致）。"""
 
     def __init__(self, base_model: str, control_checkpoint: str, control_config: str, memory_mode: str, log,
                  turbo_lora: str | None = None):
@@ -139,7 +139,7 @@ class HybridEngine:
         t_cpu = time.perf_counter() - t0
         if memory_mode == "full":
             self.pipe.to(device=self.device)
-        elif memory_mode == "group_offload":  # single-GPU offload (~7.7 s/step)
+        elif memory_mode == "group_offload":  # 单 GPU offload（约 7.7 秒/步）
             from videox_fun.utils import register_auto_device_hook, safe_enable_group_offload
             register_auto_device_hook(self.pipe.transformer)
             safe_enable_group_offload(self.pipe, onload_device=self.device, offload_device="cpu",
@@ -148,7 +148,7 @@ class HybridEngine:
             self.pipe.enable_model_cpu_offload(device=self.device)
         else:
             raise ValueError(memory_mode)
-        if turbo_lora:  # Sol-H3 four-step Ref2VA adapter fused into the resident main transformer (alpha 8, scale 1, as Sol)
+        if turbo_lora:  # 将 Sol-H3 四步 Ref2VA adapter 融合进常驻主 transformer（alpha 8，scale 1，与 Sol 一致）
             if memory_mode != "full":
                 raise ValueError("--turbo-lora needs memory_mode=full (the fuser runs on the GPU-resident transformer)")
             from h3_lora import fuse_lora
@@ -166,7 +166,7 @@ class HybridEngine:
                           "gpu_total_gb": round(torch.cuda.get_device_properties(self.device).total_memory / 2**30, 1)}
         log(f"loaded {json.dumps(self.load_info)}")
 
-    # -- inputs -------------------------------------------------------------------------------------------
+    # -- 输入 -------------------------------------------------------------------------------------------
     @staticmethod
     def read_video(path: str, frames: int) -> torch.Tensor:
         video, _, _, _ = get_video_to_video_latent(str(path), video_length=frames, sample_size=[H, W], fps=FPS,
@@ -175,7 +175,7 @@ class HybridEngine:
             raise ValueError(f"{path}: decoded {tuple(video.shape)}, need {frames} frames at {H}x{W}")
         return video[:, :, :frames]
 
-    # -- generation ---------------------------------------------------------------------------------------
+    # -- 生成 ---------------------------------------------------------------------------------------
     @torch.no_grad()
     def generate(self, job: dict, prompt: str, white_video_reference) -> tuple[np.ndarray, dict]:
         n = int(job["generated_frames"])
@@ -183,11 +183,11 @@ class HybridEngine:
         inpaint = self.read_video(job["inpaint_video"], n)
         mask = (self.read_video(job["inpaint_mask"], n)[:, :1] > 0.5).to(inpaint.dtype)
         references = [MiniMaxH3ImageReference.from_file(p) for p in job["reference_images"]]
-        if white_video_reference:  # the chunk's white carrier as a Ref2VA video reference, for task semantics
+        if white_video_reference:  # 把该 chunk 的 white carrier 作为 Ref2VA 视频参考，用于表达任务语义
             ref = MiniMaxH3VideoReference.from_file(job["white"])
             if not isinstance(white_video_reference, bool):
-                # int = evenly decimated to that many frames; the full clip doubles the sequence length and can
-                # exhaust the GPU memory of a worker that fits the recipe's minimum free memory
+                # int = 均匀抽稀到该帧数；完整 clip 会使序列长度翻倍，并可能
+                # 耗尽刚好满足配方最低空闲显存要求的 worker 的 GPU 显存
                 fr = np.asarray(ref.frames)
                 idx = np.linspace(0, len(fr) - 1, int(white_video_reference)).round().astype(int)
                 ref = MiniMaxH3VideoReference(frames=fr[idx], fps=float(ref.fps))
@@ -248,7 +248,7 @@ def render_ticket(engine: HybridEngine, ticket: dict, prov: dict, log) -> dict:
     manifest_path = Path(ticket["manifest"])
     payload = json.loads(manifest_path.read_text())
     os.environ["DATAFARM_RENDER_CONTRACT"] = ticket["contract"]
-    policy = h3_package.audit(Path(ticket["package"]))  # check_h3_payload + control-input audit
+    policy = h3_package.audit(Path(ticket["package"]))  # check_h3_payload + control-input 审计
     ctl = payload["control"]
     for key in ("base_model", "control_checkpoint"):
         loaded = getattr(engine, key)
@@ -265,10 +265,10 @@ def render_ticket(engine: HybridEngine, ticket: dict, prov: dict, log) -> dict:
         output, seg = chunk_root / OUTPUT_NAME, chunk_root / "segment-manifest.json"
         if output.exists() and seg.exists():
             completed.append(str(job["chunk_id"]))
-            continue  # resume
+            continue  # 恢复
         t0 = time.perf_counter()
         job_prompt = prompt
-        if job.get("prompt") and Path(job["prompt"]) != prompt_file:  # chunk-local lowering (gate-checked above)
+        if job.get("prompt") and Path(job["prompt"]) != prompt_file:  # chunk 局部降级（已在上面通过 gate 检查）
             job_prompt = Path(job["prompt"]).read_text(encoding="utf-8").strip()
         rgb, stats = engine.generate(job, job_prompt, ctl.get("white_video_reference"))
         encode_mp4(rgb, output)
@@ -296,7 +296,7 @@ def render_ticket(engine: HybridEngine, ticket: dict, prov: dict, log) -> dict:
 
 
 def claim(queue: Path, profile: str, tag: str) -> Path | None:
-    """First claimable ticket of this profile."""
+    """该 profile 中第一个可领取的 ticket。"""
     running = queue / "running"
     running.mkdir(parents=True, exist_ok=True)
     for t in sorted((queue / "pending" / profile).glob("*.json")):
@@ -314,8 +314,8 @@ def main() -> int:
     args.base_model = args.base_model or default("base_model")
     args.control_checkpoint = args.control_checkpoint or default("control_checkpoint")
     args.control_config = args.control_config or default("control_config")
-    # <host>-<pid>-<profile>: h3_requeue_orphans.py parses the host and pid from this tag and matches them to the
-    # live leases; never append anything after the profile.
+    # <host>-<pid>-<profile>：h3_requeue_orphans.py 从该 tag 解析 host 和 pid 并与
+    # 实时 lease 匹配；绝不要在 profile 之后再追加任何内容。
     tag = f"{socket.gethostname()}-{os.getpid()}-{args.profile}"
     logf = args.queue / "logs" / f"{tag}.log"
     logf.parent.mkdir(parents=True, exist_ok=True)
@@ -351,15 +351,15 @@ def main() -> int:
         try:
             res = render_ticket(engine, ticket, prov, log)
         except torch.OutOfMemoryError as e:
-            # another process may share this GPU: hand the ticket back unchanged, release this lease and let the next
-            # worker start on a GPU with enough free memory instead of failing the rest of the queue here
+            # 另一个进程可能共享这块 GPU：将 ticket 原样交回，释放本 lease，让下一个
+            # worker 在空闲显存足够的 GPU 上启动，而不是在这里让队列其余部分失败
             back = args.queue / "pending" / str(ticket.get("profile") or args.profile)
             back.mkdir(parents=True, exist_ok=True)
             (back / (path.name.split("@")[0] + ".json")).write_text(json.dumps(ticket, indent=2))
             path.unlink(missing_ok=True)
             log(f"OOM on {path.name}: {e!r}; ticket returned to {back.name}, worker exits to free the GPU")
             break
-        except Exception as e:  # noqa: BLE001 - keep the resident worker alive
+        except Exception as e:  # noqa: BLE001 - 保持常驻 worker 存活
             status, err = "failed", traceback.format_exc()
             print(f"FAILED {path.name}:\n{err}", file=sys.stderr, flush=True)
             log(f"FAILED {path.name}: {e!r}")

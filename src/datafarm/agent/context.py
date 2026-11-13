@@ -1,4 +1,4 @@
-"""Explicit, provider-independent project instruction loading; no task registry."""
+"""显式、与 provider 无关的项目指令加载；不含任务注册表。"""
 from __future__ import annotations
 
 import json

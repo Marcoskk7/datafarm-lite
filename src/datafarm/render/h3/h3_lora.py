@@ -1,15 +1,15 @@
-"""Fuse MiniMax-H3 inference adapters into the base transformer.
+"""把 MiniMax-H3 推理适配器融合进基础 transformer。
 
-The loader applies the adapter directly to the resident transformer, avoiding
-a PEFT runtime dependency after startup.
+加载器直接把适配器应用到常驻 transformer 上，从而避免启动后
+依赖 PEFT runtime。
 
-FastVideo's ``fastvideo-lora-v2`` checkpoints are hybrid adapters: low-rank
-updates use ``W += B @ A`` and selected parameters additionally carry tiny
-``.diff``/``.diff_b`` corrections. Those corrections must be accumulated in
-float32 or BF16 rounding can erase them. Replacement-weight checkpoints are
-rejected; this delivery accepts the dense-datafree adapter only.
+FastVideo 的 ``fastvideo-lora-v2`` checkpoint 是混合适配器：低秩
+更新使用 ``W += B @ A``，部分参数还带有微小的
+``.diff``/``.diff_b`` 修正。这些修正必须以 float32 累加，否则 BF16 舍入会
+抹掉它们。替换权重的 checkpoint 会被拒绝；本交付只接受
+dense-datafree 适配器。
 
-Checkpoint conventions and defaults follow:
+Checkpoint 约定与默认值参见：
 https://github.com/ModelTC/Minimax-H3-Turbo/blob/main/inference_minimax_h3.py
 """
 
@@ -110,7 +110,7 @@ def fuse_lora(
     alpha: int = 8,
     scale: float = 1.0,
 ) -> FuseReport:
-    """Validate and fuse a PEFT LoRA or FastVideo v2 hybrid adapter in-place."""
+    """原地校验并融合 PEFT LoRA 或 FastVideo v2 混合适配器。"""
     started = time.perf_counter()
     path = Path(path).expanduser().resolve()
     if not path.is_file():
@@ -142,7 +142,7 @@ def fuse_lora(
         validated = []
         validated_diffs = []
         ranks = set()
-        # Validate the complete checkpoint before modifying any base weight.
+        # 在修改任何基础权重之前校验完整 checkpoint。
         for module_name, (a_key, b_key) in pairs.items():
             if not hybrid and not module_name.endswith(LORA_TARGET_MODULES):
                 raise ValueError(f"Unsupported LoRA target module: {module_name}")

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Create blind, anonymized review jobs for EVAL-v1 independent reviews.
+"""为 EVAL-v1 独立评审创建盲化、匿名的评审任务。
 
-For each subject (an H3 package dir, or any dir with pack/ + score.json + a subject.json descriptor) we copy the
-lite pack into <run>/reviews/<rid>/pack, link generated.mp4 / carrier.mp4, and write <run>/reviews/<rid>/task.json
-(mode + OOD description only). The subject identity lives in <run>/reviews/.mapping.json, which reviewers
-are forbidden to read. Re-running is idempotent per subject.
+对每个 subject（一个 H3 package 目录，或任何带有 pack/ + score.json + subject.json 描述符的目录），把
+lite pack 复制到 <run>/reviews/<rid>/pack，链接 generated.mp4 / carrier.mp4，并写入 <run>/reviews/<rid>/task.json
+（仅 mode + OOD 描述）。subject 身份保存在 <run>/reviews/.mapping.json，评审者
+禁止读取。对同一 subject 重复运行是幂等的。
 
-  python h3_review_prep.py [--run-dir <run>] --subjects <dir> [<dir> ...]   # prints rid per subject
+  python h3_review_prep.py [--run-dir <run>] --subjects <dir> [<dir> ...]   # 为每个 subject 打印 rid
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def subject_info(d: Path) -> dict:
         var = next((v for v in bundle.get("ood_variants", []) if v["name"] == pkg.get("variant")), None)
         return {"kind": "h3", "recipe": pkg["recipe"]["name"], "task": pkg["task"], "episode": pkg["episode"],
                 "mode": pkg["mode"], "variant": var, "generated": asm["final"], "carrier": asm["carrier_clip"]}
-    rec = json.loads((d / "subject.json").read_text())  # descriptor of a subject that is not a package
+    rec = json.loads((d / "subject.json").read_text())  # 非 package 的 subject 描述符
     return rec
 
 
@@ -52,7 +52,7 @@ def main() -> int:
         rd = RUN / "reviews" / rid
         shutil.copytree(d / "pack", rd / "pack")
         for name, src in (("generated.mp4", info["generated"]), ("carrier.mp4", info["carrier"])):
-            try:  # hard link / copy, never a symlink: `ls -l` must not reveal the subject's identity
+            try:  # 硬链接/复制，绝不使用符号链接：`ls -l` 不得泄露 subject 的身份
                 os.link(src, rd / name)
             except OSError:
                 shutil.copy(src, rd / name)

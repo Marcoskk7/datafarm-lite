@@ -1,21 +1,17 @@
-"""Static pre-flight audit of an agent-written expert before the harness spends a rollout.
+"""在 harness 消耗 rollout 之前，对 agent 编写的 expert 做静态预检审计。
 
-The expert plugin runs inside the simulator process, so OS isolation cannot stop it from
-touching simulator objects in memory. The rules "only consume observations and return
-joint plans; no simulator, cloth or file access" would otherwise need auditing by hand.
-This audit makes the checkable part mechanical and runs on every rollout request and
-every submission:
+expert 插件运行在模拟器进程内，因此 OS 隔离无法阻止它触碰内存中的模拟器对象。
+否则"只消费观测并返回关节计划；不得访问模拟器、布料或文件"这些规则就只能靠人工审计。
+本审计把其中可检查的部分机械化，并在每次 rollout 请求和每次提交时运行：
 
-* the file parses, and the requested class exists at module top level (a misspelt class
-  would cost a counted GPU rollout);
-* every import is on the adapter's allowlist (numpy/scipy and the documented backend
-  modules of the task);
-* no dynamic code or file I/O built-ins (``open``, ``exec``, ``eval``, ``__import__``...),
-  no introspection escape hatches (``__subclasses__``, frame objects...), and no module
-  file I/O such as ``np.load``/``np.save``.
+* 文件可解析，且所请求的类位于模块顶层（拼错的类名会浪费一次计入配额的 GPU rollout）；
+* 每个 import 都在适配器的 allowlist 内（numpy/scipy 以及该任务已文档化的后端模块）；
+* 没有动态代码或文件 I/O 内建（``open``、``exec``、``eval``、``__import__`` 等），
+  没有内省逃逸口（``__subclasses__``、frame 对象等），也没有诸如
+  ``np.load``/``np.save`` 的模块级文件 I/O。
 
-A passing audit is necessary, not sufficient: it is recorded next to every attempt so the
-operator can tell "rejected before running" from "ran and failed".
+审计通过是必要条件而非充分条件：它记录在每次尝试旁边，以便操作者区分
+"运行前被拒绝"与"运行后失败"。
 """
 
 from __future__ import annotations
@@ -119,7 +115,7 @@ def audit_expert_source(source: str | bytes, class_name: str | None,
                         arg.value in forbidden_attrs or arg.value.startswith("__")):
                     flag(node, "introspection", f"{node.func.id}(..., {arg.value!r})")
                 elif not isinstance(arg, ast.Constant):
-                    pass  # dynamic attribute names are common in expert code; not flagged
+                    pass  # 动态属性名在 expert 代码中很常见；不计为违规
         elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
             if node.id in ("__builtins__", "__loader__", "__spec__"):
                 flag(node, "introspection", f"use of {node.id}")

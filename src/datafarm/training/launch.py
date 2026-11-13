@@ -1,16 +1,16 @@
-"""Preflight, normalize, smoke-test, prepare, or submit formal PI0.5 training.
+"""对正式 PI0.5 训练做前置检查、规范化、smoke test、准备或提交。
 
-The vendored openpi trainer is used read-only as the backend.  Before a launch manifest is written, the spec's explicit
-``state_conditioning`` (``none``), the CLI state flag and the Admission Certificate
-binding are audited with ``datafarm.training.audit_pi05_training_contract``.
+内置的 openpi trainer 只以只读方式作为 backend 使用。在写出 launch manifest 之前，会用
+``datafarm.training.audit_pi05_training_contract`` 审计 spec 中显式的
+``state_conditioning``（``none``）、CLI 的 state 标志以及 Admission Certificate
+绑定。
 
-Admission (``train-command``):
+准入（``train-command``）：
 
-* ``--admission-certificate <digest-or-path> [--admission-store DIR]`` loads the
-  certificate from its content-addressed store and verifies schema, digest,
-  the passing admission-root receipt (verifier != producer), the evidence, and
-  the binding to this dataset's provenance, allowlist, members and files;
-* a launch without a verified certificate is refused.
+* ``--admission-certificate <digest-or-path> [--admission-store DIR]`` 从内容寻址存储
+  加载证书，并校验 schema、digest、通过的 admission-root receipt（verifier != producer）、
+  证据，以及与本数据集 provenance、allowlist、members 和 files 的绑定；
+* 没有已验证证书的 launch 会被拒绝。
 """
 
 from __future__ import annotations
@@ -59,11 +59,11 @@ LAUNCH_MANIFEST_SCHEMA = "datafarm.pi05-train-launch/1.2.0"
 
 
 class AdmissionRequired(ValueError):
-    """A new launch has no verifiable Admission Certificate."""
+    """新的 launch 没有可验证的 Admission Certificate。"""
 
 
 def resolve_certificate_reference(value: str, store: str | None) -> tuple[str, Path]:
-    """Return (certificate digest, store root) for a digest or certificate file."""
+    """对 digest 或证书文件返回 (certificate digest, store root)。"""
 
     if is_sha256(value):
         if not store:
@@ -132,7 +132,7 @@ def verify_launch_certificate(value: str, store_arg: str | None, spec: dict[str,
 
 def resolve_admission(args: argparse.Namespace, spec: dict[str, Any], spec_path: Path,
                       paths: dict[str, Any]) -> tuple[AdmissionBinding, dict[str, Any]]:
-    """Bind this launch to a verified Admission Certificate; fail closed without one."""
+    """把本次 launch 绑定到已验证的 Admission Certificate；缺失时 fail closed。"""
 
     certificate = getattr(args, "admission_certificate", None)
     if not certificate:
@@ -145,7 +145,7 @@ def resolve_admission(args: argparse.Namespace, spec: dict[str, Any], spec_path:
 
 
 def validate_training_distribution_admission(spec: dict[str, Any], provenance: dict[str, Any]) -> dict[str, Any]:
-    """Fail closed unless policy training is bound to an accepted distribution."""
+    """除非策略训练绑定到已接受的 distribution，否则 fail closed。"""
 
     if spec.get("schema_version") != "datafarm.pi05-finetune/1.1.0":
         raise ValueError("Formal training requires datafarm.pi05-finetune/1.1.0")
@@ -186,7 +186,7 @@ def validate_training_distribution_admission(spec: dict[str, Any], provenance: d
 
 
 def state_conditioning(spec: dict[str, Any]) -> str:
-    """Return the explicitly declared state mode; the launcher trains state-free only."""
+    """返回显式声明的 state 模式；launcher 只进行不带 state 输入的训练。"""
 
     mode = spec.get("state_conditioning")
     if mode not in STATE_CONDITIONING_MODES:
@@ -199,7 +199,7 @@ def state_conditioning(spec: dict[str, Any]) -> str:
 def validate_joint_source_evidence(
     spec: dict[str, Any], dataset_root: Path, info: dict[str, Any], provenance: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    """Bind derived joint labels to exact source readbacks without inventing a home threshold."""
+    """把推导出的 joint 标签绑定到精确的 source readback，而不凭空发明 home 阈值。"""
 
     evidence = spec.get("joint_source_evidence")
     if not isinstance(evidence, dict):
@@ -258,19 +258,18 @@ def validate_joint_source_evidence(
 
 EEF_GRIPPER_CHECK = "all_gripper_columns_bit_identical_to_eef"
 COMMAND_GRIPPER_CHECK = "all_gripper_columns_bit_identical_to_independent_command_rederivation"
-# joint_conversion keys that name an EEF source dataset the joint labels were derived from.
+# 指向 joint 标签所来源的 EEF 数据集的 joint_conversion 键。
 _EEF_SOURCE_KEYS = ("source_dataset", "source_repo_id", "source_provenance_sha256", "gripper_bit_identity")
 
 
 def _joint_gripper_evidence(evidence: dict[str, Any], checks: dict[str, Any], machine_audit: dict[str, Any],
                             provenance: dict[str, Any] | None) -> dict[str, Any]:
-    """Choose the gripper bit-identity evidence; fail closed unless "no EEF baseline" is explicit.
+    """选择 gripper 位一致性证据；除非"没有 EEF baseline"是显式声明，否则 fail closed。
 
-    Default: the independent audit proves the gripper columns are bit-identical to the
-    EEF source dataset. Only when the spec declares ``joint_source_evidence.eef_baseline``
-    as not applicable (with a reason), the bound dataset provenance names no EEF source,
-    and the independent audit itself records the EEF check as explicitly null/not
-    applicable, may the audit's independent command re-derivation stand in for it.
+    默认：独立审计证明 gripper 列与 EEF 源数据集逐位相同。只有当 spec 把
+    ``joint_source_evidence.eef_baseline`` 声明为不适用（并给出原因）、绑定的数据集
+    provenance 未指明任何 EEF 来源，且独立审计本身把 EEF 检查记录为显式的
+    null/不适用时，才可以由审计中的独立 command 重新推导来替代。
     """
 
     declared = evidence.get("eef_baseline")
@@ -418,8 +417,8 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         )
         joint_source_evidence = validate_joint_source_evidence(spec, dataset_root, info, provenance)
         action_shift_audit = audit_joint_action_shift(dataset_root, gripper_unit=str(joint_contract["gripper_unit"]))
-        # Joint datasets inherit the already-admitted source home/collision evidence.
-        # They must not be checked with EEF geometry or a newly invented joint tolerance.
+        # joint 数据集继承已准入的来源 home/collision 证据。
+        # 它们不得用 EEF 几何或新发明的 joint 容差来检查。
         terminal_home_audit = {
             "status": "not_applicable",
             "reason": "joint mode binds source joint-home evidence; EEF terminal geometry is not applied",
@@ -503,7 +502,7 @@ def compute_norm_stats(spec: dict[str, Any], paths: dict[str, Any], max_frames: 
         take = len(state) if remaining is None else min(len(state), remaining)
         if take <= 0:
             break
-        # LeRobot clamps future delta indices to the final frame of each episode.
+        # LeRobot 会把未来的 delta 索引夹取到每个 episode 的最后一帧。
         indices = np.minimum(
             np.arange(take, dtype=np.int64)[:, None] + np.arange(horizon, dtype=np.int64)[None, :],
             len(action) - 1,
@@ -604,7 +603,7 @@ def build_train_command(spec: dict[str, Any], paths: dict[str, Any]) -> list[str
 
 def audit_launch(spec: dict[str, Any], paths: dict[str, Any], train: list[str], *,
                  admission: AdmissionBinding | None) -> dict[str, Any]:
-    """Audit the launch contract: declared state mode, CLI flag, admission and dimensions."""
+    """审计 launch 契约：声明的 state 模式、CLI 标志、准入与各维度。"""
 
     mode = state_conditioning(spec)
     contract = Pi05TrainingContract(
@@ -654,7 +653,7 @@ def write_launch_manifest(spec_path: Path, spec: dict[str, Any], paths: dict[str
     run_dir.mkdir(parents=True, exist_ok=True)
     output = run_dir / "launch-manifest.json"
     if output.is_file():
-        # Keep the manifest being replaced as evidence.
+        # 保留被替换的 manifest 作为证据。
         kept = run_dir / f"launch-manifest.{sha256_file(output)[:12]}.superseded.json"
         if not kept.exists():
             output.replace(kept)
@@ -718,7 +717,7 @@ def replace_fsdp_devices(command: list[str], devices: int) -> list[str]:
 
 
 def submit(args: argparse.Namespace) -> int:
-    """Atomically prefer a larger single-host allocation; exit 2 if none is free."""
+    """原子地优先选择更大的单主机分配；若没有空闲分配则以 2 退出。"""
 
     job = args.job_command[1:] if args.job_command and args.job_command[0] == "--" else args.job_command
     if not job:
@@ -805,8 +804,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"launch_manifest": str(manifest), "admission_mode": admission.mode,
                           "command": command}, indent=2))
         if args.execute:
-            # Preserve the scheduler's explicit capacity refusal (2), so a
-            # durable queue can distinguish it from an unknown submission.
+            # 保留调度器显式的容量拒绝码 (2)，使持久队列
+            # 能把它与未知的提交结果区分开。
             return subprocess.run(command, check=False).returncode
     return 0
 

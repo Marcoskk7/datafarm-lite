@@ -1,11 +1,10 @@
-"""Verified expert library: content-addressed experts that passed holdout evaluation.
+"""已验证的 expert 库：通过 holdout 评估的、按内容寻址存储的 expert。
 
-Voyager / GenSim-style reuse, with our stricter admission: only an expert whose frozen
-snapshot passed the harness's own holdout evaluation at or above the adapter's threshold
-is stored, together with the task id, brief and Task-IR digests, verifier version,
-holdout scores, model and cost that produced it. Objects are stored by SHA-256 and
-verified on every read, so a tampered object is detected rather than reused. New rounds
-can retrieve reference experts (``prepare-round --library L --references N``).
+Voyager / GenSim 风格的复用，但准入门槛更严格：只有冻结快照通过了 harness 自身的
+holdout 评估、且分数达到或超过适配器阈值的 expert 才会入库，连同其 task id、brief 与
+Task-IR 摘要、verifier 版本、holdout 分数，以及产生它的模型与成本。对象按 SHA-256 存储，
+每次读取都校验，因此被篡改的对象会被发现而不是被复用。新一轮可以检索参考 expert
+（``prepare-round --library L --references N``）。
 """
 
 from __future__ import annotations
@@ -95,7 +94,7 @@ class ExpertLibrary:
         return found[:limit]
 
     def export_references(self, entries: list[dict[str, Any]], out_dir: Path) -> str:
-        """Copy reference experts into a round and return the brief section text."""
+        """把参考 expert 复制进本轮，并返回 brief 小节文本。"""
 
         out_dir.mkdir(parents=True, exist_ok=True)
         lines = []
@@ -112,7 +111,7 @@ class ExpertLibrary:
 
 def add_from_round(library: ExpertLibrary, paths: RoundPaths, adapter: TaskAdapter, *,
                    now: float, min_pass_rate: float | None = None) -> dict[str, Any] | None:
-    """Admit the round's final expert if its holdout pass rate meets the threshold."""
+    """若本轮最终 expert 的 holdout 通过率达到阈值，则将其纳入库中。"""
 
     state = RoundState.load(paths.state)
     if not paths.holdout_results.exists():

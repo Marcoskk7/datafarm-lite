@@ -1,14 +1,14 @@
-"""Decoding into a layout-normalised working representation.
+"""解码为按布局归一化的工作表示。
 
-Generated videos may arrive at a provider-specific resolution (for example a
-uniform 1.225x upscale).  Every clip is therefore resized onto the carrier's
-layout coordinates before any comparison, while the native size is kept for the
-transport check.  Two copies are held:
+生成的视频可能以 provider 特定的分辨率到达（例如
+统一的 1.225x 放大）。因此每段视频在任何比较之前都会缩放到 carrier 的
+布局坐标，同时保留原始尺寸用于
+transport 检查。这里保存两份副本：
 
-* ``frames``: colour frames at ``work_scale`` of the layout, every ``stride``-th
-  frame (sample ``j`` is source frame ``j * stride``);
-* ``gray``: every frame, grayscale, at ``gray_scale`` of the layout, used for
-  frame-rate-exact temporal, seam and event measurements.
+* ``frames``：布局 ``work_scale`` 下的彩色帧，每隔 ``stride`` 帧取一帧
+  （样本 ``j`` 即源帧 ``j * stride``）；
+* ``gray``：所有帧的灰度图，位于布局的 ``gray_scale``，用于
+  帧率精确的时间、接缝与事件测量。
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ def load_clip(
 
 def load_reference_clip(path: str | Path, *, layout_size: tuple[int, int], work_scale: float = 0.5,
                         target_samples: int = 120) -> Clip:
-    """Real-world footage: sample about ``target_samples`` colour frames whatever its length."""
+    """真实世界素材：无论长度如何，都采样约 ``target_samples`` 张彩色帧。"""
 
     capture = cv2.VideoCapture(str(path))
     count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
@@ -114,7 +114,7 @@ def load_reference_clip(path: str | Path, *, layout_size: tuple[int, int], work_
 
 def derive_clip(base: Clip, *, frames: np.ndarray | None = None, gray: np.ndarray | None = None,
                 **changes) -> Clip:
-    """Copy a clip with replaced arrays (used by counterfactual generators)."""
+    """复制一个 clip 并替换数组（供反事实生成器使用）。"""
 
     values = dict(base.__dict__)
     if frames is not None:
@@ -128,7 +128,7 @@ def derive_clip(base: Clip, *, frames: np.ndarray | None = None, gray: np.ndarra
 
 
 def panel_slice(box, scale: float, shape: tuple[int, int]) -> tuple[slice, slice]:
-    """Rows/cols of a layout-coordinate box at the given scale, clipped to shape."""
+    """给定缩放下布局坐标系盒子的行/列范围，裁剪到 shape。"""
 
     height, width = shape
     x0 = int(round(box.x * scale))

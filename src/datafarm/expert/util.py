@@ -1,7 +1,6 @@
-"""Shared helpers: canonical JSON, digests, atomic files, append-only JSONL, clocks, templates.
+"""共享辅助：规范化 JSON、摘要、原子文件、仅追加 JSONL、时钟与模板。
 
-Everything here is standard library only, so the harness runs on the operator host without
-the simulator or training environments.
+这里的一切只依赖标准库，因此 harness 可以在没有模拟器或训练环境的操作主机上运行。
 """
 
 from __future__ import annotations
@@ -18,22 +17,22 @@ from typing import Any, Iterable, Mapping
 
 
 class HarnessError(Exception):
-    """Base class for every error the harness raises on purpose."""
+    """harness 有意抛出的所有错误的基类。"""
 
 
 class ConfigError(HarnessError):
-    """An adapter, suite or round configuration is invalid (fail closed)."""
+    """适配器、套件或本轮的配置无效（fail closed）。"""
 
 
 class UnsafePathError(HarnessError):
-    """An agent-supplied path escapes its root, is a symlink, or is not a regular file."""
+    """agent 提供的路径逃出其根目录、是符号链接，或不是普通文件。"""
 
 
-# --------------------------------------------------------------------------- time
+# --------------------------------------------------------------------------- 时间
 
 
 class Clock:
-    """Wall clock used for budgets and timestamps; tests substitute a deterministic subclass."""
+    """用于预算与时间戳的 wall clock；测试会替换为确定性的子类。"""
 
     def now(self) -> float:
         return time.time()
@@ -44,7 +43,7 @@ class Clock:
 
 
 def human_duration(seconds: float) -> str:
-    """``17100`` -> ``"4 h 45 min"``; ``5400`` -> ``"1 h 30 min"``; ``600`` -> ``"10 min"``."""
+    """``17100`` -> ``"4 h 45 min"``；``5400`` -> ``"1 h 30 min"``；``600`` -> ``"10 min"``。"""
 
     minutes = int(round(float(seconds) / 60.0))
     hours, rest = divmod(minutes, 60)
@@ -55,14 +54,14 @@ def human_duration(seconds: float) -> str:
     return f"{rest} min"
 
 
-# --------------------------------------------------------------------------- digests
+# --------------------------------------------------------------------------- 摘要
 
 
 def tree_digest(root: str | Path, *, exclude_names: Iterable[str] = ("__pycache__",),
                 exclude_suffixes: Iterable[str] = (".pyc",)) -> dict[str, Any]:
-    """Digest of a directory tree: sorted ``relpath<TAB>sha256`` lines, symlinks by target text.
+    """目录树的摘要：排序后的 ``relpath<TAB>sha256`` 行，符号链接取其目标文本。
 
-    Symlinks are never followed, so a link that points somewhere else is itself a change.
+    符号链接从不跟随，因此指向别处的链接本身就是一处变化。
     """
 
     base = Path(root)
@@ -93,7 +92,7 @@ def tree_digest(root: str | Path, *, exclude_names: Iterable[str] = ("__pycache_
             "bytes": total}
 
 
-# --------------------------------------------------------------------------- files
+# --------------------------------------------------------------------------- 文件
 
 
 def atomic_write_bytes(path: str | Path, data: bytes, mode: int = 0o644) -> None:
@@ -128,7 +127,7 @@ def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
 
 
 def safe_relpath(value: Any) -> str:
-    """Validate an agent-supplied relative path (no absolute, no ``..``, no NUL)."""
+    """校验 agent 提供的相对路径（非绝对路径、不含 ``..``、不含 NUL）。"""
 
     if not isinstance(value, str) or not value or "\x00" in value or len(value) > 512:
         raise UnsafePathError("path must be a non-empty relative string")
@@ -141,11 +140,10 @@ def safe_relpath(value: Any) -> str:
 
 
 def read_regular_nofollow(root: str | Path, relpath: str, *, max_bytes: int) -> bytes:
-    """Read ``root/relpath`` without following a symlink at any component.
+    """读取 ``root/relpath``，且在任何路径分量上都不跟随符号链接。
 
-    The agent owns the directories below ``root``; a symlink there could point the
-    harness (which runs outside the sandbox) at a protected file, so every component is
-    opened with ``O_NOFOLLOW`` relative to its parent descriptor.
+    ``root`` 之下的目录归 agent 所有；其中的符号链接可能把 harness（运行在 sandbox 之外）
+    引向受保护的文件，因此每个分量都相对其父目录描述符以 ``O_NOFOLLOW`` 打开。
     """
 
     parts = safe_relpath(relpath).split("/")
@@ -190,16 +188,16 @@ def read_regular_nofollow(root: str | Path, relpath: str, *, max_bytes: int) -> 
         os.close(dir_fd)
 
 
-# --------------------------------------------------------------------------- templates
+# --------------------------------------------------------------------------- 模板
 
 _PLACEHOLDER = re.compile(r"\{\{|\}\}|\{([A-Za-z_][A-Za-z0-9_.:-]*)\}")
 
 
 def expand(template: str, values: Mapping[str, Any], *, keep_env: bool = False) -> str:
-    """Replace ``{name}`` placeholders; ``{{``/``}}`` are literal braces.
+    """替换 ``{name}`` 占位符；``{{``/``}}`` 是字面大括号。
 
-    Unknown names raise :class:`ConfigError` (fail closed). With ``keep_env`` a
-    ``{env:NAME}`` placeholder is left for the shell as ``${NAME}``.
+    未知名称会抛出 :class:`ConfigError`（fail closed）。当 ``keep_env`` 为真时，
+    ``{env:NAME}`` 占位符会原样留给 shell，写成 ``${NAME}``。
     """
 
     def replace(match: re.Match[str]) -> str:
@@ -233,7 +231,7 @@ def expand_all(value: Any, values: Mapping[str, Any], *, keep_env: bool = False)
 
 
 def get_dotted(value: Any, dotted: str) -> Any:
-    """``get_dotted({"a": {"b": [1, 2]}}, "a.b.1") == 2``; missing -> ``None``."""
+    """``get_dotted({"a": {"b": [1, 2]}}, "a.b.1") == 2``；缺失时返回 ``None``。"""
 
     current = value
     for part in dotted.split("."):
@@ -257,7 +255,7 @@ def deep_merge(base: Mapping[str, Any], override: Mapping[str, Any]) -> dict[str
 
 
 def clip_text(value: Any, limit: int = 1000) -> str:
-    """Printable, length-limited text for agent-supplied notes."""
+    """把 agent 提供的备注处理成可打印、长度受限的文本。"""
 
     text = "" if value is None else str(value)
     text = "".join(ch if ch.isprintable() or ch in "\n\t" else " " for ch in text)

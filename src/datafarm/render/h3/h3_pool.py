@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
-"""H3 worker pool: resident workers that keep the model loaded, plus elastic workers while the queue has work.
+"""H3 worker pool：常驻 worker 保持模型已加载，队列有工作时则使用弹性 worker。
 
-  python h3_pool.py run [--run-dir <run>] [--once]     # single instance per run (flock); loops every `interval_s`
+  python h3_pool.py run [--run-dir <run>] [--once]     # 每个 run 单实例（flock）；每 `interval_s` 循环一次
   python h3_pool.py status [--run-dir <run>]
 
-Configuration: <run>/queue/pool.json (h3.worker-pool/1), re-read every cycle, so the operator can change the counts
-without a restart:
+配置：<run>/queue/pool.json（h3.worker-pool/1），每个周期重新读取，因此操作员无需重启即可更改数量：
   {"schema": "h3.worker-pool/1", "profile": "control-turbo",
-   "resident": 1,              # workers kept alive at all times (a new episode starts without GPU wait or model load)
-   "max_workers": 4,           # resident + elastic ceiling; elastic workers are added while tickets are pending
-   "resident_idle_min": 720,   # a resident worker's idle exit (safety net; the pool relaunches it)
+   "resident": 1,              # 始终存活的 worker（新 episode 启动时无需等待 GPU 或加载模型）
+   "max_workers": 4,           # resident + 弹性上限；有 pending ticket 时会添加弹性 worker
+   "resident_idle_min": 720,   # resident worker 的空闲退出（安全网；pool 会重新启动它）
    "elastic_idle_min": 20,
-   "min_free_mb": 172000,      # a full-residency worker peaks at ~169.5k MiB
-   "local_gpus": [0, 1],       # optional: local mode on `local_host`, the scheduler is not used
+   "min_free_mb": 172000,      # 完全驻留的 worker 峰值约 169.5k MiB
+   "local_gpus": [0, 1],       # 可选：在 `local_host` 上的本地模式，不使用调度器
    "local_host": "<hostname>"}
-Scheduler mode submits launch_control_worker.sh (hosts from <run>/queue/ALLOWED_HOSTS, never preempting) and tracks
-workers by the scheduler's `leases`; an unknown lease table launches nothing that cycle.  Exit 2 from `submit` (no
-GPU free) backs off quietly.  Local mode starts the same worker on a listed GPU of this host that has `min_free_mb`
-free (nvidia-smi), tracks it by pid, and refuses to run on any host but `local_host`; it also returns tickets claimed
-by dead local workers to the queue (h3_requeue_orphans.py reads scheduler leases and does not see local workers).
-State: <run>/queue/pool-state.json.  Stop: touch <run>/queue/STOP (workers and pool exit).
+调度器模式提交 launch_control_worker.sh（host 来自 <run>/queue/ALLOWED_HOSTS，绝不抢占），并通过
+调度器的 `leases` 跟踪 worker；lease 表未知的周期不发起任何东西。`submit` 退出码 2（无
+空闲 GPU）时安静退避。本地模式在本机上列出的、具有 `min_free_mb` 空闲显存（nvidia-smi）的 GPU
+上启动相同的 worker，通过 pid 跟踪它，并拒绝在 `local_host` 之外的任何主机上运行；它还会把被
+已死本地 worker 认领的 ticket 归还队列（h3_requeue_orphans.py 读取调度器 lease，看不到本地 worker）。
+状态：<run>/queue/pool-state.json。停止：touch <run>/queue/STOP（worker 和 pool 退出）。
 """
 from __future__ import annotations
 
@@ -41,8 +40,8 @@ SCHEMA = "h3.worker-pool/1"
 DEFAULTS = {"profile": "control-turbo", "resident": 0, "max_workers": 1, "resident_idle_min": 720,
             "elastic_idle_min": 20, "min_free_mb": 172000, "interval_s": 30, "local_gpus": [], "local_host": None}
 HOST = socket.gethostname()
-PROCS: dict = {}   # local workers started by this process: id -> Popen
-CLAIM_TAG = re.compile(r"(.+)-(\d+)-([A-Za-z][\w.-]*)$")   # running ticket <name>@<host>-<pid>-<profile>.json
+PROCS: dict = {}   # 本进程启动的本地 worker：id -> Popen
+CLAIM_TAG = re.compile(r"(.+)-(\d+)-([A-Za-z][\w.-]*)$")   # 运行中的 ticket <name>@<host>-<pid>-<profile>.json
 
 
 def config(run: Path) -> dict:
@@ -61,7 +60,7 @@ def config(run: Path) -> dict:
 
 
 def live_lease_ids() -> set | None:
-    """Lease ids from `$GPU_SCHEDULER leases`, None when the table is unknown."""
+    """从 `$GPU_SCHEDULER leases` 获取 lease id，表未知时返回 None。"""
     try:
         p = subprocess.run([h3_paths.gpu_scheduler(), "leases"], capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired):
@@ -76,7 +75,7 @@ def pid_alive(pid) -> bool:
         os.kill(int(pid), 0)
     except (OSError, ValueError, TypeError):
         return False
-    try:   # a zombie is not a worker
+    try:   # 僵尸进程不是 worker
         return Path(f"/proc/{int(pid)}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
     except (OSError, IndexError):
         return True
@@ -102,7 +101,7 @@ def worker_env(run: Path, cfg: dict, resident: bool) -> dict:
 
 
 def launch_scheduled(run: Path, cfg: dict, resident: bool) -> tuple[dict | None, str, bool]:
-    """(worker, message, busy): busy = the scheduler had no matching GPU (exit 2)."""
+    """(worker, message, busy)：busy = 调度器没有匹配的 GPU（退出码 2）。"""
     p = subprocess.run(["bash", str(HERE / "launch_control_worker.sh"), "full"], env=worker_env(run, cfg, resident),
                        cwd=run, capture_output=True, text=True, timeout=300)
     out = (p.stdout + p.stderr).strip()
@@ -141,7 +140,7 @@ def local_alive(w: dict) -> bool:
 
 
 def requeue_dead_local(run: Path) -> list[str]:
-    """Return tickets claimed on this host by a worker pid that is gone (local mode only)."""
+    """返回在本主机上被已消失的 worker pid 认领的 ticket（仅本地模式）。"""
     out = []
     for t in sorted((run / "queue/running").glob("*.json")):
         name, _, tag = t.stem.rpartition("@")
@@ -161,7 +160,7 @@ def requeue_dead_local(run: Path) -> list[str]:
 
 
 def cycle(run: Path, st: dict, log) -> float:
-    """One pool step; returns seconds to wait before the next one (0: try to add another worker now)."""
+    """一个 pool 步骤；返回下一次之前等待的秒数（0：立刻尝试再加一个 worker）。"""
     cfg = config(run)
     local = bool(cfg["local_gpus"])
     if local and HOST != cfg["local_host"]:

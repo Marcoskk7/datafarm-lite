@@ -1,17 +1,14 @@
-"""The broker: the harness side of the agent's only tool (``xh``).
+"""broker：agent 唯一工具（``xh``）在 harness 一侧的实现。
 
-The agent writes a request file into ``broker/requests/``; the harness (outside the
-sandbox) validates it, launches the rollout through the adapter's backend, and writes
-the response. Launching rollouts, keeping the attempt log and counting concurrency happen
-here, and every
-decision (accepted, rejected and why) is recorded in harness-owned ledgers the agent can
-read but not write.
+agent 把请求文件写入 ``broker/requests/``；harness（位于 sandbox 之外）校验该请求，
+通过适配器的 backend 启动 rollout，并写出响应。启动 rollout、保存尝试日志与统计并发
+都在这里发生，每一个决定（接受、拒绝及其原因）都记录在 harness 自有的账本中，
+agent 可以读取但不能写入。
 
-Rules enforced per request: development seeds only (a holdout seed is a recorded
-violation), static expert audit, concurrency counted from live attempts (not from
-scheduler leases, which can vanish and let rollouts exceed the limit),
-counted-rollout budget including rollouts in flight, infrastructure-failure cap, wall
-budget, and round state (closing after a final submission or a flag for a human).
+每个请求都会强制以下规则：仅限开发 seed（请求 holdout seed 会记录为违规）、静态 expert
+审计、并发数按存活的尝试统计（而非按调度器租约，后者可能消失并让 rollout 超出上限）、
+计入配额的 rollout 预算（含正在执行中的 rollout）、基础设施失败上限、wall 预算，
+以及本轮状态（在最终提交后关闭，或标记交由人工处理）。
 """
 
 from __future__ import annotations
@@ -77,7 +74,7 @@ class Broker:
         self._last_status = float("-inf")
         self._last_status_digest: str | None = None
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ 辅助函数
 
     @property
     def attempts(self) -> dict[str, dict[str, Any]]:
@@ -98,8 +95,8 @@ class Broker:
         return sorted(ids)
 
     def _alive_again(self, attempt: Mapping[str, Any], now: float) -> bool:
-        """A job declared lost whose heartbeat moved again still occupies a GPU.
-        (File times are wall-clock times, so this uses the real clock.)"""
+        """一个已宣告丢失、但心跳又恢复更新的 job 仍然占用 GPU。
+        （文件时间使用 wall-clock 时间，因此这里用真实时钟。）"""
 
         try:
             mtime = (Path(attempt["run_dir"]) / "heartbeat").stat().st_mtime
@@ -139,11 +136,11 @@ class Broker:
                                           "`xh wait` and retry")
         return True, "ok", ""
 
-    # ------------------------------------------------------------------ tick
+    # ------------------------------------------------------------------ tick 轮询
 
     def tick(self, *, force_poll: bool = False) -> None:
-        """Handle requests, poll rollouts (throttled in real time: it touches the shared
-        filesystem), refresh the agent-visible status."""
+        """处理请求、轮询 rollout（按真实时间限流：它会访问共享文件系统），
+        刷新 agent 可见的状态。"""
 
         self.process_requests()
         now = self.now()
@@ -153,7 +150,7 @@ class Broker:
             self.poll(now)
         self.write_status(now)
 
-    # ------------------------------------------------------------------ requests
+    # ------------------------------------------------------------------ 请求
 
     def process_requests(self) -> int:
         try:
@@ -193,7 +190,7 @@ class Broker:
                              reason="request file name is not a valid request id")
             return None
         if (self.paths.responses / f"{rid}.json").exists():
-            return None  # duplicate id: the first answer stands
+            return None  # id 重复：以第一个答复为准
         try:
             raw = read_regular_nofollow(self.paths.requests, name, max_bytes=MAX_REQUEST_BYTES)
         except (UnsafePathError, OSError) as exc:
@@ -384,7 +381,7 @@ class Broker:
                 "status": "accepted", "message": "Recorded. The round ends after this session; an "
                                                  "operator will read your reason.", "utc": utc_now(now)}
 
-    # ------------------------------------------------------------------ attempts
+    # ------------------------------------------------------------------ 尝试
 
     def _spec(self, attempt_id: str) -> AttemptSpec:
         a = self.attempts[attempt_id]
@@ -517,7 +514,7 @@ class Broker:
                          success=outcome.get("success"))
 
     def drain(self, timeout_s: float, *, sleep_s: float = 5.0) -> list[str]:
-        """Wait for rollouts in flight (round end); what is still running is abandoned."""
+        """等待正在执行的 rollout（本轮结束）；仍在运行的一律放弃。"""
 
         deadline = self.now() + timeout_s
         while self.in_flight_ids() and self.now() < deadline:
@@ -531,7 +528,7 @@ class Broker:
         self.write_status(self.now(), force=True)
         return abandoned
 
-    # ------------------------------------------------------------------ views
+    # ------------------------------------------------------------------ 视图
 
     def budget_view(self, now: float) -> dict[str, Any]:
         b = self.budgets
@@ -593,7 +590,7 @@ class Broker:
 
     def write_status(self, now: float, *, force: bool = False) -> None:
         view = self.status_view(now)
-        # clocks tick every second; rewrite on real changes, or every status_every_s
+        # 时钟每秒都在走；只在真实变化时重写，或每隔 status_every_s 重写一次
         stable = {k: v for k, v in view.items() if k not in ("running", "budget")}
         stable["budget"] = {k: v for k, v in view["budget"].items() if k != "wall_s"}
         stable["running"] = [(r["attempt_id"], r["state"]) for r in view["running"]]

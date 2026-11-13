@@ -1,40 +1,40 @@
 #!/usr/bin/env python3
-"""Render-only replay of one captured white attempt (SAPIEN task experts).
+"""对一个已采集 white attempt 的仅渲染重放（SAPIEN 任务 expert）。
 
-The H3 renderer copies what the white carrier shows: pale simulator robot links become white arms, a cylinder proxy
-becomes a plain cylinder, a dim simulator wall becomes a charcoal wall, and a white captured at a low image rate becomes
-judder.  This tool runs the attempt's own frozen expert entry (`W/task/expert/run_seed.py SEED OUTDIR --image`) again
-with the same seed and changes only what the cameras see:
+H3 渲染器复制 white carrier 所展示的内容：浅色的模拟器机器人连杆变成白色手臂，圆柱代理
+变成普通圆柱，昏暗的模拟器墙变成炭灰色墙，以低图像帧率采集的 white 变成
+抖动。本工具用相同 seed 再次运行该 attempt 自己的冻结 expert 入口
+（`W/task/expert/run_seed.py SEED OUTDIR --image`），只改变相机看到的内容：
 
-  wrist_fov_factor  wrist camera focal length x F (same pose and principal point), applied to every SAPIEN camera
-                    component named *wrist* before each render, whatever way the task built it; the original and the
-                    used intrinsics are recorded.  H3 renders the wider wrist views and `h3_wrist_crop.py` crops them
-                    back by F, so the output keeps the white's own wrist camera model;
-  image_stride      physics steps per captured image, for scripts that expose IMAGE_STRIDE (a dense white instead of a
-                    low-rate one; never interpolate a low-rate white);
-  colors            render-only base colours: an entity name, "@dynamic" (every free rigid body), "@robot" (every robot
-                    link), "@robot_links" ({link name or fnmatch pattern: rgba}, wins over "@robot"), a two-tone
-                    {"body": rgba, "top": rgba} cylinder (a thin render-only disc on its upward end), and "@states"
-                    ({entity: [{"when": rgb, "to": rgba, "emission"?: rgba}]}: a material the script switches to `when`
-                    is shown as `to`, every frame it is in that state);
-  shapes            {entity name: [part, ...]}: the entity's visual model is replaced by parametric parts (recolor,
-                    barrel, heads, studs, apple, stem, box, revolve_z, handle, hide); collision shapes, mass and
-                    inertia are untouched;
-  extras            world-frame render-only parts (box, cylinder) with no physics component: scene dressing such as a
-                    real wall or counter the simulator scene lacks.
+  wrist_fov_factor  wrist 相机焦距 x F（位姿与主点不变），在每次渲染前应用到名称含 *wrist* 的每个 SAPIEN 相机
+                    组件，无论任务如何构建它；原始内参与
+                    实际使用的内参都会被记录。H3 渲染更宽的 wrist 视图，再由 `h3_wrist_crop.py` 按 F 裁回，
+                    因此输出保留 white 自身的 wrist 相机模型；
+  image_stride      每张采集图像对应的物理步数，适用于暴露 IMAGE_STRIDE 的脚本（用密集 white 代替
+                    低帧率 white；绝不对低帧率 white 做插值）；
+  colors            仅渲染的基础颜色：实体名称、"@dynamic"（每个自由刚体）、"@robot"（每个机器人
+                    连杆）、"@robot_links"（{link 名称或 fnmatch 模式: rgba}，优先于 "@robot"）、双色
+                    {"body": rgba, "top": rgba} 圆柱（其朝上端有一个仅渲染的薄圆盘），以及 "@states"
+                    （{entity: [{"when": rgb, "to": rgba, "emission"?: rgba}]}：脚本切换到 `when` 的材质
+                    在处于该状态的每一帧都显示为 `to`）；
+  shapes            {实体名称: [part, ...]}：实体的视觉模型被替换为参数化部件（recolor、
+                    barrel、heads、studs、apple、stem、box、revolve_z、handle、hide）；碰撞形状、质量与
+                    惯性保持不变；
+  extras            世界坐标系中无物理组件的仅渲染部件（box、cylinder）：场景装饰，例如模拟器场景缺少的
+                    真实墙壁或柜台。
 
-Physics runs unchanged, so the trajectory must be identical: the replay's state log is compared with the attempt's
-(states.jsonl, trace.jsonl or physics.jsonl: every field except the PhysX contact report, whose ordering is not
-deterministic; or every array of log.npz) and the result is written to
-OUT/white-replay.json.  The tool exits 2 when the log differs or when a requested change was not applied.  The replay
-is a render input only; it never replaces the attempt, its judge verdict or its admission.
+物理照常运行，因此轨迹必须完全一致：重放的状态日志会与 attempt 的日志比较
+（states.jsonl、trace.jsonl 或 physics.jsonl：除 PhysX 接触报告外的所有字段，其顺序
+不确定；或 log.npz 的每个数组），结果写入
+OUT/white-replay.json。当日志不一致或请求的更改未生效时，工具以 2 退出。重放
+仅是渲染输入；它绝不替代该 attempt、其 judge 裁决或其准入。
 
   python -m datafarm.simulation.white_replay ATTEMPT_DIR OUT_DIR --spec replay.json
   python -m datafarm.simulation.white_replay ATTEMPT_DIR OUT_DIR --verify-only
   python -m datafarm.simulation.white_replay --check-spec replay.json
 
-Run it with the task's simulator interpreter on a host that can render (SAPIEN).  The spec is a task product
-(schema "datafarm.white-replay/1"); see docs/reference/rendering.md, "Preparing the white carrier".
+在能够渲染的 host 上，用任务的模拟器解释器运行它（SAPIEN）。该 spec 是任务产物
+（schema "datafarm.white-replay/1"）；参见 docs/reference/rendering.md 的 "Preparing the white carrier"。
 """
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def _rgba(value, where: str, problems: list, n_min: int = 3) -> None:
 
 
 def validate_spec(spec: dict) -> list[str]:
-    """Problems of a replay spec (empty list = valid).  Pure: no simulator needed."""
+    """重放 spec 的问题列表（空列表 = 有效）。纯函数：不需要模拟器。"""
     problems: list[str] = []
     if not isinstance(spec, dict):
         return ["spec must be a JSON object"]
@@ -173,14 +173,14 @@ def load_spec(path) -> dict:
 
 
 def scale_k(K, f: float):
-    """Camera matrix with fx, fy scaled by f (principal point kept)."""
+    """把相机矩阵的 fx、fy 乘以 f（保持主点不变）。"""
     K = [list(map(float, r)) for r in K]
     K[0][0] *= f
     K[1][1] *= f
     return K
 
 
-# ------------------------------------------------------------------ attempt entry and identity
+# ------------------------------------------------------------------ attempt 入口与身份
 ARGV_RECORDS = ("execution.json", "launch.json", "summary.json", "receipt.json")
 STATE_LOGS = ("states.jsonl", "trace.jsonl", "physics.jsonl")
 
@@ -194,8 +194,8 @@ def _read(path: Path) -> dict:
 
 
 def _recorded_source_sha(attempt: Path) -> str | None:
-    """sha256 of the run_seed.py the attempt ran, from expert.json/receipt.json source_sha256 (a hash) or from
-    source-snapshot.json (the source text itself)."""
+    """该 attempt 所运行的 run_seed.py 的 sha256，来自 expert.json/receipt.json 的 source_sha256
+    （一个哈希）或来自 source-snapshot.json（源文本本身）。"""
     for name in ("expert.json", "receipt.json"):
         for key, value in (_read(attempt / name).get("source_sha256") or {}).items():
             if Path(key).name == "run_seed.py":
@@ -207,13 +207,13 @@ def _recorded_source_sha(attempt: Path) -> str | None:
 
 
 def resolve_entry(attempt: Path) -> tuple[Path, int, str]:
-    """(run_seed.py, seed, how) of a captured attempt W/capture/attempts/<a>.
+    """已采集 attempt W/capture/attempts/<a> 的 (run_seed.py, seed, 来源方式)。
 
-    Either an argv recorded by the capture driver or the expert run (execution.json / launch.json / summary.json /
-    receipt.json), or the attempt's seed (attempt.json / expert.json / seed.json) plus the source the expert run
-    recorded (a sha256 in expert.json or receipt.json source_sha256, or the text in source-snapshot.json): the frozen
-    entry is the W/task/*/run_seed.py whose sha256 still equals it.  An argv entry is also checked against the
-    recorded source when there is one: a replay must run the frozen source."""
+    要么是采集驱动或 expert 运行记录的 argv（execution.json / launch.json / summary.json /
+    receipt.json），要么是该 attempt 的 seed（attempt.json / expert.json / seed.json）加上 expert 运行
+    记录的源（expert.json 或 receipt.json source_sha256 中的 sha256，或 source-snapshot.json 中的文本）：
+    冻结入口就是 W/task/*/run_seed.py 中 sha256 仍与之相等的那一个。argv 入口在存在记录源时
+    也会对照检查：重放必须运行冻结的源。"""
     attempt = Path(attempt)
     want = _recorded_source_sha(attempt)
     for name in ARGV_RECORDS:
@@ -236,8 +236,8 @@ def resolve_entry(attempt: Path) -> tuple[Path, int, str]:
 
 
 def compare_logs(attempt: Path, out: Path) -> dict:
-    """Trajectory identity of the replay: states.jsonl / trace.jsonl / physics.jsonl compared line by line (every field
-    except the PhysX contact report), or every array of log.npz exactly."""
+    """重放的轨迹一致性：逐行比较 states.jsonl / trace.jsonl / physics.jsonl（除 PhysX 接触报告外的
+    每个字段），或精确比较 log.npz 的每个数组。"""
     attempt, out = Path(attempt), Path(out)
     for log in STATE_LOGS:
         if (attempt / log).exists():
@@ -275,7 +275,7 @@ def compare_logs(attempt: Path, out: Path) -> dict:
 
 
 def wrist_cameras_scaled(report: dict, f: float) -> bool:
-    """Every wrist camera the renderer used has fx, fy = f x its original (and there is at least one)."""
+    """渲染器使用的每个 wrist 相机都有 fx, fy = f x 其原始值（且至少有一个 wrist 相机）。"""
     cams = {n: c for n, c in (report.get("camera_intrinsics") or {}).items() if "wrist" in n}
     if not cams:
         return False
@@ -292,8 +292,8 @@ def wrist_cameras_scaled(report: dict, f: float) -> bool:
 
 
 def replay_ok(report: dict, spec: dict) -> bool:
-    """Every requested change applied, no colour leaked to an entity it was not meant for, and the trajectory
-    identical."""
+    """所有请求的更改都已生效、没有颜色泄漏到不该影响的实体，且轨迹
+    一致。"""
     colors = spec.get("colors") or {}
     shapes = spec.get("shapes") or {}
     extras = spec.get("extras") or []
@@ -307,7 +307,7 @@ def replay_ok(report: dict, spec: dict) -> bool:
                 and len(report.get("extras_added") or {}) == len(extras))
 
 
-# ------------------------------------------------------------------ parametric render meshes (numpy; trimesh to write)
+# ------------------------------------------------------------------ 参数化渲染网格（numpy；用 trimesh 写出）
 def _write_mesh(path: Path, V, F) -> Path:
     import trimesh
     m = trimesh.Trimesh(vertices=V, faces=F, process=True)
@@ -317,7 +317,7 @@ def _write_mesh(path: Path, V, F) -> Path:
 
 
 def revolve_x(xs, rs, n: int = 64):
-    """Closed surface of revolution about the local x axis: radius rs[i] at x = xs[i] (a drum barrel or head)."""
+    """绕局部 x 轴的封闭旋转曲面：在 x = xs[i] 处半径为 rs[i]（鼓形桶身或桶盖）。"""
     import numpy as np
     ph = np.linspace(0, 2 * np.pi, n, endpoint=False)
     V = [[x, r * np.cos(p), r * np.sin(p)] for x, r in zip(xs, rs) for p in ph]
@@ -335,7 +335,7 @@ def revolve_x(xs, rs, n: int = 64):
 
 
 def apple_mesh(radii, flat_z, top_dimple=0.22, bottom_dimple=0.12, lobes=0.02, n_t=48, n_p=72):
-    """Apple-like closed mesh (z up): ellipsoid with a stem dimple, a calyx dimple, five faint lobes and a flat foot."""
+    """苹果状封闭网格（z 向上）：带果梗凹坑、萼片凹坑、五道浅瓣与平底的椭球。"""
     import numpy as np
     V, F = [], []
     for t in np.linspace(0, np.pi, n_t):
@@ -353,7 +353,7 @@ def apple_mesh(radii, flat_z, top_dimple=0.22, bottom_dimple=0.12, lobes=0.02, n
 
 
 def revolve_z(profile, n: int = 96):
-    """Surface of revolution about local z of a (radius, z) polyline (a thin-walled vessel)."""
+    """由 (radius, z) 折线绕局部 z 轴生成的旋转曲面（薄壁容器）。"""
     import numpy as np
     ph = np.linspace(0, 2 * np.pi, n, endpoint=False)
     V = [[r * np.cos(p), r * np.sin(p), z] for r, z in profile for p in ph]
@@ -366,7 +366,7 @@ def revolve_z(profile, n: int = 96):
 
 
 def handle_mesh(dir_deg, r_attach, z0, z1, bulge, th, n_arc=24, n_tube=12):
-    """Mug handle: a tube of radius th along a half-ellipse from (r_attach, z0) out by `bulge` to (r_attach, z1)."""
+    """马克杯手柄：半径为 th 的管沿半椭圆从 (r_attach, z0) 向外弯出 `bulge` 到 (r_attach, z1)。"""
     import numpy as np
     az = np.radians(dir_deg)
     out_, up = np.array([np.cos(az), np.sin(az), 0.0]), np.array([0.0, 0.0, 1.0])
@@ -388,7 +388,7 @@ def handle_mesh(dir_deg, r_attach, z0, z1, bulge, th, n_arc=24, n_tube=12):
     return np.array(V, float), np.array(F, int)
 
 
-# ------------------------------------------------------------------ SAPIEN hooks (imported only when replaying)
+# ------------------------------------------------------------------ SAPIEN 钩子（仅在重放时导入）
 def _material(sapien, color, metallic=0.0, roughness=0.6, emission=None):
     m = sapien.render.RenderMaterial(base_color=list(color)[:3] + [1.0])
     m.metallic, m.roughness = float(metallic), float(roughness)
@@ -398,7 +398,7 @@ def _material(sapien, color, metallic=0.0, roughness=0.6, emission=None):
 
 
 def install_extras(extras: list, added: dict) -> None:
-    """Add the world-frame render-only parts before the first render (render body only, no PhysX component)."""
+    """在首次渲染前添加世界坐标系的仅渲染部件（只有 render body，无 PhysX 组件）。"""
     import sapien
     orig = sapien.Scene.update_render
 
@@ -423,8 +423,8 @@ def install_extras(extras: list, added: dict) -> None:
 
 
 def install_shapes(shapes: dict, shaped: dict, out: Path) -> None:
-    """Wrap ActorBuilder.build (and build_static/build_kinematic): an entity named in `shapes` gets its visual records
-    replaced by the listed parts, relative to the frame of its first original visual record."""
+    """包装 ActorBuilder.build（以及 build_static/build_kinematic）：在 `shapes` 中命名的实体，
+    其视觉记录会被替换为所列部件，相对其第一条原始视觉记录的坐标系。"""
     import numpy as np
     import sapien
     mesh_dir = out / "shape-meshes"
@@ -446,14 +446,14 @@ def install_shapes(shapes: dict, shaped: dict, out: Path) -> None:
                 for r in originals:
                     r.material = _material(sapien, col, roughness=part.get("roughness", 0.6))
                     builder.visual_records.append(r)
-            elif kind == "barrel":   # along the original cylinder axis (local x of its visual pose)
+            elif kind == "barrel":   # 沿原始圆柱轴线（其视觉位姿的局部 x 轴）
                 hl, R = float(base.length), float(base.radius)
                 end, mid, head = part.get("end", 0.92), part.get("mid", 1.06), part.get("head_frac", 0.0)
                 xs = np.linspace(-hl * (1 - head), hl * (1 - head), 41)
                 V, F = revolve_x(xs, R * (end + (mid - end) * (1 - (xs / xs[-1]) ** 2)))
                 builder.add_visual_from_file(str(_write_mesh(mesh_dir / f"{name}-{k}-barrel.obj", V, F)), pose=frame,
                                              material=_material(sapien, col))
-            elif kind == "heads":   # discs + skin band at both barrel ends, slightly past the end (no z-fighting)
+            elif kind == "heads":   # 两端桶盖处的圆盘 + 外圈色带，略超出端面（避免 z-fighting）
                 hl, R = float(base.length), float(base.radius)
                 end, band = part.get("end", 0.92), part.get("band", 0.06)
                 for s in (1.0, -1.0):
@@ -476,7 +476,7 @@ def install_shapes(shapes: dict, shaped: dict, out: Path) -> None:
                 builder.add_visual_from_file(str(_write_mesh(mesh_dir / f"{name}-{k}-apple.obj", V, F)), pose=frame,
                                              material=_material(sapien, col, roughness=0.45))
             elif kind == "stem":
-                q = sapien.Pose(q=[np.sqrt(.5), 0, -np.sqrt(.5), 0])   # cylinder x axis -> world z
+                q = sapien.Pose(q=[np.sqrt(.5), 0, -np.sqrt(.5), 0])   # 圆柱 x 轴 -> 世界 z 轴
                 tilt = sapien.Pose(q=[np.cos(.1), np.sin(.1), 0, 0])
                 builder.add_cylinder_visual(pose=frame * sapien.Pose([0, 0, part["top_z"]]) * tilt * q,
                                             radius=part.get("r", 0.0022), half_length=part.get("half_length", 0.007),
@@ -498,7 +498,7 @@ def install_shapes(shapes: dict, shaped: dict, out: Path) -> None:
                 builder.add_visual_from_file(str(_write_mesh(mesh_dir / f"{name}-{k}-handle.obj", V, F)),
                                              pose=sapien.Pose(),
                                              material=_material(sapien, col, roughness=part.get("roughness", 0.4)))
-            # "hide": no visual part (a simulator proxy that contradicts the real scene)
+            # "hide"：无视觉部件（与真实场景冲突的模拟器代理）
             info["parts"].append(kind)
         shaped[name] = info
 
@@ -520,7 +520,7 @@ def install_shapes(shapes: dict, shaped: dict, out: Path) -> None:
 
 
 def copy_material(sapien, m):
-    """A new RenderMaterial with every value and texture of m."""
+    """一个新的 RenderMaterial，复制 m 的所有值与纹理。"""
     c = sapien.render.RenderMaterial()
     for k in ("base_color", "emission", "specular", "roughness", "metallic", "transmission", "ior",
               "transmission_roughness", "base_color_texture", "emission_texture",
@@ -535,11 +535,11 @@ def copy_material(sapien, m):
 
 
 def install_unshared_materials(unshared: dict) -> None:
-    """Give every visual shape its own RenderMaterial.  Task scenes often build the table, objects and robot links with
-    ONE material object (e.g. a single 'white'); changing its base_color would then recolour all of them.  Render-only:
-    physics never reads render materials."""
+    """给每个视觉形状分配独立的 RenderMaterial。任务场景常用
+    一个材质对象（例如单个 'white'）构建桌面、物体和机器人连杆；此时改它的 base_color 会重染全部。仅渲染：
+    物理从不读取渲染材质。"""
     import sapien
-    from sapien.wrapper.actor_builder import ActorBuilder   # LinkBuilder inherits build_render_component
+    from sapien.wrapper.actor_builder import ActorBuilder   # LinkBuilder 继承 build_render_component
     orig = ActorBuilder.build_render_component
 
     def build_render_component(self):
@@ -570,9 +570,9 @@ def _entity_colors(e) -> list:
 
 
 def install_colors(colors: dict, shaped: dict, recoloured: dict, leaks: list | None = None) -> dict:
-    """Render-only colours, applied before the first render; '@states' rules are applied every frame.  Every shape gets
-    its own material first, and any untargeted entity whose colour changed anyway is appended to leaks.  Returns the
-    two-tone record {entity: {radius, half_length, up_end}}."""
+    """仅渲染的颜色，在首次渲染前应用；'@states' 规则每帧应用。每个形状先获得
+    独立材质，任何未被指定却仍改变颜色的实体会被追加到 leaks。返回双色记录
+    {entity: {radius, half_length, up_end}}。"""
     import sapien
     leaks = [] if leaks is None else leaks
     install_unshared_materials(recoloured.setdefault("_unshared", {}))
@@ -592,7 +592,7 @@ def install_colors(colors: dict, shaped: dict, recoloured: dict, leaks: list | N
                     pose = kw0.get("pose", args[0] if args else sapien.Pose())
                     radius = kw0.get("radius", args[1] if len(args) > 1 else 1.0)
                     hl = kw0.get("half_length", args[2] if len(args) > 2 else 1.0)
-                    up = (self.initial_pose * pose).to_transformation_matrix()[:3, 0][2]   # cylinder axis = local x
+                    up = (self.initial_pose * pose).to_transformation_matrix()[:3, 0][2]   # 圆柱轴 = 局部 x
                     s = 1.0 if up >= 0 else -1.0
                     orig_add_cyl(self, pose=pose * sapien.Pose([s * (hl + 0.0006), 0, 0]), radius=radius * 0.995,
                                  half_length=0.0006, material=list(spec["top"]))
@@ -634,11 +634,11 @@ def install_colors(colors: dict, shaped: dict, recoloured: dict, leaks: list | N
         if not recoloured.get("_done"):
             recoloured["_done"] = True
             ents = list(scene.entities)
-            before = [_entity_colors(e) for e in ents]   # to catch a colour leaking through a shared material
+            before = [_entity_colors(e) for e in ents]   # 用于捕获通过共享材质泄漏的颜色
             targeted = set()
             for i, e in enumerate(ents):
                 comps = e.components
-                if e.name in shaped:   # its new visual parts carry their own materials
+                if e.name in shaped:   # 其新的视觉部件自带材质
                     continue
                 is_link = any("ArticulationLink" in type(c).__name__ for c in comps)
                 dynamic = any(type(c).__name__ == "PhysxRigidDynamicComponent" for c in comps)
@@ -658,7 +658,7 @@ def install_colors(colors: dict, shaped: dict, recoloured: dict, leaks: list | N
                 for c in comps:
                     shapes_ = list(getattr(c, "render_shapes", []) or [])
                     if e.name in capped and shapes_:
-                        shapes_ = shapes_[:-1]   # the added top disc keeps its own colour
+                        shapes_ = shapes_[:-1]   # 新增的顶盖圆盘保留自己的颜色
                     for sh in shapes_:
                         for m in _shape_materials(sh):
                             m.base_color = col
@@ -672,10 +672,10 @@ def install_colors(colors: dict, shaped: dict, recoloured: dict, leaks: list | N
 
 
 def install_wrist_fov(f: float, patched: list, cam_intrinsics: dict) -> None:
-    """Scale fx, fy of every camera component whose name contains 'wrist' by f, at the renderer: before each render,
-    a wrist camera still at its original focal length (first render, or the task reset it) is set to f x it, principal
-    point kept.  The original and the used intrinsics of every camera are recorded, so the report shows what was
-    rendered, whatever way the task built its cameras."""
+    """在渲染器处把名称含 'wrist' 的每个相机组件的 fx、fy 乘以 f：每次渲染前，
+    仍处于原始焦距的 wrist 相机（首次渲染，或任务重置了它）会被设为 f x 原始值，主点
+    保持不变。每个相机的原始内参与实际使用内参都会被记录，因此报告能显示实际
+    渲染内容，无论任务如何构建相机。"""
     import sapien
     orig_ur = sapien.Scene.update_render
 
@@ -699,15 +699,15 @@ def install_wrist_fov(f: float, patched: list, cam_intrinsics: dict) -> None:
 
 
 def replay(attempt: Path, out: Path, spec: dict, entry: tuple | None = None) -> dict:
-    if entry:   # explicit entry, still checked against the source the attempt recorded
+    if entry:   # 显式入口，仍会对照该 attempt 记录的源检查
         script, seed, how = Path(entry[0]).resolve(), int(entry[1]), "caller --entry"
         want = _recorded_source_sha(attempt)
         if want and sha256(script) != want:
             raise SystemExit(f"--entry {script} is not the source attempt {attempt.name} ran (sha256 differs)")
     else:
         script, seed, how = resolve_entry(attempt)
-    # load by the resolved path: task entries often derive their task root from Path(__file__).resolve() and then
-    # take paths relative to it, which fails when the run directory is reached through a symlink
+    # 按解析后的路径加载：任务入口常从 Path(__file__).resolve() 推导 task root，然后
+    # 使用相对它的路径，当 run 目录通过符号链接访问时会失败
     script = Path(script).resolve()
     out.mkdir(parents=True, exist_ok=True)
     sys.path.insert(0, str(script.parent))

@@ -1,4 +1,4 @@
-"""Bind task sessions to source/experience versions and record visible feedback."""
+"""把 task session 绑定到 source/experience 版本，并记录可见的反馈。"""
 from __future__ import annotations
 
 from datafarm.common import sha256_file
@@ -16,8 +16,8 @@ def bind(work, root, *, store_path=None, selectors=None):
     store = Store(store_path or (Path(root) / '.datafarm/evolution'))
     from datafarm.evolution.store import digest
     selectors = scope({'run_id': work.name + '-' + digest(str(work))[:12], **(selectors or {})})
-    # Ordinary source development uses the source the user invoked. Explicit
-    # managed deployments use the active evaluated version instead.
+    # 普通的 source 开发使用用户所调用的 source。托管部署（显式指定）则使用当前
+    # 已评估的生效版本。
     selected = (initialize(store, root) if explicit else version(store, snapshot(store, root)))
     binding = {'schema': 'datafarm.run-capability/1', 'store': str(store.root),
                'version': selected['id'], 'scope': selectors, 'managed': explicit}
@@ -40,9 +40,9 @@ def context_for(work):
     value = binding(work)
     if not value:
         return None
-    # New explicit requirements must be honored during an existing run. The
-    # learned capability/lesson version stays pinned. Each session saves its
-    # actual requirement selection and hashes in the context receipt.
+    # 在已有 run 进行期间，必须遵循新的显式需求。已学到的
+    # capability/lesson 版本保持钉住不变。每个 session 把实际选中的
+    # 需求及其哈希保存在 context receipt 中。
     return select(Store(value['store']), value['scope'], version=value['version'])
 
 

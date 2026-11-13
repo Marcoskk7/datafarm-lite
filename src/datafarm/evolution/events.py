@@ -1,4 +1,4 @@
-"""Explicit host feedback, scoped lessons, and reproducible context selection."""
+"""显式的 host feedback、限定范围的 lessons，以及可复现的上下文选择。"""
 from __future__ import annotations
 
 from datafarm.common import sha256_file
@@ -59,7 +59,7 @@ def learn(store, lesson):
     for prior in lesson.get('supersedes', []):
         if store.get('lessons', prior)['scope'] != lesson['scope']:
             raise ValueError('lesson supersession must preserve scope')
-    # A proposer cannot grant its own hypothesis verified status.
+    # proposer 不能授予自己的假设 verified 状态。
     lesson['status'] = 'hypothesis'
     lesson['schema'] = 'datafarm.lesson/1'
     name = lesson.pop('id', None) or digest(lesson)
@@ -69,7 +69,7 @@ def learn(store, lesson):
 
 
 def select(store, selectors, *, version=None, limit=8):
-    """Requirements are never truncated; only promoted lessons enter default context."""
+    """requirements 永不截断；只有已晋升的 lessons 进入默认上下文。"""
     scope(selectors)
     events = store.all('events')
     retired = {x for e in events for x in e.get('supersedes', [])}
@@ -92,7 +92,7 @@ def pending(store):
 
 
 def record_change(store, source_root, parent, *, statement, source_ref, selectors=None, evidence=()):
-    """Capture actual source changes and check-log hashes after ordinary repo work."""
+    """在常规仓库工作之后捕获实际的源码改动和 check-log 哈希。"""
     from pathlib import Path
     from datafarm.evolution.versions import snapshot
     before = store.get('versions', parent)['source']

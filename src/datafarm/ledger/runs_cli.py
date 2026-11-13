@@ -1,4 +1,4 @@
-"""``tools/datafarm_runs.py ...``: operator commands for the pipeline run ledger."""
+"""``tools/datafarm_runs.py ...``：pipeline run 账本的操作员命令。"""
 
 from __future__ import annotations
 
@@ -250,7 +250,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    """Independent persistence check: records liveness and progress as evidence."""
+    """独立的持久性检查：把存活状态与进度记录为证据。"""
 
     ledger = _open(args, args.run)
     ledger.sync()
@@ -387,7 +387,7 @@ def make_parser() -> argparse.ArgumentParser:
 
 
 def split_launch_argv(argv: list[str]) -> tuple[list[str], list[str]]:
-    """``launch RUN [opts] -- CMD...``: keep CMD away from argparse."""
+    """``launch RUN [opts] -- CMD...``：把 CMD 与 argparse 分隔开。"""
 
     if "launch" in argv and "--" in argv:
         cut = argv.index("--")

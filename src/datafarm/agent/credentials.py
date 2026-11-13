@@ -1,9 +1,8 @@
-"""Credential providers for model clients.
+"""模型客户端的凭据提供者。
 
-Clients never read environment variables or well-known paths for keys. The caller
-injects a provider; the standard one parses ``KEY=VALUE`` lines (optionally prefixed
-with ``export``) from a keys file whose path the caller passes explicitly. Values never
-appear in ``repr``, exceptions, receipts or logs.
+客户端从不读取环境变量或众所周知的路径来获取 key。由调用方注入一个 provider；
+标准实现从调用方显式传入路径的 keys 文件中解析 ``KEY=VALUE`` 行（可选带 ``export``
+前缀）。值绝不会出现在 ``repr``、异常、receipt 或日志中。
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ from typing import Callable
 
 
 class CredentialError(RuntimeError):
-    """A credential could not be loaded. Messages never contain secret values."""
+    """凭据无法加载。消息绝不包含敏感值。"""
 
 
 @dataclass(frozen=True, repr=False)
@@ -35,7 +34,7 @@ CredentialProvider = Callable[[], Credentials]
 
 
 def parse_keys_text(text: str) -> dict[str, str]:
-    """Parse ``KEY=VALUE`` lines; ``#`` comments, blank lines and ``export`` are allowed."""
+    """解析 ``KEY=VALUE`` 行；允许 ``#`` 注释、空行和 ``export``。"""
 
     values: dict[str, str] = {}
     for number, original in enumerate(text.splitlines(), start=1):
@@ -59,9 +58,9 @@ def parse_keys_text(text: str) -> dict[str, str]:
 
 
 class KeysFileCredentials:
-    """Load an API key (and optional endpoint) from a caller-supplied keys file.
+    """从调用方提供的 keys 文件加载 API key（以及可选的 endpoint）。
 
-    The file is read lazily on first use and cached in memory only.
+    文件在首次使用时惰性读取，且仅缓存在内存中。
     """
 
     def __init__(

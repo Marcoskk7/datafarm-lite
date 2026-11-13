@@ -1,4 +1,4 @@
-"""Check installation prerequisites without API or GPU calls."""
+"""在不调用 API 或 GPU 的情况下检查安装前提条件。"""
 from __future__ import annotations
 
 import importlib.util

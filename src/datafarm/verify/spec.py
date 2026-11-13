@@ -1,15 +1,15 @@
-"""Declarative render-verifier specification.
+"""声明式的 render-verifier 规范。
 
-The fixed part of the Render gate lives in this package: the check families,
-their decision logic, persistence rules, fail-closed behaviour and the report
-format.  What changes from task to task is only *data*: panel layout, which
-entities the Task IR names and how they look, which events matter, which chunk
-seams exist, and which real-world footage defines the target domain.  An agent
-authoring a new task writes a spec file; it does not write a new verifier.
+Render gate 的固定部分位于本包中：检查家族、
+它们的决策逻辑、持久性规则、fail-closed 行为以及报告
+格式。随 task 变化的只是 *数据*：panel 布局、Task IR 命名了
+哪些实体以及它们看起来如何、哪些事件重要、存在哪些 chunk
+接缝，以及哪些真实世界影像定义了目标域。编写新 task 的 agent
+写一个 spec 文件；它不写新的 verifier。
 
-Every threshold carries a provenance string so a receipt can say whether a value
-came from the package default, from a counterfactual calibration run, or from an
-explicit task-level override.
+每个阈值都带一个 provenance 字符串，因此回执可以说出一个值
+来自 package 默认值、反事实校准运行，还是
+显式的 task 级覆盖。
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ from typing import Any, Mapping, Sequence
 
 SPEC_SCHEMA = "datafarm.render-verifier-spec/1.0.0"
 
-# Check families are fixed.  A spec may tune or disable a family only through an
-# explicit, reasoned waiver; it may never invent a family or rename one.
+# 检查家族是固定的。spec 只能通过一个显式的、
+# 有理由的 waiver 来调整或禁用一个家族；它绝不能发明一个家族或重命名它。
 FAMILIES = (
     "transport",
     "structure",
@@ -36,8 +36,8 @@ FAMILIES = (
 )
 
 REALISM_MODES = ("sim2real", "ood")
-# Nuisance axes an OOD cohort may perturb on purpose.  Anything not listed stays
-# bound to the real world.
+# OOD cohort 可以有意扰动的 nuisance 轴。任何未列出的轴都保持
+# 与现实世界的绑定。
 OOD_AXES = ("lighting", "background", "table_material", "distractors", "camera_exposure")
 
 
@@ -60,18 +60,18 @@ class Box:
 class PanelSpec:
     name: str
     box: Box
-    # "fixed" cameras see a static background; "moving" cameras (wrists) do not,
-    # so background-stability is not applicable to them.
+    # "fixed" 相机看到静态背景；"moving" 相机（腕部）不会，
+    # 因此 background-stability 对它们不适用。
     motion: str = "fixed"
-    # Simulator camera feeding this panel and its native image size, used to
-    # project object poses from the Episode IR.
+    # 为该 panel 提供画面的模拟器相机及其原生图像尺寸，用于
+    # 从 Episode IR 投影物体位姿。
     camera: str | None = None
     native_size: tuple[int, int] = (640, 360)
 
 
 @dataclass(frozen=True)
 class ColorKey:
-    """HSV range in OpenCV units (H 0-179, S/V 0-255)."""
+    """OpenCV 单位下的 HSV 范围（H 0-179，S/V 0-255）。"""
 
     lower: tuple[int, int, int]
     upper: tuple[int, int, int]
@@ -87,49 +87,48 @@ class ColorKey:
 
 @dataclass(frozen=True)
 class EntitySpec:
-    """One Task IR role as it must appear in every rendered panel.
+    """一个 Task IR role，以及它在每个渲染 panel 中必须如何出现。
 
-    ``carrier_keys`` segment the entity in the simulator carrier, which is the
-    geometric authority.  ``target_keys`` segment the entity as it should look in
-    the target domain (real robot footage); they are used on the generated video
-    and on the real reference, never on the carrier.
+    ``carrier_keys`` 在模拟器 carrier 中分割该实体，carrier 是
+    几何权威。``target_keys`` 按该实体在目标域（真实机器人影像）中应有的样子
+    分割它；它们用于生成的视频和真实参考，绝不用于 carrier。
     """
 
     role: str
     carrier_keys: tuple[ColorKey, ...]
     target_keys: tuple[ColorKey, ...]
-    # Sub-checks: missing (carrier shows it, render does not), unsupported (render
-    # shows it where the carrier has none), extent (projected size/shape drift).
+    # 子检查：missing（carrier 显示它，渲染未显示）、unsupported（渲染
+    # 在 carrier 没有它的地方显示它）、extent（投影尺寸/形状漂移）。
     checks: tuple[str, ...] = ("missing", "unsupported", "extent")
     min_area_frac: float = 0.0015
     panels: tuple[str, ...] = ()
-    # Entities that must stay bound to the real world even in OOD cohorts.
+    # 即使在 OOD cohort 中，也必须与现实世界保持绑定的实体。
     invariant: bool = True
-    # Conservative keys for segmenting the entity in real footage (realism
-    # regions).  Defaults to target_keys.
+    # 用于在真实影像中分割该实体的保守 key（realism
+    # 区域）。默认为 target_keys。
     real_keys: tuple[ColorKey, ...] = ()
-    # Optional broader appearance key used only to test whether an expected
-    # carrier instance remains visible. New-instance and extent checks retain
-    # target_keys, so a low-saturation real object does not turn background
-    # highlights into hallucinated entities.
+    # 可选更宽的外观 key，仅用于测试一个预期的 carrier 实例是否
+    # 仍可见。New-instance 和 extent 检查保留
+    # target_keys，因此低饱和度的真实物体不会把背景
+    # 高光变成幻觉实体。
     presence_keys: tuple[ColorKey, ...] = ()
-    # Learn this video's own entity appearance (CIELAB) inside carrier-authorised
-    # pixels and keep only target-key pixels close to it.  Presence is then
-    # judged independently of how well the colour matches reality, which is the
-    # realism family's job.
+    # 在 carrier 授权的像素内学习本视频自身的实体外观（CIELAB），
+    # 只保留接近它的 target-key 像素。于是 presence
+    # 独立于颜色与现实的匹配程度来评判，后者是
+    # realism 家族的职责。
     adaptive: bool = True
-    # Optional target-colour instance core. A thick object survives opening;
-    # thin attached cast-colour trails do not enlarge it or glue two objects
-    # together. Applied to unsupported and extent, never to presence.
+    # 可选的目标颜色实例核心。粗物体经 opening 后仍存活；
+    # 细的附着投影色拖尾不会放大它，也不会把两个物体
+    # 粘在一起。应用于 unsupported 和 extent，绝不用于 presence。
     instance_open_px_work: int = 0
-    # In specified panels, compare candidate-instance edge density with this
-    # video's carrier-backed instance appearance. This can reject broad flat
-    # colour-keyed backgrounds without lowering extra-instance sensitivity in
-    # other panels. Zero/absent keeps the original colour-only behaviour.
+    # 在指定 panel 中，将候选实例的边缘密度与本视频
+    # 由 carrier 支撑的实例外观比较。这可以在不降低
+    # 其他 panel 的 extra-instance 敏感度的前提下拒绝宽大平坦的
+    # 颜色 key 背景。零/缺失则保留原来的纯颜色行为。
     unsupported_edge_reference_fraction: Mapping[str, float] = field(default_factory=dict)
 
     def active_checks(self, panel: str) -> set[str]:
-        """Sub-checks for a panel; ``kind:panelA|panelB`` restricts a kind."""
+        """某个 panel 的子检查；``kind:panelA|panelB`` 限制某个 kind 的范围。"""
 
         out = set()
         for item in self.checks:
@@ -138,10 +137,10 @@ class EntitySpec:
                 out.add(kind)
         return out
 
-    # Episode-state object names (glob) and a bounding primitive, e.g.
-    # {"type": "cylinder", "radius": 0.045, "height": 0.09}.  When given, the
-    # projected footprint is the authority for whether a rendered blob is backed
-    # by a simulated object.
+    # Episode 状态中的物体名（glob）以及一个包围 primitive，例如
+    # {"type": "cylinder", "radius": 0.045, "height": 0.09}。给出时，
+    # 投影足迹就是判断一个渲染 blob 是否由模拟物体
+    # 支撑的权威。
     state_objects: str | None = None
     geometry: Mapping[str, Any] | None = None
 
@@ -171,43 +170,43 @@ class Threshold:
 
 
 DEFAULT_THRESHOLDS: dict[str, float] = {
-    # transport
+    # 传输
     "fps_tolerance": 0.25,
     "aspect_tolerance": 0.002,
     "black_luma_max": 8.0,
-    # structure: projected-geometry cosine per panel and sampled frame
+    # structure：每个 panel 和采样帧的投影几何余弦
     "structure_cosine_min": 0.30,
     "structure_bad_fraction_max": 0.10,
     "structure_shift_frac_max": 0.03,
-    # A task may require evidence of digital near-zero padding before an edge
-    # stripe is called a crop error. Zero preserves the original dark-band rule.
+    # 在把边缘条纹判定为裁剪错误之前，task 可以要求近零数字 padding 的证据。
+    # 零则保留原来的暗带规则。
     "black_border_near_zero_fraction_min": 0.0,
-    # entity
+    # 实体
     "entity_recall_min": 0.50,
     "entity_support_min": 0.30,
-    # bbox growth without a footprint; with a footprint: 1 + outside-area / area
+    # bbox 在无足迹时的增长；有足迹时：1 + outside-area / area
     "entity_extent_ratio_max": 1.30,
     "entity_tolerance_frac": 0.15,
     "entity_key_leak_max": 0.02,
-    # event
+    # 事件
     "event_lag_max": 6.0,
     "event_corr_min": 0.30,
     "event_local_motion_min": 0.0,
-    # temporal (per panel, full frame rate)
-    # 10/255 (~4%): side-by-side review found 6-8 level global steps invisible;
-    # the real camera's own step statistic can only raise this.
+    # temporal（每个 panel，全帧率）
+    # 10/255（约 4%）：并排审阅发现 6-8 级的全局台阶不可见；
+    # 真实相机自身的台阶统计只能抬高此值。
     "temporal_luma_step_max": 10.0,
     "temporal_jumps_max": 3.0,
     "temporal_freezes_max": 2.0,
-    # Disabled by default. A task may allow a large photometric step only
-    # when a matching, sustained source-panel occlusion explains its location.
+    # 默认禁用。只有当匹配且持续的源 panel 遮挡能解释其位置时，
+    # task 才可以允许大的光度台阶。
     "temporal_source_motion_share_min": 0.0,
-    # continuity
+    # 连续性
     "seam_jump_multiple_max": 5.0,
     "seam_structural_min": 4.0,
-    # background
-    # Global exposure drift: a small human-labelled sample found no visible
-    # exposure problem up to ~38 levels; kept only as a gross guard.
+    # 背景
+    # 全局曝光漂移：一个小规模人工标注样本发现，直到约 38 级
+    # 都未见明显曝光问题；仅保留作为粗粒度守卫。
     "background_mean_drift_max": 60.0,
     "background_local_drift_p95_max": 12.0,
     "background_shadow_margin_frac": 0.06,
@@ -215,13 +214,13 @@ DEFAULT_THRESHOLDS: dict[str, float] = {
     "background_min_static_fraction": 0.03,
     "background_blob_level": 15.0,
     "background_blob_area_frac_max": 0.006,
-    # realism
-    # Defaults; recalibrate per deployment.
+    # 真实感
+    # 默认值；按部署重新校准。
     "realism_feature_score_max": 6.0,
     "realism_feature_advisory": 3.0,
-    # reference leak
+    # 参考泄漏
     "reference_leak_fill_max": 0.50,
-    # shared persistence: a defect must last this many consecutive sampled frames
+    # 共享持久性：缺陷必须持续这么多个连续采样帧
     "persist_samples": 3.0,
 }
 
@@ -364,11 +363,11 @@ def load_spec(path: str | Path) -> RenderVerifierSpec:
 
 
 def validate_spec(spec: RenderVerifierSpec) -> list[str]:
-    """Return violations of the fixed authoring principles (empty list = valid).
+    """返回违反固定编写原则之处（空列表 = 有效）。
 
-    These are the rules an agent-authored spec must satisfy before any sample is
-    judged with it.  They are deliberately about coverage and fail-closed
-    behaviour, not about task semantics.
+    这些是 agent 编写的 spec 在用于判定任何样本之前必须满足的
+    规则。它们故意关注覆盖率和 fail-closed
+    行为，而不是 task 语义。
     """
 
     problems: list[str] = []
@@ -383,7 +382,7 @@ def validate_spec(spec: RenderVerifierSpec) -> list[str]:
         if panel.motion not in ("fixed", "moving"):
             problems.append(f"P0: panel {panel.name} motion must be fixed|moving")
     roles = {e.role for e in spec.entities}
-    # P1: every Task IR role that is visible must be an entity with a presence check.
+    # P1：每个可见的 Task IR role 都必须是一个带 presence 检查的实体。
     for role in spec.task_ir_roles:
         if role not in roles:
             problems.append(f"P1: Task IR role {role!r} has no entity check")
@@ -402,15 +401,15 @@ def validate_spec(spec: RenderVerifierSpec) -> list[str]:
         for panel in entity.panels:
             if panel not in names:
                 problems.append(f"P1: entity {entity.role} names unknown panel {panel}")
-    # P2: every event must reference known roles.
+    # P2：每个事件必须引用已知 role。
     for event in spec.events:
         for role in event.roles:
             if role not in roles:
                 problems.append(f"P2: event {event.event_id} names unknown role {role}")
-    # P3: multi-chunk renders must declare their seams.
+    # P3：多 chunk 渲染必须声明其接缝。
     if spec.chunked and not spec.seams:
         problems.append("P3: chunked render declares no seams; continuity cannot be judged")
-    # P4: realism target must be explicit.
+    # P4：realism 目标必须显式。
     if spec.realism.mode not in REALISM_MODES:
         problems.append(f"P4: realism mode must be one of {REALISM_MODES}")
     for axis in spec.realism.perturbed_axes:
@@ -420,7 +419,7 @@ def validate_spec(spec: RenderVerifierSpec) -> list[str]:
         problems.append("P4: sim2real cohorts may not declare perturbed axes")
     if spec.realism.mode == "ood" and not spec.realism.perturbed_axes:
         problems.append("P4: OOD cohorts must declare which axes are perturbed")
-    # P5: waivers must name a known family and give a reason.
+    # P5：waiver 必须命名已知家族并给出理由。
     for family, reason in spec.waivers.items():
         if family not in FAMILIES:
             problems.append(f"P5: waiver for unknown family {family!r}")

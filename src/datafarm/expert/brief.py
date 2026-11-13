@@ -1,9 +1,9 @@
-"""Brief (task book) rendering and fail-closed lint.
+"""Brief（任务书）渲染与 fail-closed lint。
 
-Hand-written task books grow and tend to omit facts that cost rollouts (trace capacity,
-an underestimated rollout wall time) or to leak holdout information. Here a brief is rendered from a versioned template plus the task adapter
-(so every number comes from the same config the harness enforces) and is linted before
-any agent sees it: a missing required section or fact is an error, never a warning.
+手写任务书会越写越长，且常常遗漏那些会消耗 rollout 的事实（trace 容量、
+被低估的 rollout 墙钟时间），或泄露 holdout 信息。这里 brief 由带版本的模板加任务 adapter 渲染而成
+（因此每个数字都来自 harness 实际执行的同一份 config），并在任何 agent 看到之前
+先做 lint：缺少必需章节或事实就是错误，绝不会降级为警告。
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from datafarm.expert.util import HarnessError, get_dotted, sha256_text
 
 TOOL = "xh"
 
-# Harness-level rules every brief states in addition to the task's own forbidden list.
+# 除任务自身的禁项清单外，每份 brief 都声明的 harness 级规则。
 HARNESS_FORBIDDEN = (
     "SR-006: Producing new robot demonstrations with unchecked or sustained near-limit joint states. "
     "Bind limit sources and audit both arms/all six joints over actual full trajectories, including "
@@ -86,7 +86,7 @@ def render_template(text: str, context: Mapping[str, Any]) -> str:
 
 
 def masked_under_readable(adapter: TaskAdapter) -> list[str]:
-    """Protected patterns that lie inside a readable root (must be named in the brief)."""
+    """位于可读根目录内的受保护模式（必须在 brief 中点名）。"""
 
     readable = adapter.display_paths(adapter.section("workspace").get("readable", []))
     protected = adapter.display_paths(adapter.section("workspace").get("protected", []))
@@ -161,7 +161,7 @@ def render_brief(adapter: TaskAdapter, *, round_info: Mapping[str, Any] | None =
 
 
 def split_sections(text: str) -> dict[str, str]:
-    """Map each ``## heading`` (lowercased) to its heading line plus body."""
+    """把每个 ``## heading``（转为小写）映射到其标题行加正文。"""
 
     sections: dict[str, str] = {}
     current: str | None = None

@@ -1,46 +1,46 @@
 #!/usr/bin/env python3
-"""Real references for one task, derived from its own real episode, under H3's reference memory budget.
+"""单个任务的 real references，取自该任务自己的 real episode，并受 H3 的 reference 内存预算约束。
 
-The reference set that passed independent blind review on the 2026-11 production renders (drum, weigh-apple and
-stack-cups on the dual-arm Piper; scoop-cereal on RealBot-01):
+在 2026-11 生产渲染中通过独立盲审的 reference 集合（双臂 Piper 上的 drum、weigh-apple 和
+stack-cups；RealBot-01 上的 scoop-cereal）：
 
-  f0           full-view T-layout real frame 0 (the start state the carrier also starts from);
-  arm frame    full-view real frame where the real robot fills the most of the head view (real link appearance);
-  robot sheet  unmodified real robot pixels from the head view (left half from the frame where the left arm is most
-               visible, right half likewise) on neutral grey.  Without real links in a reference, H3 copies the white
-               simulator arm from the carrier;
-  object sheet whole real task objects from the start state, enlarged on neutral grey, so wrist views that see objects
-               closer than the head camera ever did still get real material and colour.  An object whose appearance
-               changes during the episode (a display that lights up) gets a second tile from a later frame;
-  wrist sheet  for each real wrist camera the frame with the most task-object content, stacked (640x720).
+  f0           全视角 T 形布局的 real frame 0（carrier 也从该起始状态开始）；
+  arm frame    全视角 real frame，其中真实机器人占据头部视野最多的部分（真实连杆外观）；
+  robot sheet  取自头部视野的未修改真实机器人像素（左半取左臂最可见的那一帧，右半同理），
+               置于中性灰背景上。reference 中没有真实连杆时，H3 会照抄 carrier 中的白色
+               仿真机械臂；
+  object sheet 起始状态下完整的真实任务物体，放大后置于中性灰背景上，使腕部视角即使比
+               头部相机更近地看到物体，也仍能得到真实材质和颜色。若物体外观在 episode 中发生
+               变化（例如显示屏亮起），则从更晚的帧再取第二块 tile；
+  wrist sheet  对每个真实腕部相机，取任务物体内容最多的那一帧，纵向堆叠（640x720）。
 
-H3 encodes every image reference at a 2048-pixel short edge, so the cost of a reference is its area after that rescale
-(a 1280x1080 T frame 5.0 MP, a 1280x720 sheet 7.5 MP, a 1280x360 strip 14.9 MP).  Measured peaks on a 178 GiB B200:
-24.9 MP of references 171.0 GiB, 29.8 MP 175.4 GiB, 31.9 MP out of memory.  Over `budget_mpix` (default 25) the
-full-view frames after f0 are dropped first, then sheets from the end.
+H3 会把每个图像 reference 编码到 2048 像素短边，因此一个 reference 的开销是缩放后的面积
+（1280x1080 的 T 形帧为 5.0 MP，1280x720 的 sheet 为 7.5 MP，1280x360 的条带为 14.9 MP）。在
+178 GiB B200 上实测的峰值：24.9 MP 的 references 为 171.0 GiB，29.8 MP 为 175.4 GiB，31.9 MP 即
+超出内存。超过 `budget_mpix`（默认 25）时，先丢弃 f0 之后的全视角帧，再从末尾开始丢弃 sheet。
 
-Robot pixels come from one of two sources:
-  * default heuristic: the robot is the darkest thing in view (grey < 60, low saturation, thick components), which
-    holds for dark-linked arms such as the Piper;
-  * projected label masks (`robot_masks`, see h3_robot_masks.py): for light-coloured robots or dark furniture.
+机器人像素来自以下两种来源之一：
+  * 默认启发式：机器人是视野中最暗的物体（grey < 60、低饱和、厚重连通域），这对 Piper 这类
+    深色连杆的机械臂成立；
+  * 投影标签掩码（`robot_masks`，见 h3_robot_masks.py）：用于浅色机器人或深色家具。
 
-When task objects cannot be separated from the background automatically (white on white, a dark handle splitting a
-bowl), the spec gives `object_boxes` [{name, box: [x0, y0, x1, y1] in the 1280x720 head view, frame?}] and each object
-is matted inside its box with GrabCut.
+当任务物体无法自动与背景分离时（白底白物、深色把手把碗分成两半），spec 提供
+`object_boxes` [{name, box: [x0, y0, x1, y1] in the 1280x720 head view, frame?}]，每个物体在其 box
+内用 GrabCut 抠出。
 
-Object sheets are for objects that stay visible in the episode.  For a task that puts an object away (into a drawer,
-out of view), leave `object_sheet` off: an object image then makes the generator re-insert the object.
+object sheet 面向在 episode 中持续可见的物体。对于会把物体收起来的任务（放进抽屉、移出视野），
+应关闭 `object_sheet`：否则物体图像会让生成器把该物体重新插入。
 
   python h3_episode_references.py build --spec <run>/tasks/<task>/episode-references.json
   python h3_episode_references.py robot-colors --spec <spec>     # {"@robot": rgba, "@robot_links": {...}}
 
-Spec (a task product, schema h3.episode-references/1):
+Spec（任务产物，schema h3.episode-references/1）：
   {"schema": "h3.episode-references/1", "out_dir": "<run>/tasks/<task>/refs-episode",
    "real": {"head": cam_high.mp4, "left": cam_left_wrist.mp4, "right": cam_right_wrist.mp4},
    "robot_sheet": true, "object_sheet": true, "wrist_sheet": true, "arm_frame": true,
    "object_boxes": null, "robot_masks": null, "budget_mpix": 25}
-`build` writes <out_dir>/references.json: {"references": [REFERENCE, ...], "dropped": [...], "mpix": ...}; copy the
-list into the bundle's real_references (or per_episode_references).
+`build` 写入 <out_dir>/references.json：{"references": [REFERENCE, ...], "dropped": [...], "mpix": ...}；把
+该列表复制到 bundle 的 real_references（或 per_episode_references）。
 """
 from __future__ import annotations
 
@@ -53,13 +53,13 @@ SPEC_SCHEMA = "h3.episode-references/1"
 GREY = 128
 BUDGET_MPIX = 25.0
 MAX_REFERENCES = 9
-DARK = 60               # grey level below which the default heuristic counts a pixel as robot
-MASK_SLACK_PX = 9       # projected masks: calibration/kinematics residual and unmodelled cables at link edges
+DARK = 60               # 低于该灰度级的像素在默认启发式中计为机器人
+MASK_SLACK_PX = 9       # 投影掩码：标定/运动学残差以及连杆边缘未建模的线缆
 HEAD = {"head": [0, 0, 1280, 720]}
 T_REGIONS = {"head": [0, 0, 1280, 720], "left_wrist": [0, 720, 640, 360], "right_wrist": [640, 720, 640, 360]}
 
 
-# ------------------------------------------------------------------ frame access
+# ------------------------------------------------------------------ 帧访问
 def frame_count(video) -> int:
     import cv2
     cap = cv2.VideoCapture(str(video))
@@ -78,7 +78,7 @@ def read_frame(video, i: int, size=(1280, 720)):
 
 
 def sample(video, indices, size=(1280, 720)):
-    """(i, frame) for each readable index, in order."""
+    """(i, frame)，按顺序返回每个可读索引对应的帧。"""
     import cv2
     cap = cv2.VideoCapture(str(video))
     out = []
@@ -91,9 +91,9 @@ def sample(video, indices, size=(1280, 720)):
     return out
 
 
-# ------------------------------------------------------------------ robot pixels
+# ------------------------------------------------------------------ 机器人像素
 def dark_robot_mask(f):
-    """Default heuristic: thick, near-neutral dark components (dark robot links, grippers, wrist cameras)."""
+    """默认启发式：厚重、接近中性的深色连通域（深色机器人连杆、夹爪、腕部相机）。"""
     import cv2
     import numpy as np
     hsv = cv2.cvtColor(f, cv2.COLOR_BGR2HSV)
@@ -111,7 +111,7 @@ def dark_robot_mask(f):
             keep[comp] = 1
     keep = cv2.morphologyEx(keep, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
     hn, hlab, hstats, _ = cv2.connectedComponentsWithStats((1 - keep).astype(np.uint8), 4)
-    for i in range(1, hn):   # fill small enclosed holes (highlights); big ones (inside cable loops) stay open
+    for i in range(1, hn):   # 填补小的内部空洞（高光）；大的空洞（线缆环内部）保持敞开
         x, y, w, h, area = hstats[i]
         if area < 0.002 * keep.size and x > 0 and y > 0 and x + w < keep.shape[1] and y + h < keep.shape[0]:
             keep[hlab == i] = 1
@@ -119,8 +119,8 @@ def dark_robot_mask(f):
 
 
 class RobotMasks:
-    """Projected per-link label masks of the real episode: <dir>/<camera>/<frame:06d>.png (uint8, 0 = not robot,
-    k = link k of <dir>/links.json), complete when <dir>/done.json exists (h3_robot_masks.py writes them)."""
+    """真实 episode 的逐连杆投影标签掩码：<dir>/<camera>/<frame:06d>.png（uint8，0 = 非机器人，
+    k = <dir>/links.json 中的第 k 根连杆），当 <dir>/done.json 存在时即完整（由 h3_robot_masks.py 写入）。"""
 
     def __init__(self, root):
         self.root = Path(root)
@@ -149,8 +149,8 @@ class RobotMasks:
         return cv2.dilate((lab > 0).astype(np.uint8), np.ones((slack, slack), np.uint8)).astype(bool)
 
     def pixels(self, frame, i: int, slack: int = MASK_SLACK_PX, cam: str = "cam_high"):
-        """Projected mask plus the small dark components touching it (cables, link edges the projection misses);
-        large dark components next to the robot (an appliance, a dark table edge) are not robot."""
+        """投影掩码加上与之相接的小块深色连通域（线缆、投影遗漏的连杆边缘）；
+        机器人旁边的大块深色连通域（家电、深色桌沿）不计为机器人。"""
         import cv2
         import numpy as np
         rm = self.mask(i, cam, slack)
@@ -168,9 +168,9 @@ def robot_pixels(frame, i: int, masks: RobotMasks | None, slack: int = MASK_SLAC
     return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) < DARK
 
 
-# ------------------------------------------------------------------ frame choice
+# ------------------------------------------------------------------ 帧选择
 def arm_frame(head, n: int, masks: RobotMasks | None = None) -> int:
-    """Head frame where the real robot fills the most of the view (projected masks if given, else darkness)."""
+    """真实机器人占据视野最多的头部帧（给定投影掩码时用掩码，否则依据暗度）。"""
     import cv2
     if masks is not None and masks.frames():
         return max(masks.frames()[::2], key=lambda i: float((masks.label(i) > 0).mean()))
@@ -181,7 +181,7 @@ def arm_frame(head, n: int, masks: RobotMasks | None = None) -> int:
 
 
 def half_arm_frames(head, n: int, masks: RobotMasks | None = None) -> tuple[int, int]:
-    """Frames where the left / right robot arm fills the most of its half of the head view."""
+    """左/右机器人手臂各自占据其所在半幅头部视野最多的帧。"""
     import cv2
     best = [(-1.0, 0), (-1.0, 0)]
     if masks is not None:
@@ -202,7 +202,7 @@ def _reference(path, source, frame, description, scope, views, regions, coverage
 
 
 def full_view(real: dict, frame: int, out: Path, tag: str) -> dict:
-    """Unmodified real T-layout frame: head 1280x720 on top, left and right wrist 640x360 below, all frame `frame`."""
+    """未修改的 real T 形布局帧：上方 head 1280x720，下方左右腕 640x360，全部取自第 `frame` 帧。"""
     import cv2
     import numpy as np
     head = read_frame(real["head"], frame)
@@ -245,7 +245,7 @@ def robot_sheet(real: dict, n: int, out: Path, masks: RobotMasks | None = None) 
 
 
 def _tile_sheet(crops: list):
-    """Crops enlarged (<= 4x, tallest 340 px) side by side on a 1280x720 grey sheet. Returns (sheet, scale)."""
+    """将裁剪图放大（<= 4x，最高 340 px）后并排铺在 1280x720 的灰色 sheet 上。返回 (sheet, scale)。"""
     import cv2
     import numpy as np
     hmax = max(c.shape[0] for c in crops)
@@ -265,8 +265,8 @@ def _tile_sheet(crops: list):
 
 
 def object_components(f, robot):
-    """Object crops of a start-state head frame: pixels deviating from the room-scale background (LAB > 22) or
-    saturated, not robot; components of 0.15-15 % of the view that are not room edges, as convex-hull mattes."""
+    """起始状态头部帧的物体裁剪：偏离房间尺度背景（LAB > 22）或高饱和、且非机器人的像素；
+    占视野 0.15-15% 且不属于房间边缘的连通域，以凸包抠图形式返回。"""
     import cv2
     import numpy as np
     lab = cv2.cvtColor(f, cv2.COLOR_BGR2LAB).astype(np.float32)
@@ -294,9 +294,9 @@ def object_components(f, robot):
 
 
 def object_sheet(real: dict, n: int, out: Path, masks: RobotMasks | None = None) -> dict | None:
-    """Whole real task objects from the start state (the frame with the least robot among the first 20 %; frame 0 with
-    projected masks), up to 4, left to right, plus changed-state tiles (3-25 % of an object's pixels differ by > 25 LAB
-    units in the latest unoccluded later frame: a state change; a moved or shadowed object changes far more)."""
+    """起始状态下的完整真实任务物体（取前 20% 帧中机器人最少的一帧；有投影掩码时用 frame 0），
+    最多 4 个，从左到右排列，外加状态变化 tile（目标像素的 3-25% 在最新的未被遮挡的后续帧中 LAB 差异
+    > 25：属于状态变化；被移动或受阴影影响的物体变化远大于此）。"""
     import cv2
     import numpy as np
     if masks is not None:
@@ -333,7 +333,7 @@ def object_sheet(real: dict, n: int, out: Path, masks: RobotMasks | None = None)
         li = cv2.cvtColor(fi, cv2.COLOR_BGR2LAB).astype(np.float32)
         present0 = float((np.linalg.norm(lab0[y0:y1, x0:x1] - bgl[y0:y1, x0:x1], axis=2)[mm] > 22).mean())
         present1 = float((np.linalg.norm(li[y0:y1, x0:x1] - bgl[y0:y1, x0:x1], axis=2)[mm] > 22).mean())
-        if present1 < 0.5 * present0:   # the object moved away: the later crop would show bare table
+        if present1 < 0.5 * present0:   # 物体已移开：较晚的裁剪只会显示裸露的桌面
             continue
         frac = float((np.linalg.norm(li[y0:y1, x0:x1] - lab0[y0:y1, x0:x1], axis=2)[mm] > 25).mean())
         if 0.03 < frac <= 0.25:
@@ -354,7 +354,7 @@ def object_sheet(real: dict, n: int, out: Path, masks: RobotMasks | None = None)
 
 
 def object_sheet_boxes(real: dict, boxes: list, out: Path, masks: RobotMasks | None = None) -> dict | None:
-    """Object sheet from task-given boxes: each object matted inside its box with GrabCut, robot pixels removed."""
+    """从任务给定的 boxes 生成 object sheet：每个物体在其 box 内用 GrabCut 抠出，并移除机器人像素。"""
     import cv2
     import numpy as np
     tiles, used = [], []
@@ -392,9 +392,9 @@ def object_sheet_boxes(real: dict, boxes: list, out: Path, masks: RobotMasks | N
 
 
 def wrist_sheet(real: dict, out: Path) -> dict | None:
-    """One 640x720 sheet: left wrist frame above right wrist frame, each the frame where that wrist view shows the most
-    task-object content (deviation from the smooth background or saturated, not the dark gripper, above the lowest
-    quarter where the gripper itself is).  Stacked, not side by side: a 1280x360 strip costs ~15 MP on its own."""
+    """单张 640x720 的 sheet：左腕帧在上、右腕帧在下，各自取该腕部视角任务物体内容最多的帧
+    （偏离平滑背景或高饱和、且非深色夹爪，位于最低四分之一——夹爪本身所在区域——之上）。纵向堆叠
+    而非并排：单条 1280x360 条带本身就要约 15 MP。"""
     import cv2
     import numpy as np
     tiles, meta = [], {}
@@ -426,7 +426,7 @@ def wrist_sheet(real: dict, out: Path) -> dict | None:
 
 
 def ref_mpix(path) -> float:
-    """Megapixels H3 encodes for one image reference (rescaled to a 2048-pixel short edge)."""
+    """H3 为一个图像 reference 编码的百万像素数（缩放到 2048 像素短边后）。"""
     from PIL import Image
     with Image.open(path) as im:
         w, h = im.size
@@ -435,8 +435,8 @@ def ref_mpix(path) -> float:
 
 
 def budget(full_views: list, sheets: list, limit: float = BUDGET_MPIX) -> tuple[list, list]:
-    """Ordered references within `limit` MP and MAX_REFERENCES: drop full-view frames after the first (last first),
-    then sheets from the end.  Returns (kept, dropped)."""
+    """在 `limit` MP 和 MAX_REFERENCES 之内按序保留 references：先丢弃首个之后的全视角帧（从末尾开始），
+    再丢弃末尾的 sheet。返回 (kept, dropped)。"""
     full, sh, dropped = list(full_views), list(sheets), []
 
     def cost(items):
@@ -489,7 +489,7 @@ def build(spec: dict) -> dict:
             sheets.append(w)
     refs, dropped = budget(full, sheets, float(spec.get("budget_mpix", BUDGET_MPIX)))
     extra = {}
-    for r in refs + dropped:   # measurements stay in the record, not in the bundle REFERENCE
+    for r in refs + dropped:   # 测量数据保留在记录中，不进入 bundle 的 REFERENCE
         extra[r["path"]] = {k: r.pop(k) for k in list(r) if k not in
                             ("path", "provenance", "scope", "views", "view_regions", "coverage")}
     rec = {"schema": "h3.episode-references-result/1", "references": refs, "dropped": [r["path"] for r in dropped],
@@ -500,10 +500,10 @@ def build(spec: dict) -> dict:
     return rec
 
 
-# ------------------------------------------------------------------ real robot colours for the white replay
+# ------------------------------------------------------------------ white replay 的真实机器人颜色
 def robot_color(sheet_path) -> list | None:
-    """One sim base colour for every robot link: median of the robot sheet's non-grey pixels, sRGB/255, floored at
-    0.06 so the links keep visible shading and HED edges.  Fits one-colour robots (dark Piper links)."""
+    """所有机器人连杆共用一个 sim 基色：robot sheet 非灰色像素的中位数，sRGB/255，下限为
+    0.06，使连杆保有可见的明暗和 HED 边缘。适用于单色机器人（深色 Piper 连杆）。"""
     import cv2
     import numpy as np
     im = cv2.imread(str(sheet_path))
@@ -518,9 +518,9 @@ def robot_color(sheet_path) -> list | None:
 
 
 def robot_link_colors(head, masks: RobotMasks, min_pixels: int = 300) -> dict:
-    """Per-link real colours (robots whose links are not one colour): for each link, the median real head-view pixel
-    under its projected mask, eroded 11 px so only pixels well inside the link count.  Head view only: a wrist camera
-    sees its own gripper from centimetres, where the calibration residual is tens of pixels."""
+    """逐连杆的真实颜色（连杆并非单色的机器人）：对每根连杆，取其投影掩码下真实头部视野像素的
+    中位数，掩码先腐蚀 11 px，只统计深居连杆内部的像素。仅用头部视野：腕部相机从数厘米处看自己的
+    夹爪，标定残差可达数十像素。"""
     import cv2
     import numpy as np
     acc: dict = {}
@@ -543,7 +543,7 @@ def robot_link_colors(head, masks: RobotMasks, min_pixels: int = 300) -> dict:
 
 
 def robot_colors(spec: dict) -> dict:
-    """{"@robot": rgba} from the robot sheet, plus "@robot_links" with projected masks: white-replay colours."""
+    """由 robot sheet 得到 {"@robot": rgba}，若有投影掩码再加 "@robot_links"：white-replay 颜色。"""
     out = Path(spec["out_dir"])
     sheet = out / "robot-sheet.png"
     if not sheet.is_file():

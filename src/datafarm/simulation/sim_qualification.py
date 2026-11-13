@@ -1,16 +1,15 @@
-"""Simulator qualification: make the simulator support the task's reasonable actions.
+"""模拟器资格认证：让模拟器支持 task 的合理动作。
 
-A simulator adapter is the signing authority for Episode IR, but its physics can make a reasonable
-action impossible: a closed parallel gripper may be unable to hold a hanging cloth, so the real robot's
-motion fails for every expert.  Before episodes are generated for a task, the
-pipeline therefore runs scripted *skill probes* (canonical, real-robot-like actions for the task's
-skills) over candidate *simulator variants* (parameter patches and optional contact models), judges
-each probe against declared criteria, and selects the smallest change under which every required
-probe passes.  The choice is issued as a certificate that binds the exact variant files and the probe
-evidence; ``verify_certificate`` recomputes it independently.
+模拟器 adapter 是 Episode IR 的签署权威，但它的物理特性可能让一个合理的
+动作无法完成：闭合的平行夹爪可能抓不住悬挂的布料，于是真实机器人的
+动作对每个 expert 都失败。因此，在为 task 生成 episode 之前，
+pipeline 会针对候选 *模拟器 variant*（参数 patch 和可选的接触模型）运行脚本化的 *skill probe*
+（task 各 skill 的规范化、类真实机器人动作），按声明的标准评判每个 probe，
+并选出能让每个必需 probe 通过的最小改动。该选择以 certificate 形式签发，绑定确切的
+variant 文件和 probe 证据；``verify_certificate`` 会独立重算它。
 
-This module holds the decision logic only.  Running probes and extracting metrics from simulator
-state is the job of task code.
+本模块只包含决策逻辑。运行 probe 以及从模拟器状态提取指标是
+task 代码的职责。
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ SCHEMA = "datafarm.sim-qualification.certificate/1.0.0"
 
 @dataclass(frozen=True)
 class SimulatorVariant:
-    """One candidate simulator configuration relative to the task's base configuration."""
+    """相对于 task 基础配置的一个候选模拟器配置。"""
 
     name: str
     material_patch: Mapping[str, Any] = field(default_factory=dict)
@@ -35,16 +34,16 @@ class SimulatorVariant:
 
     @property
     def change_magnitude(self) -> int:
-        """Number of independent changes; the selector prefers the smallest."""
+        """独立改动的数量；选择器偏好最小者。"""
 
         return len(self.material_patch) + len(self.scene_patch) + len(self.runtime_flags)
 
 
 def apply_patch(document: Mapping[str, Any], patch: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a copy of ``document`` with dotted-key values replaced.
+    """返回 ``document`` 的副本，其中点号键的值被替换。
 
-    A string value ``"*k"`` multiplies the existing number by ``k``.  A path that does not already
-    exist is an error: a qualification must never silently add an unconsumed field.
+    字符串值 ``"*k"`` 会把现有数字乘以 ``k``。尚不存在的路径是
+    错误：资格认证绝不能静默添加一个未被消费的字段。
     """
 
     out = copy.deepcopy(dict(document))
@@ -88,14 +87,13 @@ def evaluate_hold_probe(
     min_flat_area: float = 0.85,
     max_flat_height_m: float = 0.02,
 ) -> ProbeOutcome:
-    """A grasp-and-hang probe: the closed jaws must carry the hanging cloth.
+    """抓取并悬挂 probe：闭合的夹爪必须能承载悬挂的布料。
 
-    Required: the probe reached the hang (``hang_z_max_m`` present), the cloth is lifted at least
-    ``min_lift_m``, every gripped patch stays within ``max_slip_m`` of its pad, and the hanging cloth
-    is not stretched beyond ``max_strain_p95``.  When ``max_strain_p999`` is set, the 99.9th percentile
-    of the spring strain (the few springs next to a gripped patch, where a contact model concentrates
-    the load) is required to stay below it too.  The final flatness depends on the scripted lay-down
-    and is advisory.
+    必需：probe 到达悬挂状态（存在 ``hang_z_max_m``），布料至少被抬起
+    ``min_lift_m``，每个被夹住的 patch 都保持在其 pad 的 ``max_slip_m`` 范围内，且悬挂的布料
+    拉伸不超过 ``max_strain_p95``。当设置 ``max_strain_p999`` 时，弹簧应变的
+    第 99.9 百分位（被夹住 patch 旁边的少数弹簧，接触模型会把载荷集中在那里）也
+    要求低于该值。最终的平整度取决于脚本化的放置动作，仅作提示。
     """
 
     failures: list[str] = []
@@ -136,13 +134,13 @@ def evaluate_fold_probe(
     max_creep_m: float | None = None,
     min_rest_window_s: float = 8.0,
 ) -> ProbeOutcome:
-    """A scripted fold probe judged by the task verifier.
+    """由 task 验证器评判的脚本化折叠 probe。
 
-    Required: both folds are in place at the last release (``m1_at_release``).  Optional requirements, used
-    when a spec sets them: the folds are still in place in the settled final state (``settled_passed``), and
-    a folded cloth left alone stays put: the largest landmark drift between 2 s after the release and the end
-    (``creep_mm``, over a window of at least ``min_rest_window_s``) is at most ``max_creep_m``.  A bottom
-    layer that is rarely lifted and robot-gate failures are advisory.
+    必需：最后一次释放时两处折叠都在位（``m1_at_release``）。可选要求，只在
+    spec 设置时使用：稳定后的最终状态中折叠仍在位（``settled_passed``），并且
+    单独放置的已折叠布料保持不动：释放后 2 秒到结束之间最大的 landmark 漂移
+    （``creep_mm``，窗口至少 ``min_rest_window_s``）至多为 ``max_creep_m``。很少被抬起的底层
+    以及机器人 gate 失败仅作提示。
     """
 
     failures: list[str] = []
@@ -184,7 +182,7 @@ class VariantResult:
 
     @property
     def score(self) -> float:
-        """Passed probes count 2, each advisory costs 0.25; used only to break ties."""
+        """通过的 probe 计 2 分，每个提示扣 0.25；只用于打破平局。"""
 
         return sum(2.0 * o.passed - 0.25 * len(o.advisories) for o in self.outcomes)
 
@@ -192,12 +190,12 @@ class VariantResult:
 @dataclass(frozen=True)
 class QualificationDecision:
     selected: str | None
-    ranking: tuple[tuple[str, bool, int, float], ...]   # (variant, passes required, change magnitude, score)
+    ranking: tuple[tuple[str, bool, int, float], ...]   # (variant, 是否通过必需 probe, 改动量, score)
     reason: str
 
 
 def select_variant(results: Sequence[VariantResult], required_probes: Sequence[str]) -> QualificationDecision:
-    """Pick the smallest change under which every required probe passes (ties: higher score, name)."""
+    """选出能让每个必需 probe 通过的最小改动（平局：更高 score、更小名称）。"""
 
     if not required_probes:
         raise ValueError("at least one required probe is needed")
@@ -223,11 +221,11 @@ def build_certificate(
     criteria: Mapping[str, Any],
     canonical_digests: Mapping[str, Mapping[str, str]] | None = None,
 ) -> dict[str, Any]:
-    """Bind the decision to the evidence and to the exact files of the selected variant.
+    """把决策与证据以及所选 variant 的确切文件绑定。
 
-    ``file_digests`` are SHA-256 digests of the bytes; ``canonical_digests`` (for JSON files) are
-    :func:`canonical_json_sha256` digests, so a run can prove it used the same content even when the file
-    was re-serialised.  The evidence keeps every probe's metrics.
+    ``file_digests`` 是字节的 SHA-256 摘要；``canonical_digests``（用于 JSON 文件）是
+    :func:`canonical_json_sha256` 摘要，因此一次 run 可以证明它使用了相同内容，即使文件
+    被重新序列化。证据保留每个 probe 的指标。
     """
 
     if decision.selected is None:
@@ -258,7 +256,7 @@ def build_certificate(
 
 
 def verify_certificate(certificate: Mapping[str, Any], results: Sequence[VariantResult]) -> tuple[str, ...]:
-    """Independent check: recompute the selection and the evidence from the probe outcomes."""
+    """独立检查：从 probe 结果重算选择与证据。"""
 
     failures: list[str] = []
     if certificate.get("schema") != SCHEMA:
@@ -282,18 +280,18 @@ def verify_certificate(certificate: Mapping[str, Any], results: Sequence[Variant
 
 
 def canonical_json_sha256(document: Any) -> str:
-    """SHA-256 of a JSON document that ignores key order and whitespace."""
+    """JSON 文档的 SHA-256，忽略键顺序和空白。"""
 
     return sha256_json(document, allow_nan=True)
 
 
 def verify_run_binding(certificate: Mapping[str, Any], used: Mapping[str, str]) -> tuple[str, ...]:
-    """Check that a run used exactly the certified simulator files.
+    """检查一次 run 是否恰好使用了经认证的模拟器文件。
 
-    ``used`` maps each certified file name (``material.json``, ``scene.json`` and the runtime-flag files) to
-    the digest of the file the run actually used: :func:`canonical_json_sha256` for ``.json`` files, the
-    SHA-256 of the bytes otherwise.  Every certified file must be reported and match; a reported file that
-    the certificate does not list is an error too.
+    ``used`` 把每个经认证的文件名（``material.json``、``scene.json`` 和 runtime-flag 文件）映射到
+    该 run 实际使用的文件的摘要：``.json`` 文件用 :func:`canonical_json_sha256`，其他
+    用字节的 SHA-256。每个经认证的文件都必须上报并匹配；上报了证书未列出的文件
+    也是错误。
     """
 
     selected = certificate.get("selected_variant") or {}

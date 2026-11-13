@@ -1,38 +1,38 @@
 #!/usr/bin/env python3
-"""Build one Ref2VA + H3-Fun ControlNet (soft-HED) + inpaint hybrid render package ("backend": "control-hybrid").
+"""构建一个 Ref2VA + H3-Fun ControlNet（soft-HED）+ inpaint 混合渲染包（"backend": "control-hybrid"）。
 
-One package is one task episode x mode x recipe x seed: contract (render-policy), guttered 1024x768 canvas carrier,
-independent 17n+5-frame chunks with keep ranges, job manifest and ticket.  Every chunk gets:
+一个包对应一个 task episode x mode x recipe x seed：contract（render-policy）、带黑边的 1024x768 画布载体、
+独立的 17n+5 帧 chunk 及其 keep 范围、job manifest 与 ticket。每个 chunk 都会获得：
 
-  control_video  soft-HED map of the white chunk clip, computed by the VideoX-Fun tool
-                 (${H3_VIDEOX_FUN}/tools/prepare_hed_control.py, ControlNetHED annotator, run with
-                 ${H3_PYTHON}; --min-edge-intensity from the recipe; 0 = the soft map), on the same canvas;
-  inpaint_video  the white chunk clip itself (white RGB inpaint source on the 80+1280+80 padded canvas);
-  inpaint_mask   active-panel repaint mask: 1 (regenerate) on canvas x=[57,967), 0 (keep) on the black
-                 gutters (regenerate fraction 910/1024 = 0.888672).
+  control_video  white chunk 片段的 soft-HED 图，由 VideoX-Fun 工具计算
+                 （${H3_VIDEOX_FUN}/tools/prepare_hed_control.py，ControlNetHED annotator，使用
+                 ${H3_PYTHON} 运行；--min-edge-intensity 来自 recipe；0 表示 soft 图），画布相同；
+  inpaint_video  white chunk 片段本身（80+1280+80 填充画布上的 white RGB inpaint 源）；
+  inpaint_mask   活动面板重绘掩码：画布 x=[57,967) 上为 1（重绘），黑色
+                 边框上为 0（保留）（重绘占比 910/1024 = 0.888672）。
 
-Render it with h3_control_worker.py and assemble with h3_assemble.py.  The render-policy binding is checked at build
-time with datafarm.render.policy.check_h3_payload (prompt file == compiled contract prompt, contract real
-references first) and again by the worker before rendering.  ticket.json is written last, so an interrupted or
-rejected build can never be enqueued.
+用 h3_control_worker.py 渲染，并用 h3_assemble.py 组装。render-policy 绑定在构建
+时用 datafarm.render.policy.check_h3_payload 检查（prompt 文件 == 编译后的 contract prompt，contract 的真实
+引用在前），worker 在渲染前还会再检查一次。ticket.json 最后写入，因此中断或
+被拒绝的构建绝不会被入队。
 
   python h3_package.py build --run-dir <run> --bundle <run>/tasks/<task>/bundle.json \
       --recipe <run>/recipes/<recipe>.json --episode <episode> --mode sim2real \
       --out <run>/pkgs/<recipe>/<task>/<episode>-sim2real [--hed-jobs 4 --hed-threads 16]
-  python h3_package.py check <pkg>      # re-run the binding/input audit only
+  python h3_package.py check <pkg>      # 仅重跑绑定/输入审计
 
-The run directory (--run-dir or env H3_RUN) holds the shared HED caches; model, tool and checkpoint paths come from the
-recipe or the deployment bindings (h3_paths.py), never from built-in defaults.
+运行目录（--run-dir 或环境变量 H3_RUN）存放共享的 HED 缓存；模型、工具与 checkpoint 路径来自
+recipe 或部署绑定（h3_paths.py），绝不使用内置默认值。
 
-Recipe JSON fields: name, backend, worker_profile, canvas ("t3-guttered-1024x768"), denoise_forwards,
-chunk {frames, advance, keep_head, event_aware?, tail_pad?}, seed_base, control {...}, prompt_lowering?, assembly {...},
-bundle_variant?.
+Recipe JSON 字段：name、backend、worker_profile、canvas（"t3-guttered-1024x768"）、denoise_forwards、
+chunk {frames, advance, keep_head, event_aware?, tail_pad?}、seed_base、control {...}、prompt_lowering?、assembly {...},
+bundle_variant?。
 
-chunk.tail_pad holds the carrier's last frame for that many extra frames before chunking, so the episode's real last
-frame is never the end of the last chunk, where the generator tends to invent motion or objects; assembly and the
-exposure lock cut the output back to the episode length (frame i of the output is still carrier frame i).  The bundle
-episode may name `keep_regions` (h3_keep_regions.py: real pixels kept where the white shows a task state) and
-`wide_wrist` (wide-FOV wrist white, cropped back by h3_wrist_crop.py after the exposure lock).
+chunk.tail_pad 会在分块之前把载体的最后一帧多保留若干帧，从而 episode 的真实最后一
+帧永远不会是最后一个 chunk 的结尾，因为生成器往往在结尾处臆造运动或物体；组装与
+曝光锁定会把输出裁回 episode 长度（输出的第 i 帧仍然是载体的第 i 帧）。bundle
+episode 可以指定 `keep_regions`（h3_keep_regions.py：在 white 显示任务状态处保留真实像素）和
+`wide_wrist`（宽视场 wrist white，在曝光锁定后由 h3_wrist_crop.py 裁回）。
 """
 from __future__ import annotations
 
@@ -58,14 +58,14 @@ from datafarm.render.policy import check_h3_payload, lower_h3_prompt  # noqa: E4
 CANVAS = "t3-guttered-1024x768"
 MANIFEST_SCHEMA = "h3.control-hybrid-manifest/1"
 LEGAL = [17 * n + 5 for n in range(7, 22)]  # 124 .. 362
-# chunkvis wrist emptiness.  Saturation alone misses white or pale task objects, so a wrist view also counts as showing
-# an object when it has edge structure the empty room cannot explain (wrist_structure()).
+# chunkvis wrist 空置检测。仅凭饱和度会漏掉白色或浅色任务物体，因此只要 wrist 视图具有空房间无法解释的
+# 边缘结构（wrist_structure()），也计为显示了物体。
 CHUNK_FACTS_DETECTORS = ("wrist-structure-v1",)
-WRIST_EDGE_TAU = 12          # Canny low threshold on the blurred grey wrist view (high = 3x)
-WRIST_SEAMS = 4              # straight room seams peeled per frame (wall/table horizon, table edges, wall corners)
-WRIST_MIN_STRUCTURE = 0.75   # residual edge length, in wrist-view widths, that marks a task object in a frame
-# control paths a recipe may name; ${KEY} placeholders (configs/render/h3-control-hybrid-v1.json) are expanded from the
-# deployment bindings, absent keys default to h3_paths.default_model_paths() (also from the bindings)
+WRIST_EDGE_TAU = 12          # 模糊灰色 wrist 视图上的 Canny 低阈值（高阈值为 3 倍）
+WRIST_SEAMS = 4              # 每帧剥离的直线房间接缝数量（墙/桌地平线、桌边、墙角）
+WRIST_MIN_STRUCTURE = 0.75   # 残余边缘长度（以 wrist 视图宽度为单位），超过则标记该帧中存在任务物体
+# recipe 可以指定的 control 路径；${KEY} 占位符（configs/render/h3-control-hybrid-v1.json）由
+# 部署绑定展开，缺失的键默认为 h3_paths.default_model_paths()（同样来自绑定）
 CONTROL_PATH_KEYS = ("hed_tool", "hed_checkpoint", "base_model", "control_checkpoint", "control_config",
                      "videox_fun_repo")
 PROFILES = ("control-turbo",)
@@ -81,12 +81,12 @@ def ffmpeg(*args: str) -> None:
 
 def plan_chunks(total: int, frames: int, advance: int, keep_head: int, events: list | tuple = (), before: int = 24,
                 min_advance: int = 48) -> list[dict]:
-    """Chunks of `frames` (legal 17n+5), advancing `advance`; the last chunk is end-aligned.
+    """由 `frames` 个帧（合法的 17n+5）构成的 chunk，步进为 `advance`；最后一个 chunk 按末端对齐。
 
-    Keep ranges are [start_k + keep_head, start_{k+1} + keep_head).  With `events` (frames where an arm enters or leaves
-    the head view) a chunk never starts within keep_head frames after an event: such a start moves to `before` frames
-    ahead of the event, within [min_advance, advance], so the chunk generates the entry or exit itself instead of
-    starting into its aftermath, which tends to draw a ghost gripper."""
+    Keep 范围为 [start_k + keep_head, start_{k+1} + keep_head)。给定 `events`（机械臂进入或离开
+    头部视图的帧）时，chunk 绝不会在事件后 keep_head 帧内开始：这样的起始点会前移到事件之前
+    `before` 帧处，并落在 [min_advance, advance] 内，使该 chunk 自己生成进入或退出过程，而不是
+    从其后续影响开始，那样往往画出一个残影夹爪。"""
     if total < LEGAL[0]:
         raise ValueError(f"episode shorter than {LEGAL[0]} frames: {total}")
     if frames not in LEGAL:
@@ -121,10 +121,9 @@ def plan_chunks(total: int, frames: int, advance: int, keep_head: int, events: l
 
 
 def head_arm_sides(lab, st, hw: int, hy: int) -> set:
-    """Which arms a head-view dark-robot labelling shows.  A component touching the left (right) border is the left
-    (right) arm.  A component touching only the top edge (a distal link or gripper detached from its arm in the mask)
-    belongs to the arm that does touch a side border when exactly one side does; otherwise its side is the mean
-    column of its top-edge contact."""
+    """头部视图中暗色机器人标注显示了哪些机械臂。接触左（右）边界的连通分量即为左
+    （右）臂。只接触顶边（掩码中与手臂分离的远端连杆或夹爪）的分量，若恰好只有一侧边界被
+    接触，则归属于接触该侧边界的手臂；否则其侧别取顶边接触点的平均列位置。"""
     import numpy as np
     big = [k for k in range(1, len(st)) if st[k][4] >= 0.003 * hw * hy]
     left = any(st[k][0] <= 6 for k in big)
@@ -145,11 +144,11 @@ def head_arm_sides(lab, st, hw: int, hy: int) -> set:
 
 
 def arm_events(canvas: Path, total: int, min_gap: int = 24) -> list:
-    """Frames where a robot arm enters or leaves the head view of the white carrier (either side).
+    """机械臂进入或离开 white 载体头部视图（任一侧）的帧。
 
-    Presence per side and frame = a dark robot component (V<110, S<90, >= 0.3 % of the head area) touching that side's
-    border (or the top edge in that half), as in chunk_facts; 9-frame majority smoothing; toggles closer than min_gap
-    frames to the previous kept event are merged."""
+    每侧每帧的存在性 = 一个暗色机器人连通分量（V<110、S<90、占头部面积 >= 0.3 %）接触该侧的
+    边界（或该半区的顶边），与 chunk_facts 中的判定一致；经 9 帧多数平滑；与上一个保留事件相距小于
+    min_gap 帧的切换会被合并。"""
     import cv2
     import numpy as np
     x0, x1, hy = SPATIAL.canvas_active_x0, SPATIAL.canvas_active_x1, SPATIAL.canvas_head_height
@@ -194,7 +193,7 @@ def control_settings(recipe: dict) -> dict:
         for key in ("hed_tool", "hed_checkpoint"):
             if key not in c:
                 c[key] = h3_paths.default_model_path(key)
-    for key in CONTROL_PATH_KEYS:  # normalized so the worker's loaded-model comparison is exact
+    for key in CONTROL_PATH_KEYS:  # 归一化，使 worker 的已加载模型比对精确一致
         if c.get(key):
             c[key] = str(Path(c[key]))
     if c["type"] != "soft-hed":
@@ -209,7 +208,7 @@ def control_settings(recipe: dict) -> dict:
 
 
 def make_mask(path: Path, frames: int) -> dict:
-    """Active-panel repaint mask on the H3 canvas: white (regenerate) on x=[57,967) at full height, black gutters."""
+    """H3 画布上的活动面板重绘掩码：x=[57,967) 全高为白色（重绘），边框为黑色。"""
     w, h, x0, x1 = SPATIAL.canvas_width, SPATIAL.canvas_height, SPATIAL.canvas_active_x0, SPATIAL.canvas_active_x1
     if not (path.is_file() and probe(path)[:3] == (w, h, frames)):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -224,7 +223,7 @@ def make_mask(path: Path, frames: int) -> dict:
     cap.release()
     if not ok:
         raise SystemExit(f"cannot decode mask {path}")
-    m = frame[:, :, 2] > 127  # R channel after BGR decode, thresholded like the pipeline (> 0.5)
+    m = frame[:, :, 2] > 127  # BGR 解码后的 R 通道，按流水线方式阈值化（> 0.5）
     expected = np.zeros_like(m)
     expected[:, x0:x1] = True
     if not np.array_equal(m, expected):
@@ -246,7 +245,7 @@ def make_hed(job: dict, out_dir: Path, ctl: dict, threads: int, device: str) -> 
         if rec.get("input_sha256") == job["white_sha256"] and rec.get("frames") == frames \
                 and rec.get("min_edge_intensity") == mi and probe(target)[:3] == (w, h, frames):
             return rec
-    # global cache: identical white chunk clip + HED settings -> identical control video (shared across recipes)
+    # 全局缓存：相同的 white chunk 片段 + HED 设置 -> 相同的 control 视频（跨 recipe 共享）
     cache = h3_paths.run_dir() / "cache" / "hed" / f"{job['white_sha256']}-{mi}-{frames}"
     if (cache.with_suffix(".mp4")).is_file() and (cache.with_suffix(".h3.json")).is_file():
         rec = json.loads(cache.with_suffix(".h3.json").read_text())
@@ -257,7 +256,7 @@ def make_hed(job: dict, out_dir: Path, ctl: dict, threads: int, device: str) -> 
         return rec
     env = dict(os.environ, OMP_NUM_THREADS=str(threads), MKL_NUM_THREADS=str(threads))
     annotator = h3_paths.binding("H3_HED_ANNOTATOR_REPO", required=False, must_exist=False)
-    if annotator:  # read by the soft-HED tool of the patched VideoX-Fun
+    if annotator:  # 由打过补丁的 VideoX-Fun 的 soft-HED 工具读取
         env["H3_HED_ANNOTATOR_REPO"] = annotator
     if device == "cpu":
         env["CUDA_VISIBLE_DEVICES"] = ""
@@ -284,14 +283,14 @@ def make_hed(job: dict, out_dir: Path, ctl: dict, threads: int, device: str) -> 
 
 
 def wrist_structure(panel) -> float:
-    """Edge structure of one BGR wrist view that the empty room cannot explain, in view widths of edge length.
+    """单个 BGR wrist 视图中空房间无法解释的边缘结构，以视图宽度为单位的边缘长度计。
 
-    An empty white-mesh wrist view is the plain wall and tabletop, a few straight seams between them (horizon, table
-    edges, wall corners) and dark robot pixels (its own fingers, the other arm, dark cast shadows).  Canny edges of the
-    blurred grey view outside the dilated dark-robot mask, minus up to WRIST_SEAMS straight seams peeled longest first
-    (each removed along its whole line across the view) and minus specks < 12 px, are what a task object adds whatever
-    its colour: outlines and buttons of a white device, cabinet fronts and handles, cloth folds, a white cube.
-    Empty views measure ~0-0.5, such objects ~0.8-7."""
+    空的白色网格 wrist 视图就是素墙与桌面、二者之间的少量直线接缝（地平线、桌面
+    边缘、墙角）以及暗色机器人像素（它自己的手指、另一只手臂、暗色投影）。对模糊灰色视图在膨胀后的暗色
+    机器人掩码之外做 Canny 边缘，减去最多 WRIST_SEAMS 条直线接缝（按长度从长到短剥离，每条沿其
+    贯穿视图的整条线移除），再减去 < 12 px 的斑点，剩下的就是任务物体无论什么颜色都会带来的内容：
+    白色设备的轮廓与按钮、柜面与把手、布料褶皱、白色方块。
+    空视图测得约 0-0.5，此类物体约 0.8-7。"""
     import cv2
     import numpy as np
     hsv = cv2.cvtColor(panel, cv2.COLOR_BGR2HSV)
@@ -322,15 +321,15 @@ def wrist_structure(panel) -> float:
 
 
 def chunk_facts(job: dict, cfg: dict | None = None) -> dict:
-    """Measure chunk-local visibility facts from the chunk's white carrier clip on the guttered canvas
-    (T-layout: head = top 2/3, left wrist = bottom-left, right wrist = bottom-right of the active area).
-    head arm side present  <=> a dark robot component (V<110, S<90, >=0.3% of the head area) touches that side's
-    border (left/right edge, or the top edge in that half) in >= 15% of sampled frames;
-    wrist empty            <=> in >= 90% of sampled frames that wrist view shows no task object: saturated pixels
-    (S>=70, V>=40) cover <= 0.4% of it AND wrist_structure() < 0.75, so a white or pale object is not measured as absent;
-    head_max_coloured_objects = max over sampled frames of the number of separate saturated components (S>=70, V>=40,
-    opened 3x3, closed 9x9, >= 0.15% of the head view) in the head view;
-    wrist_large_objects    <=> a non-empty wrist view has saturated pixels on >= 6% of it in >= 25% of sampled frames."""
+    """从带边框画布上该 chunk 的 white 载体片段测量 chunk 局部可见性事实
+    （T 形布局：head = 上部 2/3，left wrist = 活动区左下，right wrist = 活动区右下）。
+    head arm side present  <=> 一个暗色机器人连通分量（V<110、S<90、占头部面积 >=0.3%）接触该侧的
+    边界（左边/右边，或该半区的顶边）的采样帧占比 >= 15%；
+    wrist empty            <=> 在 >= 90% 的采样帧中该 wrist 视图未显示任务物体：饱和像素
+    （S>=70、V>=40）占比 <= 0.4% 且 wrist_structure() < 0.75，因此白色或浅色物体不会被测为不存在；
+    head_max_coloured_objects = 各采样帧中头部视图里独立饱和连通分量数（S>=70、V>=40，
+    3x3 开运算、9x9 闭运算、占头部视图 >= 0.15%）的最大值；
+    wrist_large_objects    <=> 非空 wrist 视图在 >= 25% 的采样帧中饱和像素占比 >= 6%。"""
     import cv2
     import numpy as np
     cfg = cfg or {}
@@ -369,7 +368,7 @@ def chunk_facts(job: dict, cfg: dict | None = None) -> dict:
                 sat = (v[..., 1] >= 70) & (v[..., 2] >= 40)
                 if sat.mean() > 0.004 or wrist_structure(fr[hy:, a:b]) >= WRIST_MIN_STRUCTURE:
                     wobj[name] += 1
-                if sat.mean() >= 0.06:  # a large, very close task object at the fingers
+                if sat.mean() >= 0.06:  # 手指附近有一个体积大、距离近的任务物体
                     wbig[name] += 1
         i += 1
     cap.release()
@@ -381,10 +380,10 @@ def chunk_facts(job: dict, cfg: dict | None = None) -> dict:
 
 
 def make_gated(job: dict, hed: dict, gate: dict) -> dict:
-    """Shadow-suppressed control: keep HED edges only where the white carrier itself has a strong local
-    luminance step (max-min of the blurred gray image in a window > tau).  Simulator cast-shadow boundaries on
-    the white table are low-contrast steps (~10-30 levels) and are removed; object/arm silhouettes and white
-    rims on the table (>= ~25-40 levels) are kept.  Deterministic, cached by (white sha, HED sha, gate)."""
+    """抑制阴影的 control：仅当 white 载体本身具有强局部
+    亮度阶跃（模糊灰图在窗口内的 max-min > tau）时才保留 HED 边缘。白色桌面上的仿真器投影边界
+    是低对比度阶跃（约 10-30 级），会被移除；物体/机械臂轮廓以及桌面上的白色
+    边缘（>= 约 25-40 级）则保留。确定性，按 (white sha, HED sha, gate) 缓存。"""
     import cv2
     import numpy as np
     tau, win, dil = float(gate.get("tau", 25)), int(gate.get("window", 7)), int(gate.get("dilate", 5))
@@ -424,7 +423,7 @@ def make_gated(job: dict, hed: dict, gate: dict) -> dict:
 
 
 def audit(pkg_dir: Path) -> dict:
-    """Render-policy binding + control-input contract; used at build time and by the worker."""
+    """render-policy 绑定 + control 输入契约；构建时与 worker 都会使用。"""
     manifest = json.loads((pkg_dir / "job-manifest.json").read_text())
     policy = check_h3_payload(manifest, pkg_dir / "contract" / "contract.json")
     if manifest.get("schema") != MANIFEST_SCHEMA or manifest.get("controlnet") is not True:
@@ -456,7 +455,7 @@ def audit(pkg_dir: Path) -> dict:
 
 def build_chunk_jobs(out: Path, task: str, ep_id: str, contract: dict, canvas: Path, chunks: list, total: int,
                      seed: int, steps: int, prompt: str) -> list[dict]:
-    """White chunk clips (padded by clone at the episode end when the legal shape runs past it) and their job records."""
+    """white chunk 片段（当合法帧数超出 episode 末端时，在末尾克隆补齐）及其 job 记录。"""
     refs = [r["path"] for r in contract["intent"]["real_references"]]
     jobs = []
     for c in chunks:
@@ -479,7 +478,7 @@ def build_chunk_jobs(out: Path, task: str, ep_id: str, contract: dict, canvas: P
 
 
 def add_control_inputs(jobs: list[dict], ctl: dict, inputs: Path, args) -> tuple[dict, list]:
-    """Add the control inputs (soft-HED, optionally gated, and the repaint mask) to the chunk jobs."""
+    """为 chunk job 添加 control 输入（soft-HED，可选 gated，以及重绘掩码）。"""
     masks = {n: make_mask(inputs / f"repaint-mask-active-{n}f.mp4", n)
              for n in sorted({int(j["generated_frames"]) for j in jobs})}
     with cf.ThreadPoolExecutor(max(1, args.hed_jobs)) as ex:
@@ -501,11 +500,11 @@ def add_control_inputs(jobs: list[dict], ctl: dict, inputs: Path, args) -> tuple
 
 
 def add_chunk_prompts(jobs: list[dict], contract: dict, lowering: str, contract_dir: Path, detector: str) -> None:
-    """Chunk-local lowered prompts from the facts measured on each white clip."""
+    """根据每个 white 片段上测得的事实，生成 chunk 局部降级 prompt。"""
     all_facts = [chunk_facts(job, {"detector": detector}) for job in jobs]
     if all(f.get("head_max_coloured_objects", 0) == 0 for f in all_facts):
-        # the carrier never shows a measurable coloured object (e.g. a pale, small block): no count is stated at
-        # all, so a measurement miss can never tell the generator to drop a real object
+        # 载体从未显示可测量的彩色物体（例如浅色小方块）：完全不陈述数量，
+        # 这样测量遗漏绝不会告诉生成器丢弃一个真实物体
         for f in all_facts:
             f.pop("head_max_coloured_objects", None)
     for job, facts in zip(jobs, all_facts):
@@ -515,7 +514,7 @@ def add_chunk_prompts(jobs: list[dict], contract: dict, lowering: str, contract_
 
 
 def cmd_build(args) -> int:
-    h3_paths.run_dir()  # fail closed before any work: HED caches live in the run directory
+    h3_paths.run_dir()  # 先失败关闭再开始任何工作：HED 缓存位于运行目录中
     recipe_path = Path(args.recipe).resolve()
     recipe = json.loads(recipe_path.read_text())
     if recipe.get("backend") != "control-hybrid":
@@ -541,11 +540,11 @@ def cmd_build(args) -> int:
     if tail_pad < 0:
         raise SystemExit("chunk.tail_pad must be >= 0")
     render_total = total + tail_pad
-    # contract + canvas carrier (the last frame held for tail_pad extra frames)
+    # contract + 画布载体（最后一帧多保留 tail_pad 帧）
     contract = h3_bundle.compile_contract(bundle, args.mode, ep["id"], args.variant, out / "contract")
     canvas = inputs / "carrier-canvas-24fps.mp4"
-    # hold the last frame BEFORE retiming: tpad counts frames at the stream's nominal rate, so after setpts a 30 fps
-    # carrier would keep only 48 x 24/30 of the held frames once the output is resampled to 24 fps
+    # 在重定时之前持有最后一帧：tpad 按流的标称帧率计算帧数，因此经过 setpts 之后，30 fps
+    # 载体在输出重采样到 24 fps 时只会保留 48 x 24/30 个被持有的帧
     ffmpeg("-i", str(carrier), "-vf", f"trim=start_frame={fr[0]}:end_frame={fr[1]},"
            + (f"tpad=stop_mode=clone:stop={tail_pad}," if tail_pad else "")
            + f"setpts=N/(24*TB),{SPATIAL.ffmpeg_to_canvas()}",
@@ -553,7 +552,7 @@ def cmd_build(args) -> int:
            "-preset", "fast", "-crf", "10", "-pix_fmt", "yuv420p", str(canvas))
     if probe(canvas).frames != render_total:
         raise SystemExit(f"canvas carrier frame count {probe(canvas).frames} != {render_total}")
-    # chunk plan (over the padded carrier)
+    # chunk 计划（基于填充后的载体）
     events = ()
     if ch.get("event_aware"):
         events = arm_events(canvas, render_total)
@@ -564,7 +563,7 @@ def cmd_build(args) -> int:
         (out / "chunk-plan-events.json").write_text(json.dumps(
             {"arm_events": events, "moved_starts": chunks[0].get("moved_starts", []),
              "starts": [c["start"] for c in chunks]}, indent=1))
-    # jobs: base prompt, chunk clips, control inputs, chunk-local prompts
+    # jobs：基础 prompt、chunk 片段、control 输入、chunk 局部 prompt
     prompt = out / "contract" / "prompt.txt"
     lowering = recipe.get("prompt_lowering")
     if lowering:
@@ -576,7 +575,7 @@ def cmd_build(args) -> int:
                             str(prompt))
     masks, heds = add_control_inputs(jobs, ctl, inputs, args)
     keep = None
-    if ep.get("keep_regions"):   # real pixels kept where the white shows a task state (h3_keep_regions.py)
+    if ep.get("keep_regions"):   # 在 white 显示任务状态处保留真实像素（h3_keep_regions.py）
         keep = h3_keep_regions.apply(jobs, ep["keep_regions"], h3_paths.run_dir() / "cache" / "keep")
     if lowering:
         add_chunk_prompts(jobs, contract, lowering, out / "contract",

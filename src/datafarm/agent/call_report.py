@@ -1,9 +1,7 @@
-"""Grouped, denominator-preserving summaries of ``agent-calls.jsonl`` ledgers.
+"""``agent-calls.jsonl`` 账本的分组汇总，并保留分母。
 
-Every record counts: failed, timed-out, invalid and cached calls are reported next to
-successful ones, and a call without a known cost is counted as *unknown* rather than
-free. Duplicated ``call_id`` values (the same ledger passed twice) are counted once and
-reported as a problem.
+每条记录都计入：失败、超时、非法与缓存的调用会和成功调用并列汇报，成本未知的调用计为
+*unknown* 而非免费。重复的 ``call_id``（同一账本被传了两次）只计一次，并作为问题汇报。
 """
 
 from __future__ import annotations
@@ -24,7 +22,7 @@ _ALLOWED_GROUP_FIELDS = frozenset(
 
 
 def expand_paths(paths: Iterable[str | Path]) -> list[Path]:
-    """Files are used as given; directories contribute every ``agent-calls.jsonl`` below."""
+    """文件按给定路径使用；目录则贡献其下所有的 ``agent-calls.jsonl``。"""
 
     found: list[Path] = []
     for item in paths:
@@ -63,7 +61,7 @@ def _read_lenient(path: Path) -> tuple[list[AgentCallRecord], list[dict[str, Any
 def load_records(
     paths: Sequence[Path], *, strict: bool = True
 ) -> tuple[list[AgentCallRecord], list[dict[str, Any]]]:
-    """Read ledgers; strict mode raises on the first invalid line."""
+    """读取账本；strict 模式遇到第一个非法行即报错。"""
 
     records: list[AgentCallRecord] = []
     problems: list[dict[str, Any]] = []
@@ -86,7 +84,7 @@ def load_records(
 
 
 def _percentile(sorted_values: Sequence[float], fraction: float) -> float | None:
-    """Nearest-rank percentile of already sorted values."""
+    """对已排序取值求最近秩（nearest-rank）百分位数。"""
 
     if not sorted_values:
         return None
@@ -159,7 +157,7 @@ def _cell(value: Any) -> str:
 
 
 def render_table(report: dict[str, Any]) -> str:
-    """Plain-text table of the grouped rows plus a totals line."""
+    """分组行的纯文本表格，外加一行总计。"""
 
     by = list(report["group_by"])
     metrics = [

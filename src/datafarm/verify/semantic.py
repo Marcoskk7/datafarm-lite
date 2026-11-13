@@ -1,22 +1,22 @@
-"""Semantic "unsupported entity" check with self-supervised DINOv2 features.
+"""使用自监督 DINOv2 特征检查“不支持的实体”。
 
-Colour cannot tell a black robot link from a dark cast shadow or a dark wall,
-so a hallucinated arm is judged in feature space instead.  Per video and per
-panel:
+颜色无法区分黑色机器人连杆与深色投影或深色墙，
+因此幻觉出的手臂在特征空间中判定。每个视频、每个
+panel：
 
-1. DINOv2 patch features of the *generated* frames are pooled on a patch grid.
-2. Patches that the carrier marks as the entity (eroded) give entity
-   prototypes (k-means); patches far from any carrier entity give background.
-3. A patch "looks like the entity" when its best cosine to an entity prototype
-   exceeds ``tau = max(entity p10, background p99.5)``.  If those two
-   distributions overlap (``background p99.5 >= entity p50``) the features
-   cannot separate the entity here and the panel abstains.
-4. Entity-looking patches with no carrier entity within one patch form blobs;
-   a blob of at least ``min_patches`` persisting ``persist_samples`` sampled
-   frames is a hallucinated entity.
+1. *生成*帧的 DINOv2 patch 特征汇总到 patch 网格上。
+2. carrier 标记为该实体的 patch（经腐蚀）给出实体
+   原型（k-means）；远离任何 carrier 实体的 patch 给出背景。
+3. 当某个 patch 到实体原型的最佳余弦相似度
+   超过 ``tau = max(entity p10, background p99.5)`` 时，它“看起来像该实体”。若这两个
+   分布重叠（``background p99.5 >= entity p50``），则特征
+   在此无法区分该实体，panel 弃权。
+4. 看起来像实体、且一个 patch 内没有 carrier 实体的 patch 构成 blob；
+   在 ``persist_samples`` 个采样帧中持续存在、至少有 ``min_patches`` 个 patch 的
+   blob 即为幻觉出的实体。
 
-The model path comes from the environment (``DATAFARM_DINOV2``), never from code.
-torch/transformers are imported lazily so the core package stays light.
+模型路径来自环境变量（``DATAFARM_DINOV2``），绝不出现在代码中。
+torch/transformers 惰性导入，以保持核心包轻量。
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def _load(device: str | None = None):
 
 
 def patch_features(crops: np.ndarray, grid: tuple[int, int], batch: int = 32) -> np.ndarray:
-    """[N,H,W,3] BGR crops -> L2-normalised [N,gh,gw,C] patch features."""
+    """[N,H,W,3] BGR 裁剪 -> L2 归一化的 [N,gh,gw,C] patch 特征。"""
 
     import torch
 
@@ -92,7 +92,7 @@ def check_semantic_unsupported(ctx: Context, entity, *, sample_every: int = 4,
     spec = ctx.spec
     try:
         _load()
-    except Exception as exc:  # model unavailable: the requested authority is missing
+    except Exception as exc:  # 模型不可用：缺少所请求的权威
         return CheckResult(name, "entity", ABSTAIN, reason=f"semantic model unavailable: {exc}")
     persist = int(spec.threshold("persist_samples"))
     idx = np.arange(0, ctx.samples, sample_every)
@@ -111,7 +111,7 @@ def check_semantic_unsupported(ctx: Context, entity, *, sample_every: int = 4,
     for panel in panels:
         rows, cols = ctx.work_slice(panel)
         h, w = rows.stop - rows.start, cols.stop - cols.start
-        # about one patch per 20 work pixels (40 layout pixels)
+        # 约每 20 个 work 像素（40 个布局像素）一个 patch
         gw, gh = max(8, round(w / 20)), max(6, round(h / 20))
         grid = (gw, gh)
         feats = patch_features(ctx.generated.frames[idx][:, rows, cols], grid)
@@ -121,9 +121,9 @@ def check_semantic_unsupported(ctx: Context, entity, *, sample_every: int = 4,
             anything = np.maximum(anything, np.stack([_pool(others[j][rows, cols], grid) for j in idx]))
         ent_sel = own >= 0.7
         near = np.stack([cv2.dilate((a > 0.02).astype(np.uint8), np.ones((3, 3), np.uint8)) for a in anything]) > 0
-        # A hallucination must sit where the carrier shows empty workcell: any
-        # simulator content (e.g. a light-grey link the dark key misses) counts
-        # as support.
+        # 幻觉必须位于 carrier 显示为空工作单元的位置：任何
+        # 模拟器内容（例如深色键漏掉的浅灰色连杆）都算作
+        # 支撑。
         fg = ctx.carrier_foreground()
         content = np.stack([np.maximum(_pool(fg[j][rows, cols], grid), o) for j, o in zip(idx, own)])
         own_near = np.stack([cv2.dilate((o > 0.05).astype(np.uint8), np.ones((3, 3), np.uint8)) for o in content]) > 0

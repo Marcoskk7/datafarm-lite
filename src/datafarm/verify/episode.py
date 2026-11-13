@@ -1,8 +1,7 @@
-"""Bind per-episode authority (events, seams) from simulator-side records.
+"""从模拟器侧记录绑定逐 episode 的权威信息（事件、接缝）。
 
-Events come from the simulator's own command stream, never from the generated
-video: a gripper close/open transition is the moment a contact is made or
-released.  The roles an event involves are declared by the task spec.
+事件来自模拟器自身的命令流，绝不来自生成的视频：夹爪闭合/张开的转换，
+正是接触产生或释放的时刻。事件涉及的 role 由 task spec 声明。
 """
 
 from __future__ import annotations

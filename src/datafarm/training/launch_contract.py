@@ -1,9 +1,9 @@
-"""Fail-closed contract for admission-bound Piper PI0.5 training.
+"""admission 绑定的 Piper PI0.5 训练的 fail-closed 契约。
 
-This module deliberately does not import a trainer.  It validates the semantic
-launch contract before a backend adapter is allowed to materialize a command.
+本模块刻意不导入 trainer。它在 backend adapter 被允许生成命令之前，
+先校验语义 launch 契约。
 
-Every check reports ``pass`` or ``fail``; any ``fail`` blocks the launch.
+每项检查报告 ``pass`` 或 ``fail``；任何 ``fail`` 都阻止 launch。
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Any, Mapping
 from datafarm.common import is_sha256
 
 
-# PI0.5 can consume discretized state through its tokenizer, but this launcher trains state-free only.
+# PI0.5 可以通过其 tokenizer 消费离散化 state，但本 launcher 只训练无 state 模式。
 STATE_CONDITIONING_MODES = ("none",)
 
 PIPER_CAMERA_KEYS = (
@@ -35,11 +35,11 @@ ADMISSION_ROOT_AUTHORITY = "admission-root"
 
 @dataclass(frozen=True)
 class AdmissionBinding:
-    """How a launch is bound to its Admission Certificate.
+    """launch 如何绑定到其 Admission Certificate。
 
-    A ``certificate-verified`` binding must be built from a successful
-    ``datafarm.core.admission.verify_certificate`` result (see
-    ``from_verification``).
+    ``certificate-verified`` binding 必须由成功的
+    ``datafarm.core.admission.verify_certificate`` 结果构造（见
+    ``from_verification``）。
     """
 
     mode: str
@@ -79,7 +79,7 @@ class AdmissionBinding:
 
 @dataclass(frozen=True)
 class Pi05TrainingContract:
-    """Semantic inputs that must be frozen before a trainer command exists."""
+    """在 trainer 命令存在之前必须冻结的语义输入。"""
 
     admission_certificate_sha256: str
     training_bundle_sha256: str
@@ -93,8 +93,8 @@ class Pi05TrainingContract:
     source_fps: float
     launch_argv: tuple[str, ...] = ()
     ablation_name: str | None = None
-    # Admission: a bare digest is never enough; the binding carries the
-    # verified certificate.
+    # Admission：仅有裸 digest 永远不够；binding 携带已验证的
+    # certificate。
     admission: AdmissionBinding | None = None
 
 
@@ -139,7 +139,7 @@ def _admission_status(contract: Pi05TrainingContract) -> tuple[str, str | None]:
 
 
 def audit_pi05_training_contract(contract: Pi05TrainingContract) -> Pi05TrainingAudit:
-    """Validate a formal PI0.5 launch contract without invoking a trainer."""
+    """在不调用 trainer 的情况下校验正式 PI0.5 launch 契约。"""
 
     statuses: dict[str, str] = {}
 

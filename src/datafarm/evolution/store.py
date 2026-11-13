@@ -1,7 +1,7 @@
-"""Small immutable records and cooperative single-writer transactions; stdlib only.
+"""小型不可变记录与协作式单写者事务；仅使用标准库。
 
-This filesystem store is not a security boundary against another process with the
-same write permissions. Deploy evaluators separately when running untrusted code.
+这个文件系统存储不构成对另一个拥有相同写入权限进程的安全边界。
+运行不可信代码时，请单独部署 evaluator。
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def write(path, value):
 
 
 def immutable(path, value):
-    """Publish a complete record once, including on shared filesystems."""
+    """一次性发布完整记录，包括在共享文件系统上。"""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix='.record-', dir=path.parent)

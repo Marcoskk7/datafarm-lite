@@ -1,10 +1,9 @@
-"""Project simulator object poses into every panel.
+"""把模拟器物体位姿投影到每个 panel 中。
 
-The Episode IR records each object's pose and every camera's intrinsics and
-extrinsics per frame.  Projecting a simple bounding primitive (cylinder or box)
-gives the full image footprint of an entity — including parts a colour key
-cannot see in the carrier, such as the interior of a white container — so "is this rendered
-blob backed by a real object?" is answered by simulator geometry, not by colour.
+Episode IR 逐帧记录每个物体的位姿以及每个相机的内参和外参。
+投影一个简单的包围基元（圆柱或盒子）即可得到实体的完整图像覆盖范围 ——
+包括颜色键在 carrier 中看不到的部分，例如白色容器的内部 —— 因此
+"这块渲染出的色块是否有真实物体支撑？"由模拟器几何回答，而非颜色。
 """
 
 from __future__ import annotations
@@ -52,7 +51,7 @@ def primitive_points(geometry: Mapping[str, Any]) -> np.ndarray:
 
 def project_footprints(spec: RenderVerifierSpec, entity: EntitySpec, state: Mapping[str, Any],
                        sample_frames: np.ndarray, work_shape: tuple[int, int]) -> np.ndarray | None:
-    """Boolean [n, H, W] work-scale masks of the projected entity footprint."""
+    """投影实体覆盖范围的布尔 [n, H, W] work 尺度掩码。"""
 
     if not entity.state_objects or not entity.geometry:
         return None
@@ -87,7 +86,7 @@ def project_footprints(spec: RenderVerifierSpec, entity: EntitySpec, state: Mapp
                 px = np.c_[ox + uv[:, 0] * sx, oy + uv[:, 1] * sy]
                 hull = cv2.convexHull(px.astype(np.float32)).astype(np.int32)
                 cv2.fillConvexPoly(clip, hull, 1)
-            # keep only this panel's region
+            # 只保留该 panel 的区域
             y0, y1 = int(round(panel.box.y * scale)), int(round((panel.box.y + panel.box.h) * scale))
             x0, x1 = int(round(panel.box.x * scale)), int(round((panel.box.x + panel.box.w) * scale))
             out[index, y0:y1, x0:x1] |= clip[y0:y1, x0:x1] > 0

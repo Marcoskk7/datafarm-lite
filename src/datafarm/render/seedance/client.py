@@ -1,4 +1,4 @@
-"""Ark edit transport with immutable create attempts and resumable downloads."""
+"""Ark edit 传输层：不可变的创建尝试与可断点续传的下载。"""
 import base64
 import fcntl
 import os
@@ -17,10 +17,10 @@ FAILED = {'failed', 'cancelled', 'canceled', 'expired'}
 
 
 def upload_host(configured=None):
-    """Base URL of the carrier upload host: explicit opt-in, no default.
+    """carrier 上传主机的 base URL：必须显式选择加入，没有默认值。
 
-    Seedance reads the white carrier video from a public URL, so uploading publishes
-    real-scene media to that host for its expiry window.
+    Seedance 从公开 URL 读取白色 carrier 视频，因此上传会把真实场景素材发布到该主机上，
+    持续到其过期窗口结束。
     """
     host = (configured or os.environ.get(UPLOAD_HOST_ENV) or '').strip().rstrip('/')
     if not host:
@@ -76,8 +76,8 @@ def reserve(run, name, interval):
 
 
 def upload(path, run, jobdir, interval, host=None):
-    host = upload_host(host)  # fail before any rate slot or attempt is spent
-    # Hold lock through upload and remote hash verification: no burst uploads.
+    host = upload_host(host)  # 在任何限流槽位或尝试被消耗之前就失败
+    # 上传与远端哈希校验全程持锁：不出现突发上传。
     with (run / 'upload.lock').open('a+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         reserve(run, 'upload-rate', interval)
@@ -111,7 +111,7 @@ def payload(model, job, carrier_url):
 
 
 def create_once(task_path, body, contract, post=None):
-    """Persist intent before sending. Any existing no-ID record blocks another POST."""
+    """在发送之前先持久化意图。任何已存在的无 ID 记录都会阻止再次 POST。"""
     policy_path = Path(contract['render_contract']) if contract.get('render_contract') else submission_contract_path()
     policy = check_seedance_payload(body, policy_path)
     contract = {**contract, 'render_policy': policy}

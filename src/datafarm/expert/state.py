@@ -1,9 +1,8 @@
-"""Persistent round state (harness-private) and the two event logs.
+"""持久化的 round 状态（harness 私有）以及两个事件日志。
 
-The state file is rewritten atomically after every mutation so a harness restart resumes
-the same round: running attempts are re-polled from their run directories and the agent
-session is resumed by its recorded session id. Ledgers are append-only and never
-rewritten; the state is a cache that can be cross-checked against them.
+state 文件在每次变更后原子重写，因此 harness 重启后会续跑同一个 round：
+运行中的 attempt 从各自运行目录重新轮询，agent session 按记录的 session id 恢复。
+ledger 只追加、绝不重写；state 只是可与之交叉校验的缓存。
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ class RoundState:
 
     @property
     def bounded_unknown_costs(self) -> dict[int, float]:
-        """Operator-audited liabilities retain budget without pretending to be receipts."""
+        """操作员审计过的欠款保留预算额度，但不伪装成 receipt。"""
         result = {}
         sessions = {s['index']: s for s in self.data['sessions']}
         for record in self.data.get('bounded_unknown_costs', []):
@@ -98,7 +97,7 @@ class RoundState:
     def snapshot(self) -> dict[str, Any]:
         return copy.deepcopy(self.data)
 
-    # convenience accessors -------------------------------------------------------
+    # 便捷访问器 -------------------------------------------------------
     @property
     def status(self) -> str:
         return self.data["status"]
@@ -125,7 +124,7 @@ class RoundState:
         if self.data.get("paused_at") is not None:
             paused += max(0.0, now - float(self.data["paused_at"]))
         elif self.data.get("outage"):
-            # an ongoing provider outage is not charged to the round
+            # 持续中的 provider 中断不计入该 round 的费用
             paused += max(0.0, now - float(self.data["outage"]["started_at"]))
         return max(0.0, now - float(started) - paused)
 
@@ -140,7 +139,7 @@ class RoundState:
 
 
 class EventLog:
-    """``ledger/events.jsonl`` (agent-readable) and ``harness/events.jsonl`` (private)."""
+    """``ledger/events.jsonl``（agent 可读）与 ``harness/events.jsonl``（私有）。"""
 
     def __init__(self, paths: RoundPaths, round_id: str, clock_now) -> None:
         self.paths = paths

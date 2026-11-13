@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Build packages for a recipe over tasks x episodes x modes and enqueue tickets round-robin.
+"""按 recipe 在 tasks x episodes x modes 上构建包，并以轮转（round-robin）方式将 ticket 入队。
 
   python h3_enqueue.py [--run-dir <run>] --recipe <run>/recipes/<name>.json --tasks <task-a> <task-b> \
       --modes sim2real [--episodes <id> ...] [--seed-offset 0 1 ... 7] [--priority 100] [--per-chunk] [--build-slots 2]
-Bundles are read from <run>/tasks/<task>/, packages go to <run>/pkgs/<recipe>/<task>/<tag>, tickets to <run>/queue/.
---episodes selects bundle episode ids (default: all).  OOD episodes cycle through the bundle's ood_variants (episode k ->
-variant k mod n).  --per-chunk writes one ticket per unrendered chunk, so several workers can share one package (chunks
-render independently).  Existing packages are reused (not rebuilt); tickets already done/running are not re-queued.
-Builds: the packages of the first --seed-offset are built before the others, so they fill the run's HED cache (keyed by
-the white chunk) and the other seeds reuse it instead of recomputing identical HED videos.  Every build runs at nice 10
-and holds one of --build-slots run-wide slots (<run>/cache/build-slots, flock, shared by concurrent enqueue calls): one
-build runs 4 HED processes x 16 threads, and unthrottled builds of many episodes x seeds once drove a 180-core login node
-to load ~2500.
---gate <name> (production) refuses unless the h3_gate.py gate of this recipe and task has released every selected
-episode: the 2 prefixes first, the canary after both prefixes pass blind review, the rest after the canary passes.
+Bundle 从 <run>/tasks/<task>/ 读取，包写入 <run>/pkgs/<recipe>/<task>/<tag>，ticket 写入 <run>/queue/。
+--episodes 选择 bundle 的 episode id（默认：全部）。OOD episode 会循环使用 bundle 的 ood_variants（episode k ->
+variant k mod n）。--per-chunk 为每个尚未渲染的 chunk 写一个 ticket，从而多个 worker 可以共享同一个包（各 chunk
+独立渲染）。已存在的包会被复用（不重建）；已完成/运行中的 ticket 不会重新入队。
+构建顺序：第一个 --seed-offset 的包先于其他包构建，以便填满 run 的 HED 缓存（以
+white chunk 为键），后续 seed 便复用该缓存，而不是重新计算相同的 HED 视频。每次构建都以 nice 10
+运行，并占用 --build-slots 个 run 级槽位之一（<run>/cache/build-slots，flock，由并发 enqueue 调用共享）：一次
+构建会运行 4 个 HED 进程 x 16 线程，而不加节流地构建大量 episode x seed 曾把一台 180 核登录节点
+的负载推到约 2500。
+--gate <name>（生产环境）仅当该 recipe 与 task 的 h3_gate.py gate 已放行所有选中的
+episode 时才执行：先是 2 个 prefix，两个 prefix 均通过盲审后是 canary，canary 通过后才是其余部分。
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def bundle_file(run: Path, task: str, recipe: dict) -> Path:
 
 @contextlib.contextmanager
 def build_slot(run: Path, slots: int, poll: float = 5.0):
-    """Hold one of `slots` run-wide build slots (flock on <run>/cache/build-slots/slot-<i>) while building."""
+    """构建期间占用 `slots` 个 run 级构建槽位之一（对 <run>/cache/build-slots/slot-<i> 加 flock）。"""
     d = run / "cache" / "build-slots"
     d.mkdir(parents=True, exist_ok=True)
     while True:
@@ -61,7 +61,7 @@ def build_slot(run: Path, slots: int, poll: float = 5.0):
 
 
 def chunk_tickets(ticket: dict) -> list[tuple[str, dict]]:
-    """(name suffix, ticket) per chunk without output; each ticket names a one-job copy of the manifest."""
+    """按 chunk 返回（名称后缀, ticket）对，仅限尚未有输出的 chunk；每个 ticket 指向 manifest 的单 job 副本。"""
     package = Path(ticket["package"])
     manifest = json.loads((package / "job-manifest.json").read_text())
     out = []
@@ -114,7 +114,7 @@ def main() -> int:
             raise SystemExit("--gate covers one task")
         import h3_gate
         h3_gate.check_enqueue(run, args.gate, recipe_name, args.tasks[0], sorted({it["episode"] for it in items}))
-    # round-robin order: episode rank, then mode, then task, then seed
+    # 轮转顺序：episode rank，然后 mode，然后 task，然后 seed
     items.sort(key=lambda it: (it["rank"], args.modes.index(it["mode"]), args.tasks.index(it["task"]),
                                args.seed_offset.index(it["seed_offset"])))
 
@@ -137,7 +137,7 @@ def main() -> int:
         return 0
     first = [it for it in items if it["seed_offset"] == args.seed_offset[0]]
     later = [it for it in items if it["seed_offset"] != args.seed_offset[0]]
-    with cf.ThreadPoolExecutor(4) as ex:   # first seed first: its builds fill the HED cache the later seeds reuse
+    with cf.ThreadPoolExecutor(4) as ex:   # 先构建第一个 seed：其构建会填满后续 seed 复用的 HED 缓存
         done = dict(zip(map(id, first), ex.map(build, first)))
         done.update(zip(map(id, later), ex.map(build, later)))
     results = [done[id(it)] for it in items]

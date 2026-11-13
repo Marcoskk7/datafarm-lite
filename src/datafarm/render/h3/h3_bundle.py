@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Task bundle -> render intent/overlay -> compiled render contract (sim2real | ood).
+"""Task bundle -> render intent/overlay -> 编译后的 render contract（sim2real | ood）。
 
-A task bundle (<run>/tasks/<task>/bundle.json, schema h3.task-bundle/1) is a TASK ARTIFACT the agent generates for
-the current task; see BUNDLE-SCHEMA.md next to this file.  This module builds contracts with the repository's own
-render-policy compiler; it never calls a provider.  The mode and any OOD axes come only from the bundle's
-`mode_confirmations` (the current user's in-scope instruction, quoted with its source); this module carries no
-authorization of its own and fails closed without it.
+task bundle（<run>/tasks/<task>/bundle.json，schema h3.task-bundle/1）是 agent 为
+当前任务生成的 TASK ARTIFACT；见本文件旁的 BUNDLE-SCHEMA.md。本模块用仓库自带的
+render-policy 编译器构建 contract；它绝不调用 provider。模式及任何 OOD 轴只来自 bundle 的
+`mode_confirmations`（当前用户范围内的指令，连同其来源引用）；本模块自身不带任何
+授权，缺少时失败关闭。
 
   python h3_bundle.py check  <run>/tasks/<task>/bundle.json [--run-dir <run>]
   python h3_bundle.py compile <run>/tasks/<task>/bundle.json --mode sim2real \
@@ -48,15 +48,15 @@ def references_for(bundle: dict, episode: str | None) -> list[dict]:
         r = copy.deepcopy(r)
         r["sha256"] = sha256(Path(r["path"]))
         src = r["provenance"]["source"]
-        if isinstance(src, str):  # render-policy binds the provenance source as a hashed file ref
+        if isinstance(src, str):  # render-policy 将 provenance source 绑定为带哈希的文件引用
             r["provenance"]["source"] = {"path": src, "sha256": sha256(Path(src))}
         out.append(r)
     return out
 
 
 def mode_confirmation(bundle: dict, mode: str) -> tuple[dict, list]:
-    """The bundle's record of the current user's in-scope mode instruction (quote + source) and, for OOD, the
-    authorized axes.  Never defaulted: a missing record stops before any contract is compiled."""
+    """bundle 对当前用户范围内 mode 指令的记录（引用 + 来源），以及（对于 OOD）
+    已授权的轴。绝不设默认值：缺失记录会在任何 contract 编译前停止。"""
     conf = (bundle.get("mode_confirmations") or {}).get(mode)
     if not isinstance(conf, dict) or not str(conf.get("quote") or "").strip() or not str(conf.get("source") or "").strip():
         raise SystemExit(f"bundle {bundle.get('task')!r} lacks mode_confirmations.{mode} (quote and source of the "
@@ -152,7 +152,7 @@ def cmd_check(args) -> int:
                 measured = h3_carrier.check(Path(ep["carrier"]))
                 row["room_seam_frames"] = [measured["frames_with_room_seam"], measured["sampled_frames"]]
                 warnings += [f"{ep['id']}: {w}" for w in measured["warnings"] if "fps" not in w]
-            except Exception as e:  # noqa: BLE001 - a measurement, not a gate
+            except Exception as e:  # noqa: BLE001 - 这是测量，不是 gate
                 warnings.append(f"{ep['id']}: carrier check failed: {e}")
         fr = ep.get("frame_range")
         if fr and row.get("carrier") and not (0 <= fr[0] < fr[1] <= row["carrier"].frames):

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""White carrier preparation and checks for the H3 control hybrid.
+"""H3 control hybrid 的 white carrier 准备与检查。
 
-  compose  three synchronized white views (head 1280x720, wrists 640x360) -> one 1280x1080 T-layout carrier at the
-           views' own rate (24 or 30 fps).  Views may be videos or the replay's ffmpeg concat lists of PNG frames
-           (`<camera>.concat`, rewritten from the attempt to the replay directory).  A white below MIN_WHITE_FPS is
-           refused: re-render it densely (datafarm.simulation.white_replay with image_stride), never interpolate it.
-           Motion interpolation warps and drags fast-moving objects, and H3 copies that drift into the output.
-  check    measurements of a carrier that predict H3 failures, reported as warnings by `h3_bundle.py check`:
-           frame rate, and whether the head view has a room seam (wall/table edge) the control can see.  The
-           soft-HED control keeps only edges with a strong local luminance step (edge_gate tau 25): on a flat white
-           scene where table and wall differ by a few grey levels the control has no table edge, and H3 invents a wall
-           or table edge in the wrist views.  A shaded white (e.g. table 237, wall 186) keeps the seam.
+  compose  把三个同步的 white 视图（head 1280x720，wrists 640x360）合成为一张 1280x1080 的 T 形布局
+           carrier，速率与各视图自身一致（24 或 30 fps）。视图可以是视频，也可以是 replay 的 ffmpeg
+           concat PNG 帧列表（`<camera>.concat`，从 attempt 目录改写到 replay 目录）。低于 MIN_WHITE_FPS
+           的 white 会被拒绝：应密集地重新渲染（datafarm.simulation.white_replay 配 image_stride），
+           绝不对其插值。运动插值会扭曲并拖拽快速移动的物体，H3 会把这些漂移复制进输出。
+  check    给出可预测 H3 失败的 carrier 测量值，由 `h3_bundle.py check` 以 warning 形式报告：
+           frame rate，以及 head 视图是否存在 control 可见的 room seam（wall/table 边缘）。soft-HED
+           control 只保留具有强局部亮度阶跃的边缘（edge_gate tau 25）：在平坦的 white 场景中，若 table
+           与 wall 只差几个灰阶，control 就没有 table 边缘，H3 会在 wrist 视图中凭空造出 wall 或 table
+           边缘。带明暗的 white（例如 table 237，wall 186）能保住该 seam。
 
   python h3_carrier.py compose --head cam_high.mp4 --left cam_left_wrist.mp4 --right cam_right_wrist.mp4 --out t3.mp4
   python h3_carrier.py compose --replay <replay dir> --attempt <attempt dir> --out t3.mp4
@@ -32,10 +32,10 @@ from h3_media import probe
 MIN_WHITE_FPS = 20.0
 CARRIER_FPS = (24, 30)
 CAMERAS = {"head": "cam_high", "left": "cam_left_wrist", "right": "cam_right_wrist"}
-# room-seam check: the same luma-step gate as the default control (h3-control-hybrid-v1.json control.edge_gate)
+# room-seam 检查：与默认 control 相同的 luma-step gate（h3-control-hybrid-v1.json control.edge_gate）
 GATE_TAU, GATE_WINDOW = 25.0, 7
-SEAM_MIN_LENGTH = 0.25        # of the head-view width
-SEAM_MAX_TILT_DEG = 35.0      # a wall/table seam or table edge, not a vertical robot or object edge
+SEAM_MIN_LENGTH = 0.25        # 占 head 视图宽度的比例
+SEAM_MAX_TILT_DEG = 35.0      # wall/table seam 或 table 边缘，而非竖直的 robot 或 object 边缘
 
 
 def fps_of(path) -> float:
@@ -47,8 +47,8 @@ def ffmpeg(*args: str) -> None:
 
 
 def _image_rate(replay: Path, attempt: Path | None, cam: str) -> str | None:
-    """Frame rate of a replay's PNG frames: its image-manifest.json (fps, or physics_hz / stride), else the attempt's
-    own video of that camera (an undensified replay keeps the attempt's image rate)."""
+    """replay 的 PNG 帧的 frame rate：取自其 image-manifest.json（fps，或 physics_hz / stride），否则取该
+    attempt 中该相机自己的视频（未加密的 replay 会沿用 attempt 的图像速率）。"""
     for d in (replay, attempt):
         man = Path(d) / "image-manifest.json" if d else None
         if man and man.is_file():
@@ -65,9 +65,9 @@ def _image_rate(replay: Path, attempt: Path | None, cam: str) -> str | None:
 
 
 def replay_views(replay: Path, attempt: Path | None = None) -> dict:
-    """{head, left, right} videos of a white replay: <camera>.mp4 in the replay directory, else the PNG frames listed in
-    its <camera>.concat (or in the attempt's list, with paths moved to the replay directory), one frame per listed PNG
-    in order, encoded at the replay's image rate."""
+    """{head, left, right} 的 white replay 视频：优先用 replay 目录中的 <camera>.mp4，否则用其
+    <camera>.concat 中列出的 PNG 帧（或 attempt 中的列表，并把路径改到 replay 目录），按列表顺序每个 PNG
+    一帧，以 replay 的图像速率编码。"""
     replay = Path(replay)
     views = {}
     for side, cam in CAMERAS.items():
@@ -75,7 +75,7 @@ def replay_views(replay: Path, attempt: Path | None = None) -> dict:
         if mp4.is_file():
             views[side] = mp4
             continue
-        names = (f"{cam}.concat", f"{cam}-frames.txt")   # ffmpeg concat lists of the captured PNG frames
+        names = (f"{cam}.concat", f"{cam}-frames.txt")   # 所采集 PNG 帧的 ffmpeg concat 列表
         conc = next((replay / n for n in names if (replay / n).is_file()), None)
         if conc is None and attempt is not None:
             src = next((Path(attempt) / n for n in names if (Path(attempt) / n).is_file()), None)
@@ -108,7 +108,7 @@ def replay_views(replay: Path, attempt: Path | None = None) -> dict:
 
 
 def compose(views: dict, out: Path) -> dict:
-    """T-layout carrier of three synchronized views; frame i of every view is carrier frame i (no retiming)."""
+    """三个同步视图的 T 形布局 carrier；每个视图的第 i 帧就是 carrier 的第 i 帧（不重新计时）。"""
     rates = {side: fps_of(v) for side, v in views.items()}
     frames = {side: probe(v).frames for side, v in views.items()}
     if len(set(frames.values())) != 1:
@@ -140,8 +140,8 @@ def compose(views: dict, out: Path) -> dict:
 
 
 def room_seams(head_bgr) -> list[dict]:
-    """Long, roughly horizontal edges of a head-view frame that survive the control's luma-step gate, outside the dark
-    robot.  Each: {length (of the view width), tilt_deg, step (grey levels across it)}."""
+    """head 视图一帧中、能通过 control 的 luma-step gate 且位于深色 robot 之外的长而大致水平的边缘。每项：
+    {length（占视图宽度比例）、tilt_deg、step（跨越该边缘的灰阶）}。"""
     import cv2
     import numpy as np
     h, w = head_bgr.shape[:2]
@@ -164,7 +164,7 @@ def room_seams(head_bgr) -> list[dict]:
 
 
 def check(carrier: Path, samples: int = 5) -> dict:
-    """Carrier measurements and warnings (not a gate: a camera that never sees a wall or table edge is legitimate)."""
+    """carrier 的测量值与 warning（不是 gate：相机始终看不到 wall 或 table 边缘是合法的）。"""
     import cv2
     info = probe(carrier)
     fps = float(Fraction(info.rate))

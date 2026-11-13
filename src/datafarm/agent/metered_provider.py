@@ -1,8 +1,7 @@
-"""Trusted, journaled Responses gateway; run outside the author sandbox.
+"""受信任、带日志记录的 Responses 网关；在作者 sandbox 之外运行。
 
-The metered model id and its price table are explicit deployment configuration with no
-built-in default: load_pricing() reads them from a JSON object or file, and a Meter
-admits only that model.
+计量模型的 id 及其价格表是显式的部署配置，没有内置默认值：load_pricing() 从 JSON 对象或文件中读取，
+Meter 只接受该模型。
 """
 
 import datetime, http.server, json, os, threading, time
@@ -19,25 +18,25 @@ PRICE_FIELDS = ("input", "cached_input", "cache_write", "output")
 
 @dataclass(frozen=True)
 class Pricing:
-    """USD per token for the one metered model, with an optional long-context tier."""
+    """单个计量模型每 token 的美元价格，可选长上下文档位。"""
 
     model: str
     input: Decimal
     cached_input: Decimal
     cache_write: Decimal
     output: Decimal
-    long_context_above: int | None = None  # input tokens; a larger request bills all tokens at the factors below
+    long_context_above: int | None = None  # 输入 token 数；更大的请求会按下方系数对全部 token 计费
     long_context_input_factor: Decimal = Decimal(1)
     long_context_output_factor: Decimal = Decimal(1)
     source: str = ""
 
 
 def load_pricing(value):
-    """Pricing from a JSON object or file path; a missing or partial table is an error.
+    """从 JSON 对象或文件路径读取价格；价格表缺失或不完整即为错误。
 
     {"model": "<provider model id>", "source": "<price page>",
      "usd_per_million_tokens": {"input": 10, "cached_input": 1, "cache_write": 12.5, "output": 50},
-     "long_context": {"above_input_tokens": 272000, "input_factor": 2, "output_factor": 1.5}}  # optional
+     "long_context": {"above_input_tokens": 272000, "input_factor": 2, "output_factor": 1.5}}  # 可选
     """
     if isinstance(value, Pricing):
         return value
@@ -60,7 +59,7 @@ def load_pricing(value):
     tier = value.get("long_context") or {}
     above = tier.get("above_input_tokens")
     factors = (Decimal(str(tier.get("input_factor", 1))), Decimal(str(tier.get("output_factor", 1))))
-    # Factors >= 1 keep usd() monotone in total input, which bound() relies on.
+    # 系数 >= 1 可保证 usd() 关于总输入单调，bound() 依赖这一性质。
     if (above is not None and (not isinstance(above, int) or above <= 0)) or min(factors) < 1:
         raise ValueError("long_context needs a positive integer above_input_tokens and factors >= 1")
     return Pricing(
@@ -99,9 +98,9 @@ def usd(usage, pricing):
 
 
 def bound(payload, pricing):
-    # Text tokens cannot exceed UTF-8 bytes. For vision, bound original
-    # patches before any downscaling; the patch-based vision models reject
-    # >30k patches and have a 1.2 multiplier. Add overhead and rounding margin, never alter images.
+    # 文本 token 数不会超过 UTF-8 字节数。对于视觉输入，在缩放前先按原始
+    # patch 数取上界；基于 patch 的视觉模型会拒绝超过 30k 个 patch，
+    # 并带有 1.2 倍系数。加上开销与取整余量，绝不修改图像。
     # https://developers.openai.com/api/docs/guides/images-vision
     import base64, io, math
 
@@ -143,9 +142,9 @@ def bound(payload, pricing):
         if unknown_media
         else min(MAX_INPUT, len(json.dumps(text, ensure_ascii=False).encode()) + 16384 + image_tokens)
     )
-    # Use the same context tier as settlement. All input charged as cache writes
-    # is the worst allowed mixture; usd() is monotone in total input, including
-    # its long-context threshold. Keep the byte/media upper bound unchanged.
+    # 使用与结算相同的上下文档位。把全部输入按 cache 写入计费
+    # 是允许的最坏组合；usd() 关于总输入单调，包括其
+    # 长上下文阈值。字节/媒体上界保持不变。
     return usd(
         {"input_tokens": maximum, "output_tokens": MAX_OUTPUT, "input_tokens_details": {"cache_write_tokens": maximum}},
         pricing,
@@ -153,7 +152,7 @@ def bound(payload, pricing):
 
 
 def completed_response_events(response):
-    """Frame a fully received upstream response without changing its items or usage."""
+    """把已完整收到的上游响应封装为事件流，不改变其 items 或 usage。"""
     events = [{"type": "response.created", "response": dict(response, output=[], status="in_progress")}]
     for index, item in enumerate(response.get("output", [])):
         initial = dict(item, status="in_progress")
@@ -175,7 +174,7 @@ def completed_response_events(response):
 
 
 def openai_compatible_receipt(endpoint, key, request_id, model):
-    """Retry only read-only receipt transport failures, never generation calls."""
+    """仅对只读回执的传输失败重试，绝不对生成调用重试。"""
     for attempt in range(3):
         try:
             return _openai_compatible_receipt_once(endpoint, key, request_id, model)
@@ -185,10 +184,10 @@ def openai_compatible_receipt(endpoint, key, request_id, model):
 
 
 def _openai_compatible_receipt_once(endpoint, key, request_id, model):
-    """Read one exact server-request receipt; never infer identity from timing.
+    """读取一条精确的服务端请求回执；绝不根据时序推断身份。
 
-    The OpenAI-compatible (new-api style) token log is read from the generation endpoint's own
-    origin, so the key never reaches another host. Opt-in: provider_receipt_lookup.
+    OpenAI 兼容（new-api 风格）的 token 日志从生成端点自身的 origin 读取，
+    因此 key 绝不会到达其他主机。需显式开启：provider_receipt_lookup。
     """
     from urllib.parse import urlsplit
 
@@ -214,7 +213,7 @@ def _openai_compatible_receipt_once(endpoint, key, request_id, model):
         extra = json.loads(row.get("other") or "{}")
         if extra.get("matched_tier") not in ("standard", "long_context"):
             return None
-        # This integration only recognizes the observed cache-read receipt schema.
+        # 此集成仅识别已观测到的 cache-read 回执 schema。
         if any(v for k, v in extra.items() if "cache" in k and k not in ("cache_tokens", "cache_ratio")):
             return None
         usage = {
@@ -222,7 +221,7 @@ def _openai_compatible_receipt_once(endpoint, key, request_id, model):
             "output_tokens": int(row["completion_tokens"]),
             "input_tokens_details": {"cached_tokens": int(extra.get("cache_tokens", 0))},
         }
-        _check_usage(usage)  # validate usage before accepting a receipt
+        _check_usage(usage)  # 在接受回执前校验 usage
         return {
             "usage": usage,
             "request_id": request_id,
@@ -233,10 +232,10 @@ def _openai_compatible_receipt_once(endpoint, key, request_id, model):
 
 
 def tracking_adapter(progress):
-    """Track entry to HTTP writes, after TLS, without recording headers or body.
+    """在 TLS 之后跟踪进入 HTTP 写入的时机，不记录 headers 或 body。
 
-    A failure before send() starts is provably pre-request. Once a write starts,
-    even a socket exception remains an unknown liability. No transport retries.
+    在 send() 开始前的失败可证明发生在请求之前。一旦写入开始，
+    即使是 socket 异常也仍是未知责任。不做传输层重试。
     """
     from urllib3.connection import HTTPSConnection
     from urllib3.connectionpool import HTTPSConnectionPool
@@ -268,7 +267,7 @@ class Meter:
     def __init__(
         self, path, limit, *, pricing=None, buffered=False, receipt_lookup=False, read_timeout_s=900, stream_max_s=None
     ):
-        self.pricing = load_pricing(pricing)  # model id and prices: explicit configuration, no default
+        self.pricing = load_pricing(pricing)  # 模型 id 和价格：显式配置，没有默认值
         self.path = Path(path)
         self.limit = Decimal(str(limit))
         self.spent = Decimal(0)
@@ -327,8 +326,8 @@ class Meter:
                 return 402, {
                     "error": {"message": "Task cost reservation unavailable; stop model work and preserve results"}
                 }
-            # Establish TLS with a read-only request before sending a billable body.
-            # Keep the connection pool across calls rather than reconnecting each time.
+            # 在发送计费请求体之前，先以只读请求建立 TLS。
+            # 跨调用保留连接池，而不是每次重连。
             if self._session is None:
                 candidate = requests.Session()
                 candidate.trust_env = False
@@ -643,7 +642,7 @@ class MeteredGateway:
                         heartbeat.join(timeout=1)
 
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        server.daemon_threads = False  # Drain every metered request before writing the final receipt.
+        server.daemon_threads = False  # 在写入最终回执前处理完每个计量请求。
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         self.server = server

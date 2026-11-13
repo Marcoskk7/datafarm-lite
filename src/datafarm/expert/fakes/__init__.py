@@ -1,1 +1,1 @@
-"""Scripted stand-ins (agent CLI, simulator, judge) for tests and the dry run."""
+"""用于测试与 dry run 的脚本化替身（agent CLI、simulator、judge）。"""

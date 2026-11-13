@@ -1,20 +1,20 @@
-"""Pixel layouts shared by the H3 render tools: the T-layout source raster and the H3 canvas (stdlib only)."""
+"""H3 渲染工具共享的像素布局：T-layout 源栅格与 H3 画布（仅用标准库）。"""
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Camera panels of the 1280x1080 T layout: view -> (y0, y1, x0, x1)
+# 1280x1080 T layout 的相机面板：view -> (y0, y1, x0, x1)
 T_LAYOUT_PANELS = {"head": (0, 720, 0, 1280), "left_wrist": (720, 1080, 0, 640), "right_wrist": (720, 1080, 640, 1280)}
 
 
 @dataclass(frozen=True)
 class H3SpatialContract:
-    """One evidence-visible coordinate system for H3 video.
+    """H3 视频的单一、对证据可见的坐标系。
 
-    The simulator's active three-view raster is 1280x1080 (32:27).  MiniMax H3 renders on a 1024x768 4:3 canvas.  The
-    route therefore pads 80 pixels on either side before a uniform 1440x1080 -> 1024x768 resize.  The active image
-    occupies x=[57, 967) on the H3 canvas.  Assembly crops that active area and resizes it back to 1280x1080; H3 never
-    sees a stretched active raster.
+    模拟器的活动三视图栅格是 1280x1080（32:27）。MiniMax H3 在 1024x768 的 4:3 画布上渲染。因此
+    这条路线先在两侧各补齐 80 像素，再做统一的 1440x1080 -> 1024x768 缩放。活动图像
+    在 H3 画布上占据 x=[57, 967)。拼装时裁剪该活动区并缩放回 1280x1080；H3 永远不会
+    看到被拉伸的活动栅格。
     """
 
     contract_id: str = "h3-guttered-active-1280x1080-v1"
@@ -37,7 +37,7 @@ class H3SpatialContract:
         return int(round(self.canvas_height * 720 / 1080))
 
     def canvas_views(self) -> dict[str, tuple[int, int, int, int]]:
-        """Camera panels on the H3 canvas: view -> (y0, y1, x0, x1)."""
+        """H3 画布上的相机面板：view -> (y0, y1, x0, x1)。"""
         x0, x1, hy = self.canvas_active_x0, self.canvas_active_x1, self.canvas_head_height
         xm = (x0 + x1) // 2
         return {"head": (0, hy, x0, x1), "left_wrist": (hy, self.canvas_height, x0, xm),

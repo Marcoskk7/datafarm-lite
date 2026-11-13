@@ -153,24 +153,24 @@ def canonical_json_bytes(value: Any) -> bytes:
 
 
 def document_sha256(document: ArtifactDocument) -> str:
-    """Content address of a document: SHA-256 of its canonical envelope."""
+    """文档的内容寻址：其规范 envelope 的 SHA-256。"""
 
     return sha256_hex(canonical_json_bytes(document.to_dict()))
 
 
 def payload_sha256(document: ArtifactDocument) -> str:
-    """Digest of the canonical payload only (dedup key; not an address)."""
+    """仅针对规范 payload 的摘要（去重键；不是地址）。"""
 
     return sha256_hex(canonical_json_bytes(dict(document.payload)))
 
 
 def identity_sha256(document: ArtifactDocument) -> str:
-    """Digest of the canonical envelope with ``created_at`` removed.
+    """移除 ``created_at`` 后规范 envelope 的摘要。
 
-    Two executions that produce the same artifact id, producer, lineage,
-    evidence and payload at different times share this digest. It is additive:
-    the content address (which includes ``created_at``) is unchanged, so every
-    stored artifact still verifies.
+    两次执行若产生相同的 artifact id、producer、lineage、
+    evidence 与 payload，只是时间不同，则共享该摘要。它是增量式的：
+    内容地址（包含 ``created_at``）保持不变，因此每个
+    已存储的 artifact 仍然可以校验。
     """
 
     value = document.to_dict()

@@ -1,13 +1,11 @@
-"""Run one batch attempt command and record how it ended.
+"""运行一条 batch attempt 命令并记录其结束方式。
 
-Usage: python batch_exec.py ATTEMPT_DIR -- CMD...
+用法：python batch_exec.py ATTEMPT_DIR -- CMD...
 
-Writes ``started.json`` (this wrapper's pid) before starting the command and ``exit.json`` (the
-return code) atomically once it ends. A supervisor that restarted is no longer the parent of the
-attempt, so these two files are how it tells "finished", "crashed" and "still running" apart.
-SIGTERM/SIGINT are forwarded to the command; SIGHUP is ignored so a closed terminal does not kill
-the attempt. The file is standard-library only and has no package imports, so it can be run by
-path from any environment.
+启动命令前写入 ``started.json``（本包装进程的 pid），命令结束后原子地写入 ``exit.json``（返回码）。
+重启过的 supervisor 不再是该 attempt 的父进程，因此这两个文件是它区分“已完成”、“已崩溃”和
+“仍在运行”的依据。SIGTERM/SIGINT 会转发给命令；SIGHUP 被忽略，因此关闭终端不会杀掉该 attempt。
+该文件仅依赖标准库，且不导入任何包内模块，因此可以在任意环境中按路径运行。
 """
 
 from __future__ import annotations

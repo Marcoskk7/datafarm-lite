@@ -1,39 +1,38 @@
-"""Generic batch supervisor: one bounded, resumable loop controller for per-item attempts.
+"""通用批量 supervisor：一个带边界、可恢复的循环控制器，用于逐项 try。
 
-What it replaces
-----------------
-A naive per-task supervisor loops ``while True`` over "missing or rejected" items. Without a round,
-cost or zero-progress bound it can spin on no-ops indefinitely, it counts provider/upload crashes
-against a sample's seed budget, and it may treat a failed lease query as "every lease was lost".
-This module is the single, tested version of that loop. Task specifics (how to launch, poll and verify one attempt) are injected as
-callables; the controller owns attempts, seeds, budgets, liveness semantics, durable state and the
-terminal status.
+它替代什么
+-----------
+朴素的 per-task supervisor 会对着"缺失或被拒绝"的项循环 ``while True``。若没有轮次、
+成本或零进度边界，它可能在对空操作上无限自旋，会把 provider/upload 崩溃记到某个样本的
+seed 预算上，也可能把失败的 lease 查询当成"所有 lease 都丢失了"。
+本模块是该循环唯一的、经过测试的版本。task 特有逻辑（如何发起、轮询并验证一次 try）以
+callable 注入；控制器负责 try、seed、预算、存活语义、持久状态与终态。
 
-Model
+模型
 -----
-* **Fixed denominator.** Item ids are given up front, stored in ``state.json`` and never change.
-  Every report counts against all of them.
-* **Attempt = one seed.** An attempt that *finished* is verified at once (streaming verification)
-  and consumes one unit of the item's attempt budget, whatever the verdict (pass, reject,
-  abstain).
-* **Crash = ended without a result.** It is retried with the *same* attempt index and seed under a
-  separate per-item crash budget, so crashes never burn seeds. Crashes from several distinct items
-  inside a short window form a *burst* and trigger a self-resuming exponential backoff.
-* **Unknown is not lost.** An attempt whose liveness cannot be established stays in flight and is
-  never relaunched. It becomes a crash only when the poll has no positive evidence of life *and* a
-  lease probe reports it dead on ``lost_confirmations`` consecutive polls. Too many consecutive
-  unknowns pause the batch with ``paused_unknown_liveness``.
-* **Provider down** pauses all launches. Paused time is excluded from the wall budget; the total
-  pause is bounded (``paused_provider_down``).
-* **Rounds are attempt generations.** Round *g* closes once every open item is past attempt *g*.
-  ``zero_progress_rounds`` consecutive closed rounds without a newly admitted item stop the batch.
-* **Systematic failure.** Over the latest verdict of the most recent distinct items, a single gate
-  failing a large share stops new launches (``stopped_systematic_failure``) with a report.
-* **Durability.** ``state.json`` is written atomically (temp file, fsync, rename). ``events.jsonl``
-  is append-only. The launch *intent* is persisted before ``launch`` is called, so a supervisor that
-  dies mid-launch reconciles on restart instead of launching twice.
+* **固定分母。** item id 一开始就给定，存入 ``state.json`` 且永不改变。
+  每一份报告都针对全部 item 计数。
+* **try = 一个 seed。** *已完成* 的 try 立即被验证（流式验证），
+  并消耗该 item try 预算的一个单位，无论结论如何（pass、reject、
+  abstain）。
+* **崩溃 = 未带结果结束。** 它会用 *相同的* try 序号和 seed 重试，并计入单独的
+  per-item 崩溃预算，因此崩溃绝不消耗 seed。短时间内多个不同 item 的崩溃会形成
+  *burst*，触发可自恢复的指数退避。
+* **unknown 不等于丢失。** 无法确定存活性的 try 保持 in flight，绝不重新发起。
+  只有当轮询没有存活的正面证据 *且* lease 探针在连续 ``lost_confirmations`` 次轮询中
+  报告其已死亡时，才判定为崩溃。连续 unknown 过多会以 ``paused_unknown_liveness``
+  暂停批量。
+* **Provider 宕机** 暂停所有发起。暂停时间从 wall 预算中扣除；总暂停时长有界
+  （``paused_provider_down``）。
+* **轮次是 try 的代。** 当所有未结束的 item 都越过 try *g* 后，轮次 *g* 关闭。
+  连续 ``zero_progress_rounds`` 个已关闭轮次都没有新准入的 item 时，批量停止。
+* **系统性失败。** 在最近若干不同 item 的最新 verdict 上，若单个 gate 以较大比例失败，
+  则停止新的发起（``stopped_systematic_failure``）并给出报告。
+* **持久性。** ``state.json`` 原子写入（临时文件、fsync、重命名）。``events.jsonl``
+  只追加。发起 *intent* 在调用 ``launch`` 之前持久化，因此中途死亡的 supervisor
+  重启后会进行核对，而不是重复发起。
 
-The module is standard-library only and contains no task, provider or path knowledge.
+本模块仅使用标准库，不包含任何 task、provider 或路径知识。
 """
 
 from __future__ import annotations
@@ -60,16 +59,16 @@ STATE_SCHEMA = "datafarm.batch-supervisor-state/1.0.0"
 REPORT_SCHEMA = "datafarm.batch-supervisor-report/1.0.0"
 POLICY_SCHEMA = "datafarm.batch-policy/1.0.0"
 
-# -- item states -------------------------------------------------------------------------------
-PENDING = "pending"  # never launched
-LAUNCHING = "launching"  # intent persisted, launch outcome not yet known
-RUNNING = "running"  # handle persisted, attempt in flight
-UNKNOWN = "unknown"  # in flight, liveness cannot be established; never relaunched
-CRASHED_RETRYABLE = "crashed_retryable"  # same attempt and seed will be relaunched
-REJECTED_RETRYABLE = "rejected_retryable"  # next attempt (new seed) will be launched
-ADMITTED = "admitted"  # terminal: verifier passed
-REJECTED_FINAL = "rejected_final"  # terminal: final reject or permanent error
-EXHAUSTED = "exhausted"  # terminal: attempt budget, crash budget or max rounds used up
+# -- item 状态 ---------------------------------------------------------------------------------
+PENDING = "pending"  # 从未发起
+LAUNCHING = "launching"  # intent 已持久化，发起结果尚不可知
+RUNNING = "running"  # handle 已持久化，try 处于 in flight
+UNKNOWN = "unknown"  # in flight，无法确定存活性；绝不重新发起
+CRASHED_RETRYABLE = "crashed_retryable"  # 将用相同的 try 和 seed 重新发起
+REJECTED_RETRYABLE = "rejected_retryable"  # 将发起下一次 try（新 seed）
+ADMITTED = "admitted"  # 终态：验证器通过
+REJECTED_FINAL = "rejected_final"  # 终态：最终拒绝或永久错误
+EXHAUSTED = "exhausted"  # 终态：try 预算、崩溃预算或最大轮次用尽
 
 ITEM_STATES = (PENDING, LAUNCHING, RUNNING, UNKNOWN, CRASHED_RETRYABLE, REJECTED_RETRYABLE,
                ADMITTED, REJECTED_FINAL, EXHAUSTED)
@@ -77,9 +76,9 @@ IN_FLIGHT = frozenset({LAUNCHING, RUNNING, UNKNOWN})
 ELIGIBLE = frozenset({PENDING, CRASHED_RETRYABLE, REJECTED_RETRYABLE})
 TERMINAL_ITEM_STATES = frozenset({ADMITTED, REJECTED_FINAL, EXHAUSTED})
 
-# -- batch statuses ----------------------------------------------------------------------------
+# -- 批量状态 ----------------------------------------------------------------------------------
 RUNNING_STATUS = "running"
-STOPPING = "stopping"  # a stop was requested; in-flight attempts are drained, nothing launches
+STOPPING = "stopping"  # 已请求停止；in-flight 的 try 被排空，不再发起新 try
 COMPLETE = "complete"
 COMPLETE_WITH_GAPS = "complete_with_gaps"
 STOPPED_ZERO_PROGRESS = "stopped_zero_progress"
@@ -104,7 +103,7 @@ CRASH_KINDS = ("transient", "provider_down", "permanent", "capacity")
 DECISIONS = ("pass", "reject", "abstain")
 LEASE_STATES = ("alive", "dead", "unknown")
 
-# Pipeline run ledger cell status for each item state (see ledger.CELL_STATES).
+# 每种 item 状态对应的 pipeline run ledger 单元格状态（见 ledger.CELL_STATES）。
 LEDGER_CELL_STATUS = {
     PENDING: "pending", LAUNCHING: "running", RUNNING: "running", UNKNOWN: "running",
     CRASHED_RETRYABLE: "running", REJECTED_RETRYABLE: "rejected", ADMITTED: "passed",
@@ -117,31 +116,31 @@ class BatchError(RuntimeError):
 
 
 class DenominatorMismatch(BatchError):
-    """A resume tried to change the fixed item denominator."""
+    """一次 resume 试图更改固定的 item 分母。"""
 
 
 class SupervisorBusy(BatchError):
-    """Another live supervisor holds the state directory lock."""
+    """另一个存活的 supervisor 持有状态目录锁。"""
 
 
 class ProviderDown(Exception):
-    """Raised by ``launch`` when the provider endpoint is unavailable; nothing was started."""
+    """当 provider 端点不可用时由 ``launch`` 抛出；没有启动任何东西。"""
 
 
 class LaunchNotStarted(Exception):
-    """Raised by ``launch`` when nothing was started; counted as a transient crash."""
+    """当没有启动任何东西时由 ``launch`` 抛出；按临时崩溃计数。"""
 
 
 class LaunchDeferred(Exception):
-    """Raised by ``launch`` when capacity is unavailable; nothing started, no budget is used."""
+    """当容量不可用时由 ``launch`` 抛出；没有启动任何东西，也不消耗预算。"""
 
 
 class LaunchOutcomeUnknown(Exception):
-    """Raised by ``launch`` when the attempt may or may not have started."""
+    """当 try 可能已启动、也可能未启动时由 ``launch`` 抛出。"""
 
 
 def write_json_atomic(path: str | Path, value: Any, *, fsync: bool = True) -> None:
-    """Write JSON through a temporary file in the same directory, fsync it, then rename."""
+    """通过同目录下的临时文件写入 JSON，fsync 后重命名。"""
     common.atomic_write_json(path, value, fsync=fsync, fsync_dir=fsync)
 
 
@@ -153,10 +152,10 @@ def read_events(state_dir: str | Path) -> list[dict[str, Any]]:
 
 
 def default_seed(base: int, item: str, attempt: int, modulus: int = 2_147_483_647) -> int:
-    """Deterministic, restart-stable seed in ``[0, modulus)``; distinct per item and attempt.
+    """在 ``[0, modulus)`` 内的确定性、重启稳定的 seed；每个 item 和 try 各不相同。
 
-    The default modulus is the int32 maximum some providers enforce: an unbounded linear seed
-    formula once started failing permanently after enough retry rounds.
+    默认 modulus 是某些 provider 强制执行的 int32 最大值：曾经一个无界的线性 seed
+    公式在足够多轮重试后开始永久失败。
     """
 
     digest = hashlib.sha256(f"{int(base)}\0{item}\0{int(attempt)}".encode("utf-8")).digest()
@@ -164,10 +163,10 @@ def default_seed(base: int, item: str, attempt: int, modulus: int = 2_147_483_64
 
 
 def launch_key(item: str, attempt: int, tries: int) -> str:
-    """Deterministic id of one launch: ``<item>.aNN.tNN`` (crash retries get new ``tNN``)."""
+    """一次发起的确定性 id：``<item>.aNN.tNN``（崩溃重试会获得新的 ``tNN``）。"""
 
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(item))[:80] or "item"
-    if safe != item:  # keep ids unique when sanitizing changed the item id
+    if safe != item:  # 净化改动过 item id 时保持 id 唯一
         safe = f"{safe[:60]}-{sha256_text(str(item))[:8]}"
     return f"{safe}.a{int(attempt):02d}.t{int(tries):02d}"
 
@@ -187,8 +186,8 @@ def _short(value: Any, limit: int = 300) -> str | None:
 
 
 def _backoff(base: float, level: int, cap: float) -> float:
-    """``base * 2**(level-1)`` capped; the exponent is bounded so long crash loops cannot
-    overflow a float (a replayed cohort had 1113 consecutive crash retries of one item)."""
+    """``base * 2**(level-1)`` 并封顶；指数有界，因此长时间的崩溃循环不会让
+    float 溢出（一次重放的 cohort 中，某个 item 连续崩溃重试了 1113 次）。"""
 
     return min(float(base) * 2.0 ** min(max(int(level) - 1, 0), 60), float(cap))
 
@@ -207,39 +206,39 @@ def _accepts_keyword(function: Callable[..., Any], name: str) -> bool:
 # -- policy ------------------------------------------------------------------------------------
 @dataclass(frozen=True)
 class BatchPolicy:
-    """Loop-control policy. Every bound is explicit; ``from_dict`` rejects unknown keys."""
+    """循环控制 policy。每个边界都显式给出；``from_dict`` 拒绝未知键。"""
 
-    # budgets
-    max_attempts_per_item: int = 8  # finished (verified) attempts = seeds per item
-    max_crash_retries_per_item: int = 8  # relaunches after crashes; never consume seeds
+    # 预算
+    max_attempts_per_item: int = 8  # 已完成（已验证）的 try = 每个 item 的 seed 数
+    max_crash_retries_per_item: int = 8  # 崩溃后的重新发起；绝不消耗 seed
     max_concurrency: int = 10
-    max_rounds: int = 12  # hard ceiling on attempt generations (defence in depth)
-    zero_progress_rounds: int = 3  # consecutive closed rounds without a new admission; 0 = off
+    max_rounds: int = 12  # try 代数硬上限（纵深防御）
+    zero_progress_rounds: int = 3  # 连续无新准入的已关闭轮次；0 = 关闭
     max_total_cost: float | None = None
-    launch_cost_estimate: float = 0.0  # reserve this much per in-flight attempt before launching
-    max_wall_seconds: float | None = None  # active time; provider-down pauses are excluded
-    # crashes
-    crash_retry_delay_s: float = 30.0  # per-item delay before a crash retry, doubling per crash
+    launch_cost_estimate: float = 0.0  # 发起前为每个 in-flight try 预留这么多成本
+    max_wall_seconds: float | None = None  # 活跃时间；provider 宕机暂停不计入
+    # 崩溃
+    crash_retry_delay_s: float = 30.0  # 崩溃重试前 per-item 延迟，每次崩溃翻倍
     crash_retry_delay_cap_s: float = 900.0
-    crash_burst_items: int = 5  # distinct crashed items inside the window form a burst; 0 = off
+    crash_burst_items: int = 5  # 时间窗内不同 item 的崩溃构成 burst；0 = 关闭
     crash_burst_window_s: float = 600.0
-    burst_backoff_s: float = 60.0  # first global backoff; doubles while bursts repeat
+    burst_backoff_s: float = 60.0  # 首次全局退避；burst 重复出现时翻倍
     burst_backoff_cap_s: float = 1800.0
-    # provider availability
+    # provider 可用性
     provider_probe_interval_s: float = 120.0
     max_provider_pause_s: float = 6 * 3600.0
-    # liveness
-    max_consecutive_unknown: int = 20  # polls of one attempt with unknown liveness before pausing
-    lost_confirmations: int = 2  # consecutive dead lease probes (without life evidence) = lost
-    # streaming verification
-    systematic_min_items: int = 8  # distinct items needed before the check runs; 0 = off
-    systematic_window: int = 20  # most recent distinct items considered
-    systematic_share: float = 0.6  # one gate failing this share of the window stops launches
-    max_verify_errors: int = 3  # verifier exceptions before the attempt counts as abstain
-    # loop mechanics
+    # 存活状态
+    max_consecutive_unknown: int = 20  # 暂停前单个 try 存活性 unknown 的轮询次数
+    lost_confirmations: int = 2  # 连续死亡 lease 探针（无存活证据）= 丢失
+    # 流式校验
+    systematic_min_items: int = 8  # 检查运行前所需的不同 item 数；0 = 关闭
+    systematic_window: int = 20  # 考虑最近多少个不同 item
+    systematic_share: float = 0.6  # 单个 gate 失败占比达到该值即停止发起
+    max_verify_errors: int = 3  # 验证器异常达到该次数后 try 计为 abstain
+    # 循环机制
     poll_interval_s: float = 30.0
-    max_tick_gap_s: float = 600.0  # longer gaps (supervisor down) are not charged to budgets
-    drain_on_stop: bool = True  # wait for in-flight attempts before a stopped_* status
+    max_tick_gap_s: float = 600.0  # 更长的间隔（supervisor 宕机）不计入预算
+    drain_on_stop: bool = True  # 进入 stopped_* 状态前等待 in-flight 的 try
     seed_base: int = 0
     seed_modulus: int = 2_147_483_647
 
@@ -306,15 +305,15 @@ class BatchPolicy:
         return dataclasses.replace(self, **changes)
 
 
-# -- callable results --------------------------------------------------------------------------
+# -- callable 结果 -----------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Poll:
-    """What ``poll(handle)`` reports. ``running`` requires positive evidence of life."""
+    """``poll(handle)`` 报告的内容。``running`` 要求有存活的正面证据。"""
 
     status: str
     result: Any = None
     detail: str | None = None
-    kind: str = "transient"  # for crashed: transient | provider_down | permanent
+    kind: str = "transient"  # crashed 时：transient | provider_down | permanent
     cost: float | None = None
 
     def __post_init__(self) -> None:
@@ -342,12 +341,12 @@ class Poll:
 
 @dataclass(frozen=True)
 class Verdict:
-    """What ``verify(item, result)`` reports. ``abstain`` is a first-class non-admission."""
+    """``verify(item, result)`` 报告的内容。``abstain`` 是一种一等公民的未准入。"""
 
     decision: str
     reason: str | None = None
     gate: str | None = None
-    final: bool = False  # a final reject ends the item (rejected_final)
+    final: bool = False  # 最终拒绝会结束该 item（rejected_final）
     evidence: Any = None
 
     def __post_init__(self) -> None:
@@ -398,20 +397,20 @@ def coerce_lease(value: Any) -> str:
 
 @dataclass
 class BatchTask:
-    """Task-specific behaviour, injected as callables.
+    """task 特有行为，以 callable 注入。
 
-    ``launch(item, attempt, seed)`` starts one attempt and returns a JSON-serializable handle. When
-    it also accepts a ``launch_id`` keyword it receives a deterministic id for this launch
-    (``<item>.aNN.tNN``); crash retries of one attempt get new ``tNN`` suffixes.
+    ``launch(item, attempt, seed)`` 启动一次 try，并返回可 JSON 序列化的 handle。若它还接受
+    ``launch_id`` 关键字参数，则会收到本次发起的确定性 id（``<item>.aNN.tNN``）；同一 try
+    的崩溃重试会获得新的 ``tNN`` 后缀。
 
-    ``poll(handle)`` returns ``running | finished | crashed | unknown`` (or a :class:`Poll`).
+    ``poll(handle)`` 返回 ``running | finished | crashed | unknown``（或 :class:`Poll`）。
 
-    ``verify(item, result)`` returns ``pass | reject | abstain`` (or a :class:`Verdict`).
+    ``verify(item, result)`` 返回 ``pass | reject | abstain``（或 :class:`Verdict`）。
 
-    Optional: ``lease_probe(handle) -> alive|dead|unknown``, ``cost(result) -> float``,
-    ``reconcile(item, attempt, seed, launch_id) -> handle | None | "unknown"`` (look up a launch
-    whose intent was persisted but whose handle was not), ``provider_probe() -> up|down|unknown``
-    and ``seed_for(item, attempt) -> int``.
+    可选：``lease_probe(handle) -> alive|dead|unknown``、``cost(result) -> float``、
+    ``reconcile(item, attempt, seed, launch_id) -> handle | None | "unknown"``（查找 intent
+    已持久化但 handle 未持久化的发起）、``provider_probe() -> up|down|unknown``
+    以及 ``seed_for(item, attempt) -> int``。
     """
 
     launch: Callable[..., Any]
@@ -424,12 +423,11 @@ class BatchTask:
     seed_for: Callable[[str, int], int] | None = None
 
 
-# -- optional ledger mirroring -----------------------------------------------------------------
+# -- 可选的 ledger 镜像 ------------------------------------------------------------------------
 class LedgerHook:
-    """Mirror item states into a pipeline run ledger through its public API.
+    """通过 pipeline run ledger 的公共 API 把 item 状态镜像进去。
 
-    Reporting never stops the batch: ledger errors are returned to the caller, which records
-    them as events.
+    上报永远不会停止批量：ledger 错误会返回给调用方，由调用方将其记录为事件。
     """
 
     def __init__(self, ledger: Any, worker: str, column: str,
@@ -466,9 +464,9 @@ class LedgerHook:
                                        source=f"batch-supervisor:{self.worker}")
 
 
-# -- the controller ----------------------------------------------------------------------------
+# -- 控制器 ------------------------------------------------------------------------------------
 class BatchSupervisor:
-    """Drive a fixed set of items to admission under an explicit :class:`BatchPolicy`."""
+    """在显式的 :class:`BatchPolicy` 下把一组固定 item 驱动至准入。"""
 
     def __init__(
         self,
@@ -525,7 +523,7 @@ class BatchSupervisor:
             self.close()
             raise
 
-    # -- construction -----------------------------------------------------------------------
+    # -- 构造 -------------------------------------------------------------------------------
     @staticmethod
     def _check_item(item: Any) -> str:
         if not isinstance(item, str) or not item.strip():
@@ -631,13 +629,13 @@ class BatchSupervisor:
             state["policy"] = self.policy.to_dict()
             state["policy_sha256"] = self.policy.sha256()
         state["counters"]["resumes"] += 1
-        state["last_tick_at"] = None  # supervisor downtime is not charged to any budget
+        state["last_tick_at"] = None  # supervisor 停机时间不计入任何预算
         in_flight = {item: rec["state"] for item, rec in state["item_state"].items()
                      if rec["state"] in IN_FLIGHT}
         self._event("resumed", status=state["status"], in_flight=in_flight)
         return state
 
-    # -- persistence ------------------------------------------------------------------------
+    # -- 持久化 -----------------------------------------------------------------------------
     def _now(self) -> float:
         return float(self._clock())
 
@@ -661,7 +659,7 @@ class BatchSupervisor:
         if item is not None:
             self._ledger_dirty.add(item)
 
-    # -- public accessors -------------------------------------------------------------------
+    # -- 公共访问器 -------------------------------------------------------------------------
     @property
     def status(self) -> str:
         return str(self._state["status"])
@@ -681,7 +679,7 @@ class BatchSupervisor:
 
     @classmethod
     def read_summary(cls, state_dir: str | Path) -> dict[str, Any]:
-        """Summarize a batch without taking its lock (read-only status)."""
+        """在不加锁的情况下汇总一个批量（只读状态）。"""
 
         state = json.loads((Path(state_dir) / "state.json").read_text(encoding="utf-8"))
         return summarize_state(state)
@@ -696,18 +694,17 @@ class BatchSupervisor:
         escalates = status in PAUSED_STATUSES and existing is not None and \
             existing["status"] not in PAUSED_STATUSES
         if existing and not escalates:
-            return  # first stop wins, except that a pause (nothing drains) overrides a drain
+            return  # 首次停止生效，但暂停（不排空任何东西）优先于排空
         self._state["stop_request"] = {"status": status, "reason": reason, "at": iso(self._now()),
                                        "report": dict(report or {})}
         self._event("stop_requested", status=status, reason=reason, report=report)
         self._touch()
 
     def acknowledge(self, reason: str) -> str:
-        """Clear a stopped/paused status after the operator has looked at it; returns the old one.
+        """在操作员查看之后清除 stopped/paused 状态；返回旧状态。
 
-        Streaks (zero progress, unknown liveness) and the systematic-failure window restart from
-        zero, and a paused provider gets a fresh pause allowance. Budgets are not reset; use
-        :meth:`reopen` for that.
+        连击（零进度、unknown 存活性）和系统性失败窗口从零重新开始，暂停的 provider 获得
+        新的暂停额度。预算不会重置；为此请使用 :meth:`reopen`。
         """
 
         state = self._state
@@ -730,11 +727,11 @@ class BatchSupervisor:
         return previous
 
     def reopen(self, items: Iterable[str], *, reason: str, extra_attempts: int = 1) -> list[str]:
-        """Give exhausted / finally rejected items another chance (explicit operator decision).
+        """给 exhausted / 最终被拒绝的 item 另一次机会（操作员的显式决定）。
 
-        An item exhausted by its *crash* budget gets a fresh crash budget and relaunches the same
-        attempt and seed. Any other item moves to its next attempt (new seed) with
-        ``extra_attempts`` more seeds; ``max_rounds`` still applies.
+        因 *崩溃* 预算而 exhausted 的 item 会获得新的崩溃预算，并重新发起相同的
+        try 和 seed。任何其他 item 都移动到下一次 try（新 seed），并获得
+        ``extra_attempts`` 个额外 seed；``max_rounds`` 仍然生效。
         """
 
         if extra_attempts < 1:
@@ -755,7 +752,7 @@ class BatchSupervisor:
             rec = self._rec(item)
             rec["crash_retries"] = 0
             if rec["terminal_reason"] == "crash_budget":
-                rec["state"] = CRASHED_RETRYABLE  # same attempt and seed
+                rec["state"] = CRASHED_RETRYABLE  # 相同的 try 和 seed
             else:
                 rec["attempt"] += 1
                 rec["seed"] = self._seed_for(item, rec["attempt"])
@@ -777,7 +774,7 @@ class BatchSupervisor:
         return reopened
 
     def revoke_admission(self, item: str, *, reason: str, gate: str = "cohort_audit") -> None:
-        """A later (e.g. cohort-level) verifier withdrew an admission: treat it as a rejection."""
+        """之后（例如 cohort 级）的验证器撤回了准入：视为拒绝。"""
 
         rec = self._rec(item)
         if rec["state"] != ADMITTED:
@@ -799,10 +796,10 @@ class BatchSupervisor:
         self._save(force=True)
 
     def resolve_unknown(self, item: str, *, outcome: str, reason: str) -> None:
-        """Operator verdict on an attempt whose liveness could not be established.
+        """操作员对存活性无法确定的 try 的裁决。
 
-        ``not_launched``: nothing is running; relaunch the same attempt and seed.
-        ``crashed``: count it as a crash (crash budget, same seed).
+        ``not_launched``：没有东西在运行；用相同的 try 和 seed 重新发起。
+        ``crashed``：按崩溃计数（崩溃预算，相同 seed）。
         """
 
         rec = self._rec(item)
@@ -825,15 +822,15 @@ class BatchSupervisor:
 
     @staticmethod
     def _idle_state(rec: Mapping[str, Any]) -> str:
-        """The eligible state an item returns to when its launch did not happen."""
+        """当 item 的发起未发生时，它返回的 eligible 状态。"""
 
         if rec["attempt"] > 1:
             return REJECTED_RETRYABLE
         return CRASHED_RETRYABLE if rec["crash_retries"] else PENDING
 
-    # -- the loop ---------------------------------------------------------------------------
+    # -- 循环 -------------------------------------------------------------------------------
     def run(self, *, max_ticks: int | None = None) -> str:
-        """Tick until a terminal status (or ``max_ticks``); returns the status."""
+        """持续 tick 直到终态（或 ``max_ticks``）；返回该状态。"""
 
         ticks = 0
         while True:
@@ -846,7 +843,7 @@ class BatchSupervisor:
             self._sleep(self._next_delay())
 
     def step(self) -> str | None:
-        """One control tick. Returns the terminal status once reached, otherwise ``None``."""
+        """一个控制 tick。到达终态后返回该状态，否则返回 ``None``。"""
 
         state = self._state
         if state["status"] in TERMINAL_STATUSES:
@@ -876,10 +873,10 @@ class BatchSupervisor:
         return status
 
     def _next_delay(self) -> float:
-        """Sleep until the next poll, or earlier when a backoff/probe/retry time comes due.
+        """睡到下一次轮询，或在退避/探针/重试时间到期时提前醒来。
 
-        Only *future* deadlines count: an item that is due but blocked (capacity, backoff,
-        provider down) must not turn the loop into a busy poll of every in-flight attempt.
+        只有 *未来* 的截止时间才算数：某个 item 已到期但被阻塞（容量、退避、
+        provider 宕机）时，不能把循环变成对所有 in-flight try 的忙轮询。
         """
 
         now = self._now()
@@ -894,7 +891,7 @@ class BatchSupervisor:
                        if deadline is not None and deadline > now]
         return max(min(1.0, self.policy.poll_interval_s), min(candidates))
 
-    # -- time accounting --------------------------------------------------------------------
+    # -- 时间核算 ---------------------------------------------------------------------------
     def _advance_clock(self, now: float) -> None:
         state = self._state
         last = state["last_tick_at"]
@@ -904,7 +901,7 @@ class BatchSupervisor:
             state["counters"][key] += delta
         state["last_tick_at"] = now
 
-    # -- per-item handling ------------------------------------------------------------------
+    # -- 逐项处理 ---------------------------------------------------------------------------
     def _rec(self, item: str) -> dict[str, Any]:
         try:
             return self._state["item_state"][item]
@@ -934,8 +931,8 @@ class BatchSupervisor:
 
     def _resolve_intent(self, item: str, rec: dict[str, Any], now: float,
                         launch_error: str | None = None) -> None:
-        """A launch intent exists without a handle (supervisor died mid-launch, or the launch
-        raised). ``reconcile`` decides; without it the attempt stays unknown, never relaunched."""
+        """存在没有 handle 的发起 intent（supervisor 在发起中途死亡，或发起过程抛出了异常）。
+        ``reconcile`` 做决定；没有它时该 try 保持 unknown，绝不重新发起。"""
 
         if self.task.reconcile is None:
             self._mark_unknown(item, rec, launch_error or "launch intent persisted but no handle; "
@@ -949,8 +946,8 @@ class BatchSupervisor:
         if found is None or found == "not_launched":
             self._event("reconcile_not_launched", item=item, launch_id=rec["launch_id"])
             if launch_error is not None:
-                # The launch itself failed: that is a crash (budgeted), or a raising launcher
-                # would be retried on every tick forever.
+                # 发起本身失败了：这是一次崩溃（消耗预算），否则一个抛异常的 launcher
+                # 会在每个 tick 上永远被重试。
                 self._crash(item, rec, now, Poll("crashed", detail=launch_error), launched=False)
                 return
             previous = rec.get("pre_launch_state") or self._idle_state(rec)
@@ -993,8 +990,8 @@ class BatchSupervisor:
             self._crash(item, rec, now, poll)
             return
         if poll.status == "running":
-            # Positive evidence of life; a lease is not even consulted (a lease can vanish while
-            # the process still runs on an unreachable host).
+            # 存活的正面证据；甚至不查询 lease（进程仍在不可达主机上运行时，
+            # lease 可能消失）。
             self._alive(item, rec)
             return
         lease = "unknown"
@@ -1057,7 +1054,7 @@ class BatchSupervisor:
                     PAUSED_COST_UNKNOWN,
                     {"item": item, "launch_id": rec["launch_id"], "error": _short(cost_error)})
                 self._touch(item)
-                return  # retain the result and attempt; resume re-reads cost before verification
+                return  # 保留结果和 try；resume 时在验证前重新读取 cost
             amount = float(cost) if cost is not None else 0.0
             state["counters"]["cost"] += amount
             rec["attempt_cost"] = amount
@@ -1072,7 +1069,7 @@ class BatchSupervisor:
                         errors=rec["verify_errors"], error=_short(f"{type(exc).__name__}: {exc}"))
             self._touch(item)
             if rec["verify_errors"] < self.policy.max_verify_errors:
-                return  # keep the attempt; verification is retried on the next tick
+                return  # 保留该 try；验证会在下一个 tick 重试
             verdict = Verdict.abstained(f"verifier failed {rec['verify_errors']} times: "
                                         f"{type(exc).__name__}: {exc}", gate="verifier_error")
         self._apply_verdict(item, rec, now, verdict)
@@ -1115,9 +1112,9 @@ class BatchSupervisor:
 
     def _after_consumed(self, item: str, rec: dict[str, Any], now: float, *, gate: str | None,
                         reason: str | None, final: bool) -> None:
-        """An attempt was used up without admission: decide between retry and a terminal state.
+        """一次 try 在未准入的情况下被用尽：在重试和终态之间做决定。
 
-        The caller has already counted the attempt in ``attempts_used``.
+        调用方已在 ``attempts_used`` 中计入了该 try。
         """
 
         limit = rec["attempt_limit"] or self.policy.max_attempts_per_item
@@ -1193,13 +1190,13 @@ class BatchSupervisor:
                 rec["retry_not_before"] = now + delay
         self._touch(item)
 
-    # -- crash bursts -----------------------------------------------------------------------
+    # -- 崩溃 burst -------------------------------------------------------------------------
     def _note_crash(self, item: str, now: float) -> None:
         trigger = advance_burst(self._state["burst"], now, item, self.policy)
         if trigger is not None:
             self._event("crash_burst_backoff", **trigger)
 
-    # -- provider availability --------------------------------------------------------------
+    # -- provider 可用性 --------------------------------------------------------------------
     def _provider_down(self, now: float, detail: str) -> None:
         provider = self._state["provider"]
         if not provider["down"]:
@@ -1250,16 +1247,16 @@ class BatchSupervisor:
             else:
                 provider["next_probe"] = now + self.policy.provider_probe_interval_s
         else:
-            provider["half_open"] = True  # let exactly one launch probe the provider
+            provider["half_open"] = True  # 让恰好一次发起去探测 provider
         self._touch()
 
-    # -- verification window ----------------------------------------------------------------
+    # -- 验证窗口 ---------------------------------------------------------------------------
     def _note_verdict(self, item: str, gate: str | None) -> None:
         window = [entry for entry in self._state["recent_verdicts"] if entry[0] != item]
         window.append([item, gate])
         self._state["recent_verdicts"] = window[-max(4 * self.policy.systematic_window, 50):]
 
-    # -- guards -----------------------------------------------------------------------------
+    # -- 守卫 -------------------------------------------------------------------------------
     def _check_unknown(self) -> None:
         stuck = {item: rec["unknown_streak"] for item, rec in self._state["item_state"].items()
                  if rec["state"] in IN_FLIGHT
@@ -1388,7 +1385,7 @@ class BatchSupervisor:
                 self._ledger_error(exc)
         return status
 
-    # -- dispatch ---------------------------------------------------------------------------
+    # -- 调度 -------------------------------------------------------------------------------
     def _dispatch(self, now: float) -> None:
         state = self._state
         if state["stop_request"]:
@@ -1416,7 +1413,7 @@ class BatchSupervisor:
             self._launch(item, recs[item], now, half_open=provider["down"])
             in_flight = sum(rec["state"] in IN_FLIGHT for rec in recs.values())
             if state["provider"]["down"] and recs[item]["state"] in IN_FLIGHT:
-                break  # provider went down, or the single half-open probe is out
+                break  # provider 已宕机，或唯一的 half-open 探针已用掉
             if state["provider"]["down"] and not state["provider"]["half_open"]:
                 break
             if state["burst"]["until"] is not None and now < state["burst"]["until"]:
@@ -1453,7 +1450,7 @@ class BatchSupervisor:
         self._event("launch_intent", item=item, attempt=rec["attempt"], seed=rec["seed"],
                     tries=rec["tries"], launch_id=rec["launch_id"], half_open=half_open or None)
         self._touch(item)
-        self._save(force=True)  # the intent is durable before anything can start
+        self._save(force=True)  # intent 在任何东西可能启动之前就已持久化
         try:
             handle = self._call_launch(item, rec)
         except LaunchDeferred as exc:
@@ -1482,8 +1479,8 @@ class BatchSupervisor:
                             reason=_short(detail))
                 self._resolve_intent(item, rec, now, launch_error=detail)
             else:
-                # Without reconcile a raising launcher is assumed not to have started anything
-                # (adapters that can partially launch must provide reconcile).
+                # 没有 reconcile 时，假定抛出异常的 launcher 没有启动任何东西
+                # （可能部分启动的 adapter 必须提供 reconcile）。
                 self._crash(item, rec, now, Poll("crashed", detail=detail), launched=False)
         else:
             try:
@@ -1537,19 +1534,19 @@ class BatchSupervisor:
             self._ledger_error(exc)
 
 
-# -- crash-burst rule (pure, shared with offline analysis) --------------------------------------
+# -- 崩溃 burst 规则（纯函数，与离线分析共享）---------------------------------------------------
 def new_burst_state() -> dict[str, Any]:
     return {"recent": [], "level": 0, "until": None, "last_end": None, "count": 0}
 
 
 def advance_burst(burst: dict[str, Any], now: float, item: str,
                   policy: BatchPolicy) -> dict[str, Any] | None:
-    """Record one transient crash in ``burst`` (mutated); return a backoff trigger or ``None``.
+    """在 ``burst`` 中记录一次临时崩溃（原地修改）；返回退避触发器或 ``None``。
 
-    A burst is ``crash_burst_items`` *distinct* items crashing within ``crash_burst_window_s``: a
-    single item crash-looping is an item problem (its own crash budget and retry delay handle it),
-    many items crashing together is a provider/uploader problem. Bursts that follow each other
-    within the window double the backoff up to ``burst_backoff_cap_s``.
+    burst 指 ``crash_burst_items`` 个 *不同* item 在 ``crash_burst_window_s`` 内崩溃：单个
+    item 反复崩溃是 item 问题（由它自己的崩溃预算和重试延迟处理），许多 item 同时崩溃
+    则是 provider/uploader 问题。在窗口内相继出现的 burst 会把退避翻倍，直至
+    ``burst_backoff_cap_s``。
     """
 
     if policy.crash_burst_items <= 0:
@@ -1573,7 +1570,7 @@ def advance_burst(burst: dict[str, Any], now: float, item: str,
             "window_s": policy.crash_burst_window_s, "items": sorted(distinct)[:20]}
 
 
-# -- reporting ---------------------------------------------------------------------------------
+# -- 报告 --------------------------------------------------------------------------------------
 def summarize_state(state: Mapping[str, Any]) -> dict[str, Any]:
     items = state["item_state"]
     counts = Counter(rec["state"] for rec in items.values())

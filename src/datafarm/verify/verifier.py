@@ -1,4 +1,4 @@
-"""Run every fixed check family and aggregate a fail-closed verdict."""
+"""运行每个固定的检查族，并汇总一个失败关闭（fail-closed）的 verdict。"""
 
 from __future__ import annotations
 

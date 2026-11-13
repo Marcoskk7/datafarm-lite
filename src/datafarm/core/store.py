@@ -20,10 +20,10 @@ class ArtifactIntegrityError(RuntimeError):
 
 
 class ArtifactStore:
-    """Immutable content-addressed JSON store.
+    """不可变的内容寻址 JSON 存储。
 
-    The store owns locations. Documents contain digest references, never host
-    filesystem paths, so a run can be moved without rewriting its evidence graph.
+    存储拥有位置信息。文档只包含摘要引用，绝不包含宿主文件系统路径，
+    因此运行可以在不重写其证据图的情况下迁移。
     """
 
     def __init__(self, root: str | Path):
@@ -41,11 +41,10 @@ class ArtifactStore:
         return reference
 
     def receipts_for(self, subject_sha256: str) -> list[tuple[ArtifactRef, GateReceipt]]:
-        """Return every stored gate receipt whose subject is ``subject_sha256``.
+        """返回主题为 ``subject_sha256`` 的所有已存 gate 回执。
 
-        The subject index under ``index/`` is a non-authoritative lookup aid:
-        each hit is re-loaded by digest (integrity and schema checked) and its
-        subject re-compared.
+        ``index/`` 下的主题索引是非权威的查找辅助：每个命中项都会
+        按摘要重新加载（校验完整性与 schema），并重新比对主题。
         """
 
         if len(subject_sha256) != 64 or any(char not in "0123456789abcdef" for char in subject_sha256):
@@ -73,12 +72,12 @@ class ArtifactStore:
             marker.touch()
 
     def put_json(self, kind: str, value: Mapping[str, Any]) -> ArtifactRef:
-        """Store non-IR evidence after portable JSON validation."""
+        """在通过可移植 JSON 校验后存储非 IR 证据。"""
 
         return self._put(kind, dict(value))
 
     def put_bytes(self, kind: str, value: bytes, *, media_type: str) -> ArtifactRef:
-        """Store immutable non-JSON evidence such as video, HDF5, or images."""
+        """存储不可变的非 JSON 证据，例如视频、HDF5 或图像。"""
 
         if not isinstance(value, bytes):
             raise TypeError("blob value must be bytes")

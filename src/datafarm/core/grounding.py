@@ -1,16 +1,16 @@
-"""Physical-quantity ledger of the grounding record G.
+"""grounding 记录 G 的物理量账本。
 
-A calibration video determines some quantities and leaves others unidentifiable. Every
-physical quantity the simulator uses is therefore listed with how it is known:
+一段 calibration 视频能确定一部分量，其余量则无法辨识。因此模拟器使用的每个
+物理量都会列出其已知方式：
 
-- measured: read from a sensor, datasheet or the robot description; needs evidence.
-- fitted: estimated from the real episode (camera fit, scale, table height); needs evidence.
-- assumed: a chosen value without task evidence (e.g. a friction prior).
-- unknown: not determined; the value may be null.
+- measured：来自传感器、数据手册或机器人描述；需要证据。
+- fitted：从真实 episode 估计（相机拟合、尺度、桌面高度）；需要证据。
+- assumed：没有任务证据的选定值（例如摩擦先验）。
+- unknown：未确定；值可以为 null。
 
-An assumed or unknown quantity must be covered by randomization (a range or a set of
-choices) or carry an explicit reason why it is not randomized, so a confident but
-unsupported value cannot enter the simulator silently.
+assumed 或 unknown 的量必须被随机化覆盖（一个范围或一组选项），或带有明确的
+不随机化理由，这样自信但无依据的值就不会悄悄进入模拟器，也不会
+在无人察觉的情况下影响结果。
 """
 from __future__ import annotations
 
@@ -47,12 +47,12 @@ def _randomization(name: str, value: Any, spec: Any) -> None:
 
 
 def validate_quantities(entries: Any, *, bind: Callable[[dict], Any] | None = None) -> dict[str, int]:
-    """Validate a physical_quantities list.
+    """校验 physical_quantities 列表。
 
-    `bind` verifies each evidence reference (a bound workspace file for deliveries, a
-    content-addressed ArtifactRef in the IR); without it a path/sha256 shape is required.
+    `bind` 会校验每个证据引用（交付物对应受约束的工作区文件，IR 中对应按内容寻址的
+    ArtifactRef）；未提供时则要求 path/sha256 形状。
 
-    Returns the number of quantities per label.
+    返回每个 label 对应的数量。
     """
     _check(isinstance(entries, list), 'physical_quantities must be a list')
     counts = {label: 0 for label in QUANTITY_LABELS}

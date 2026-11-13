@@ -1,19 +1,19 @@
-"""OS-level isolation for the agent CLI and for rollouts that execute agent-written code.
+"""面向 agent CLI 以及执行 agent 编写代码的 rollout 的 OS 级隔离。
 
-A brief alone cannot keep the authoring agent away from holdout seeds and verifier code: an
-agent running as root makes "clean room" its own claim. Here the rules become mounts:
+仅靠一份 brief 无法让编写 agent 远离 holdout seed 和 verifier 代码：以 root 运行的
+agent 会让 "clean room" 变成自说自话。这里规则变成了挂载：
 
-* ``bwrap`` (preferred): a new mount + PID namespace. ``allowlist`` base shows only the
-  system directories and the paths the adapter lists as readable (read-only) plus the
-  workspace (read-write); ``root_ro`` base shows the whole host read-only. Protected paths
-  are masked (empty read-only tmpfs for directories, an empty file for files).
-* ``unshare -m`` (fallback): a private mount namespace with the same masks; the host stays
-  visible, so it only has denylist semantics.
+* ``bwrap``（首选）：新的 mount + PID namespace。``allowlist`` 基础只显示
+  系统目录以及适配器列为可读（只读）的路径，加上工作区（读写）；
+  ``root_ro`` 基础将整个宿主以只读方式展示。受保护路径
+  会被遮蔽（目录用空的只读 tmpfs，文件用空文件）。
+* ``unshare -m``（回退）：私有 mount namespace，使用相同的遮蔽；宿主仍然
+  可见，因此只具备 denylist 语义。
 
-Capabilities are always dropped (``--cap-drop ALL``) or the process switches to an
-unprivileged uid with ``setpriv``. This matters: bwrap started by root keeps every
-capability by default, and a process holding ``CAP_SYS_ADMIN`` can simply ``umount`` a
-mask (see tests).
+能力（capabilities）总是被丢弃（``--cap-drop ALL``），或者进程通过 ``setpriv``
+切换到非特权 uid。这一点很重要：由 root 启动的 bwrap 默认保留所有
+能力，而持有 ``CAP_SYS_ADMIN`` 的进程可以直接 ``umount`` 掉
+一个遮蔽（见测试）。
 """
 
 from __future__ import annotations
@@ -32,8 +32,8 @@ from datafarm.expert.util import HarnessError
 DEFAULT_SYSTEM_RO = ("/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/etc",
                      "/run/systemd/resolve")
 _KIND_ORDER = {"dir": -1, "ro": 0, "rw": 1, "tmpfs": 2, "mask": 3}
-# Capabilities a sandbox may keep. Never CAP_SYS_ADMIN (umount a mask) or
-# CAP_DAC_READ_SEARCH (open_by_handle_at reads files behind any mount).
+# 沙箱可保留的能力。绝不保留 CAP_SYS_ADMIN（umount 掉遮蔽）或
+# CAP_DAC_READ_SEARCH（open_by_handle_at 可读取任意挂载背后的文件）。
 ALLOWED_KEEP_CAPS = frozenset({"CAP_DAC_OVERRIDE", "CAP_FOWNER", "CAP_CHOWN"})
 
 
@@ -72,7 +72,7 @@ class SandboxSpec:
     keep_caps: tuple[str, ...] = ()
     cwd: str = "/"
     empty_file: str = ""
-    degraded: bool = False  # an allowlist spec running under unshare (denylist only)
+    degraded: bool = False  # 在 unshare 下运行的 allowlist spec（仅 denylist 语义）
 
     def replace(self, **changes: Any) -> "SandboxSpec":
         return dataclasses.replace(self, **changes)
@@ -98,9 +98,9 @@ def _depth(path: str) -> int:
 
 def plan_mounts(spec: SandboxSpec, *, lexists: Callable[[str], bool] = os.path.lexists,
                 isdir: Callable[[str], bool] = os.path.isdir) -> list[MountOp]:
-    """Mount operations in application order: shallower paths first, so the most specific
-    rule wins (a readable child re-bound inside a masked parent stays readable; a masked
-    child inside a readable parent stays hidden). Missing sources are skipped."""
+    """按应用顺序排列的挂载操作：更浅的路径在前，因此最具体的规则生效
+    （被遮蔽父目录内的可读子目录重新 bind 后仍可读；可读父目录内
+    被遮蔽的子目录保持隐藏）。缺失的源会被跳过。"""
 
     entries: list[tuple[int, int, int, MountOp]] = []
     order = 0
@@ -129,7 +129,7 @@ def plan_mounts(spec: SandboxSpec, *, lexists: Callable[[str], bool] = os.path.l
         if not lexists(path):
             continue
         if spec.base == "allowlist" and not any(_under(_norm(path), root) for root in bound):
-            continue  # never bound, so already invisible; do not even create a mount point
+            continue  # 从未 bind，因此已不可见；连挂载点都不创建
         add("mask_dir" if isdir(path) and not os.path.islink(path) else "mask_file", None, path)
     entries.sort(key=lambda item: (item[0], item[1], item[2]))
     ops = [item[3] for item in entries]
@@ -142,12 +142,12 @@ def _under(path: str, root: str) -> bool:
 
 def _with_parent_dirs(spec: SandboxSpec, ops: list[MountOp],
                       lexists: Callable[[str], bool] = os.path.lexists) -> list[MountOp]:
-    """bwrap creates missing mount-point parents with mode 0700, which an unprivileged
-    sandbox user cannot traverse. Create every *synthetic* parent (one not backed by a
-    host bind) explicitly with mode 0755 first. A parent is synthetic when the deepest
-    operation covering it is a mask/tmpfs, when nothing covers it in an allowlist
-    sandbox (bwrap's own root tmpfs), or when it is covered by a bind from another
-    source that has no such directory (the round's tmp bound to /tmp)."""
+    """bwrap 会以 0700 模式创建缺失的挂载点父目录，非特权的
+    沙箱用户无法穿越。先以 0755 模式显式创建每一个*合成*父目录（不由
+    宿主 bind 提供的父目录）。满足以下任一条件时父目录即为合成目录：覆盖它的
+    最深操作是 mask/tmpfs；在 allowlist 沙箱中没有任何操作覆盖它
+    （bwrap 自己的 root tmpfs）；或者它被来自另一个不包含该目录的源的
+    bind 覆盖（本轮 tmp 绑定到 /tmp）。"""
 
     host_roots = [("ro", p, p) for p in (spec.system_ro if spec.base == "allowlist" else ("/",))]
     covering = host_roots + [(op.kind, op.dest, op.src) for op in ops]
@@ -236,7 +236,7 @@ def bwrap_argv(spec: SandboxSpec, command: Sequence[str], *, bwrap: str = "bwrap
 def unshare_argv(spec: SandboxSpec, command: Sequence[str], *,
                  lexists: Callable[[str], bool] = os.path.lexists,
                  isdir: Callable[[str], bool] = os.path.isdir) -> list[str]:
-    """Fallback: private mount namespace with the same masks (denylist semantics only)."""
+    """回退方案：使用相同遮蔽的私有 mount namespace（仅 denylist 语义）。"""
 
     if spec.base != "root_ro":
         raise IsolationUnavailable("unshare cannot hide the host tree; it needs a root_ro spec "
@@ -249,13 +249,13 @@ def unshare_argv(spec: SandboxSpec, command: Sequence[str], *,
         if op.kind == "dir":
             continue
         if any(op.dest.startswith(m + "/") for m in masked_dirs) and op.kind in ("ro", "rw"):
-            # The source is hidden once its masked parent is mounted; unsupported here.
+            # 其被遮蔽的父目录挂载后源即被隐藏；此处不支持。
             continue
         if op.kind == "ro":
             lines.append(f"mount --bind {shlex.quote(op.src or op.dest)} {dest}")
             lines.append(f"mount -o remount,bind,ro {dest}")
         elif op.kind == "rw":
-            # a bind below a read-only bind inherits read-only: remount it rw explicitly
+            # 只读 bind 之下的 bind 会继承只读：显式将其重新挂载为 rw
             lines.append(f"mount --bind {shlex.quote(op.src or op.dest)} {dest}")
             lines.append(f"mount -o remount,bind,rw {dest}")
         elif op.kind == "tmpfs":
@@ -278,7 +278,7 @@ _AVAILABLE: dict[str, tuple[bool, str]] = {}
 
 
 def probe_available(mode: str) -> tuple[bool, str]:
-    """Can this host create the sandbox? Cached per process."""
+    """此宿主能否创建该沙箱？按进程缓存。"""
 
     if mode == "none":
         return True, "no isolation requested"
@@ -317,7 +317,7 @@ def _try(cmd: list[str]) -> tuple[bool, str]:
 
 def resolve_spec(spec: SandboxSpec, *, fallback: str | None, allow_degraded: bool,
                  available: Callable[[str], tuple[bool, str]] = probe_available) -> SandboxSpec:
-    """Pick a usable mode: the preferred one, else the fallback; fail closed otherwise."""
+    """选择可用模式：首选模式，否则回退模式；都不可用则失败关闭。"""
 
     reasons = []
     for mode in [spec.mode] + ([fallback] if fallback and fallback != spec.mode else []):
@@ -345,9 +345,9 @@ def wrap(spec: SandboxSpec, command: Sequence[str]) -> list[str]:
 
 
 def sandbox_env(base: Mapping[str, str], passthrough: Iterable[str]) -> dict[str, str]:
-    """Exact environment for the sandboxed process. Secrets named in ``passthrough`` are
-    copied from the harness environment into the child's environment only (never argv,
-    never logs)."""
+    """为沙箱内进程准备精确的环境变量。``passthrough`` 中指定的 secret
+    只从 harness 环境复制到子进程环境（绝不进入 argv，
+    绝不进入日志）。"""
 
     env = {k: str(v) for k, v in base.items()}
     for name in passthrough:
@@ -356,7 +356,7 @@ def sandbox_env(base: Mapping[str, str], passthrough: Iterable[str]) -> dict[str
     return env
 
 
-# --------------------------------------------------------------------------- probes
+# --------------------------------------------------------------------------- 探针
 
 PROBE_SCRIPT = r"""
 for arg in "$@"; do
@@ -417,8 +417,8 @@ def parse_probe(lines: Iterable[str], *, mode: str, readonly_dirs: Iterable[str]
 def run_probe(spec: SandboxSpec, *, masked: Sequence[str], readonly_dirs: Sequence[str] = (),
               writable_dirs: Sequence[str] = (), env: Mapping[str, str] | None = None,
               timeout: float = 60.0) -> ProbeResult:
-    """Run the probe inside ``spec``: every masked path must be hidden (even after an
-    ``umount`` attempt), read-only dirs unwritable, workspace dirs writable."""
+    """在 ``spec`` 内运行探针：每个被遮蔽的路径都必须隐藏（即使尝试
+    ``umount`` 之后），只读目录不可写，工作区目录可写。"""
 
     args = probe_args(masked, readonly_dirs, writable_dirs)
     argv = wrap(spec, ["/bin/sh", "-c", PROBE_SCRIPT, "xh-probe", *args])
@@ -445,7 +445,7 @@ def make_empty_file(directory: str | Path) -> str:
 
 
 def chown_tree(path: str | Path, uid: int, gid: int) -> None:
-    """Give an unprivileged sandbox user its writable directories (never follows links)."""
+    """给非特权沙箱用户其可写目录（绝不跟随链接）。"""
 
     for current, dirs, files in os.walk(path, followlinks=False):
         os.lchown(current, uid, gid)
@@ -453,7 +453,7 @@ def chown_tree(path: str | Path, uid: int, gid: int) -> None:
             os.lchown(os.path.join(current, name), uid, gid)
 
 
-# --------------------------------------------------------------------------- job scripts
+# --------------------------------------------------------------------------- job 脚本
 
 
 def job_wrapper_bash(*, mode: str, fallback: str | None, base: str, dev: str, ro: Sequence[str],
@@ -461,17 +461,17 @@ def job_wrapper_bash(*, mode: str, fallback: str | None, base: str, dev: str, ro
                      tmpfs: Sequence[str] = (),
                      share_net: bool = True, private_tmp: bool = True,
                      keep_caps: Sequence[str] = ()) -> str:
-    """Bash functions for a generated rollout job. ``xh_pick_backend`` chooses bwrap, then
-    the fallback, and fails (the job then exits 97) when neither works; ``xh_sandboxed <cwd>
-    <cmd...>`` runs a command inside the sandbox. Path existence and ``${HOME}``-relative
-    paths are resolved on the execution node at run time."""
+    """生成 rollout job 使用的 Bash 函数。``xh_pick_backend`` 先选择 bwrap，
+    再选回退方案，两者都不可用时失败（此时 job 以 97 退出）；``xh_sandboxed <cwd>
+    <cmd...>`` 在沙箱内运行命令。路径存在性与 ``${HOME}`` 相对
+    路径在执行节点上于运行时解析。"""
 
     def q(path: str) -> str:
-        # keep ${VAR} expandable, quote everything else
+        # 保留 ${VAR} 可展开，其余全部加引号
         return '"' + path.replace("\\", "\\\\").replace('"', '\\"').replace("`", "\\`") + '"'
 
-    # Ordering (shallow first, so the most specific rule wins) happens at run time, after
-    # ${HOME}-style variables have expanded on the execution node.
+    # 排序（浅的在前，使最具体的规则生效）在运行时进行，此时
+    # ${HOME} 形式的变量已在执行节点上展开。
     entries = ([("ro", p) for p in ro] + [("rw", p) for p in rw]
                + [("tmpfs", p) for p in tmpfs] + [("mask", p) for p in masked])
     op_lines = "\n".join(f"      printf '%s\\t%s\\n' {kind} {q(path)}" for kind, path in entries)

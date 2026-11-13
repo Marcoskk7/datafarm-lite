@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""First-chunk exposure lock of every chunk output before assembly (derived, no GPU).
+"""每个 chunk 输出在拼装前的首 chunk 曝光锁定（纯派生，不使用 GPU）。
 
-Chunks render independently, so every seam can show an exposure step.  This tool applies a frame-wise per panel/channel
-gain to every chunk's full output, toward the first chunk's exposure (median output / white-carrier brightness ratio)
-at the frame's own carrier brightness, then assembles with the package's recorded seams (assembled/t3-seams.json) and
-the same crop/scale as h3_assemble.py.  Gains only: no pixel is moved, blended with another frame or retimed.
+各 chunk 独立渲染，因此每个接缝都可能出现曝光跳变。本工具对每个 chunk 的完整输出施加逐帧、
+逐 panel/通道的增益，目标是按该帧自身的 carrier 亮度向首 chunk 的曝光（输出中位数 / 白 carrier
+亮度比）靠拢，然后按包内记录的接缝（assembled/t3-seams.json）拼装，裁切/缩放方式与 h3_assemble.py
+相同。只调整增益：不移动、不与其他帧混合、也不重定时任何像素。
 
   python h3_exposure_lock.py --src <run>/pkgs/<recipe>/<task>/<tag> --recipe <run>/recipes/exposure-lock-<recipe>.json
-  (output: <run>/pkgs/<lock recipe>/<task>/<tag>; run directory = --run-dir or env H3_RUN)
+  （输出：<run>/pkgs/<lock recipe>/<task>/<tag>；运行目录 = --run-dir 或环境变量 H3_RUN）
 """
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ def lock_package(src: Path, recipe: dict, run: Path) -> Path:
         parts.append(locked[a - start:b - start])
     canvas = np.concatenate(parts)
     pad = int(pkg.get("tail_pad", 0))
-    if pad:   # tail-padded package: the seams cover the padded carrier; keep the episode's own frames only
+    if pad:   # 带尾填充的包：接缝覆盖的是填充后的 carrier；只保留 episode 自身的帧
         if len(canvas) != int(assembled["frames"]) + pad:
             raise SystemExit(f"padded canvas has {len(canvas)} frames, expected {assembled['frames']} + {pad}")
         canvas = canvas[:int(assembled["frames"])]

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Assemble one rendered H3 package into an episode video.
+"""把一个已渲染的 H3 包组装成 episode 视频。
 
-Chunk outputs -> one episode on the H3 canvas -> active crop -> 1280x1080 T-layout at the carrier's fps
-(frame i == carrier frame frame_range[0]+i), plus the matching carrier clip, so the frozen evaluator can score it 1:1.
+chunk 输出 -> H3 画布上的单个 episode -> 活动区域裁剪 -> 按 carrier 的 fps 输出 1280x1080 T 型布局
+（第 i 帧 == carrier 的 frame_range[0]+i 帧），并附上对应的 carrier 片段，使冻结评测器能 1:1 评分。
 
   python h3_assemble.py <package dir>
 """
@@ -35,8 +35,8 @@ def _gray_frames(path: Path, lo: int, hi: int) -> dict:
 
 
 def seam_keep_ranges(jobs: list, render: Path, total: int, guard: int = 4, min_lead: int = 0) -> list:
-    """Min-diff seams: within each chunk overlap pick the global frame c where the outgoing and incoming chunk
-    renders differ least (mean |A-B| on gray 256x192 + mean |dA-dB| motion term), cut there.  Hard cut, no blending."""
+    """最小差异接缝：在每个 chunk 重叠区内，选取出块与入块渲染差异最小的全局帧 c
+    （灰度 256x192 上的 mean |A-B| 加 mean |dA-dB| 运动项），并在该处剪切。硬切，不混合。"""
     import numpy as np
     ranges, keep_start = [], 0
     for k, job in enumerate(jobs):
@@ -48,7 +48,7 @@ def seam_keep_ranges(jobs: list, render: Path, total: int, guard: int = 4, min_l
         s_n = nxt["source_frame_range"][0]
         e_k = min(job["source_frame_range"][1], total)
         lo, hi = max(s_n + guard, keep_start + guard), e_k - guard
-        lo = max(lo, s_n + min_lead)  # the incoming chunk must have generated >= min_lead frames of its own lead-in
+        lo = max(lo, s_n + min_lead)  # 入块必须已生成 >= min_lead 帧自身的 lead-in
         if hi <= lo:
             c = job["keep_global_range"][1]
             cost = None
@@ -110,7 +110,7 @@ def assemble(pkg_dir: Path) -> dict:
     final = pkg_dir / f"final-t3-{fps}fps.mp4"
     assembly = pkg["recipe"].get("assembly") or {}
     canvas = assemble_canvas(pkg_dir, work, assembly.get("seam", "fixed"), int(assembly.get("min_lead", 0)))
-    # a tail-padded package renders past the episode end (package.json tail_pad): cut back to the episode length
+    # 尾部补齐的包会渲染到 episode 结束之后（package.json tail_pad）：裁回 episode 长度
     trim = f"trim=end_frame={int(pkg['frames'])}," if int(pkg.get("tail_pad", 0)) else ""
     run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(canvas), "-vf",
          f"{trim}{SPATIAL.ffmpeg_canvas_to_active()},setpts=N/({fps}*TB)", "-fps_mode", "cfr", "-r", str(fps), "-an",

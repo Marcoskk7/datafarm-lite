@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Run the vendored openpi trainer with explicit target-mesh checkpoint restoration.
+"""运行 vendored openpi trainer，并显式进行 target-mesh checkpoint 恢复。
 
-``--action-adapter`` installs the config extensions of one action representation; all other
-arguments go to the trainer.
+``--action-adapter`` 会安装某种 action 表示的配置扩展；其余所有参数都传给 trainer。
 """
 import argparse
 import os
@@ -10,7 +9,7 @@ from pathlib import Path
 import runpy
 import sys
 
-# Started by path: replace this directory on sys.path, whose modules must not shadow the trainer's top-level imports.
+# 以路径方式启动：替换 sys.path 中的该目录，其模块不得遮蔽 trainer 的顶层导入。
 sys.path[0] = str(Path(__file__).resolve().parents[2])
 
 

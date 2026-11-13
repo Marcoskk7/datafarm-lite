@@ -1,1 +1,1 @@
-"""Renderers that turn simulated rollouts into photographic video."""
+"""把模拟 rollout 转成照片级视频的渲染器。"""

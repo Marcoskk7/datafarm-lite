@@ -1,4 +1,4 @@
-"""Source-bound white-stage delivery, distinct from rendered/training admission."""
+"""与渲染/训练准入相区别的、源绑定的 white 阶段交付。"""
 import json
 from pathlib import Path
 

@@ -1,4 +1,4 @@
-"""Simulator qualification, randomization plans, joint-margin audit and the USDCraft asset bridge."""
+"""模拟器资质认定、随机化计划、joint margin 审计以及 USDCraft 资源桥接。"""
 
 from datafarm.simulation.sim_qualification import QualificationDecision, ProbeOutcome, SimulatorVariant, VariantResult, apply_patch, build_certificate, evaluate_fold_probe, evaluate_hold_probe, select_variant, canonical_json_sha256, verify_certificate, verify_run_binding
 from datafarm.simulation.randomization import CameraPerturbation, CameraFramePerturbation, CameraRealizationAudit, CameraRandomizationPolicy, EpisodeRandomizationPlan, GraspPerturbation, GraspRandomizationPolicy, PosePerturbationBounds, RecoveryAudit, RecoveryTrace, audit_lateral_realign_trace, audit_recovery_trace, audit_camera_realization, default_camera_randomization_policy, sample_episode_randomization

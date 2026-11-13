@@ -1,16 +1,15 @@
-"""PI0.5 cohort-admission auditor and certificate claim builder.
+"""PI0.5 cohort 准入审计器与证书 claim 构造器。
 
-The generic certificate machinery lives in ``datafarm.core.admission``. This
-module interprets the evidence behind a dataset built by
-``tools/build_pi05_dataset.py`` and re-derives, from raw bytes only, which
-samples the training bundle admits: a ``datafarm.pi05-semantic-allowlist/1.1.0``
-allowlist plus the dense semantic audit report it was cut from, optionally the
-PI0.5 candidate manifest.
+通用的证书机制位于 ``datafarm.core.admission``。本模块解释由
+``tools/build_pi05_dataset.py`` 构建的数据集背后的证据，并仅从原始字节重新推导
+训练 bundle 接纳了哪些样本：一份 ``datafarm.pi05-semantic-allowlist/1.1.0``
+allowlist 加上它被切出的 dense semantic 审计报告，以及可选的
+PI0.5 candidate manifest。
 
-The certificate also binds the built LeRobot dataset: its ``lerobot-provenance.json``
-and ``info.json`` bytes and, optionally, a digest manifest of every file.
+证书还绑定构建出的 LeRobot 数据集：其 ``lerobot-provenance.json``
+与 ``info.json`` 的字节，以及可选的每个文件的摘要清单。
 
-Stdlib only, so certificates can be audited without the training stack.
+仅使用标准库，因此无需训练栈即可审计证书。
 """
 
 from __future__ import annotations
@@ -106,7 +105,7 @@ def _provenance_checks(
     evidence: Mapping[str, bytes],
     member_ids: list[str],
 ) -> dict[str, dict[str, Any]]:
-    """Check the dataset provenance and info; returns provenance details by sample id."""
+    """校验数据集的 provenance 与 info；按样本 id 返回 provenance 详情。"""
 
     provenance = _json_object(evidence.get(PROVENANCE_ROLE))
     info = _json_object(evidence.get(INFO_ROLE))
@@ -191,7 +190,7 @@ def _provenance_checks(
 
 
 def derive_dense_cohort(evidence: Mapping[str, bytes]) -> CohortDerivation:
-    """Re-derive a zero-waiver (or explicit-waiver) dense-allowlist cohort."""
+    """重新推导零豁免（或显式豁免）的 dense-allowlist cohort。"""
 
     derivation = CohortDerivation(DENSE_ALLOWLIST_AUDITOR_ID)
     allowlist = _json_object(evidence.get(ALLOWLIST_ROLE))
@@ -355,7 +354,7 @@ def derive_dense_cohort(evidence: Mapping[str, bytes]) -> CohortDerivation:
 
 
 class Pi05CohortAuditor:
-    """Re-derives a PI0.5 cohort and compares it with a certificate payload."""
+    """重新推导 PI0.5 cohort，并与证书 payload 比对。"""
 
     def __init__(
         self,
@@ -428,10 +427,10 @@ def build_claim(
     refs: Mapping[str, ArtifactRef],
     evidence: Mapping[str, bytes],
 ) -> tuple[CohortAdmissionClaim, CohortDerivation]:
-    """Build the certificate compiler's claim from stored evidence.
+    """由已存储的证据构造证书编译器的 claim。
 
-    The claim records the derivation's own checks as producer checks; the
-    admission root re-derives everything independently before signing.
+    claim 把推导自身的检查记录为 producer checks；admission 根在签名之前
+    会独立地重新推导一切。
     """
 
     if set(refs) != set(evidence):

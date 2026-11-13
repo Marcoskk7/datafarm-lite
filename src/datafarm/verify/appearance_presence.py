@@ -1,7 +1,7 @@
-"""Observed boundary and local contrast fallback for explicit presence keys.
+"""针对显式 presence key 的观测边界与局部对比回退。
 
-Only actual rendered pixels can supplement colour presence. New-instance and
-extent checks keep their original masks; this is not an identity classifier.
+只有实际渲染出的像素才能补充颜色 presence。New-instance 和
+extent 检查保留其原始 mask；这不是身份分类器。
 """
 import cv2
 import numpy as np
@@ -23,7 +23,7 @@ def source_boundary_presence(source, generated_mask, generated_bgr, min_area=100
         mask = labels == i
         boundary = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_GRADIENT,
                                     np.ones((3, 3), np.uint8)) > 0
-        # The panel border is not an observed object boundary.
+        # 面板边框不是观测到的物体边界。
         boundary[:3] = boundary[-3:] = False
         boundary[:, :3] = boundary[:, -3:] = False
         ring = (cv2.dilate(mask.astype(np.uint8), np.ones((41, 41), np.uint8)) > 0) & ~all_near
@@ -34,11 +34,11 @@ def source_boundary_presence(source, generated_mask, generated_bgr, min_area=100
         edge_support = float(edges[boundary].mean())
         contrast_fraction = float(foreground[mask].mean())
         median_separation = float(np.linalg.norm(np.median(lab[mask], axis=0) - background))
-        # Coherent colour separation rejects textured empty table even when
-        # its individual pixels and dense edges would pass the two fractions.
-        # At least half of the source body must have actual contrast, matching
-        # the dense missing-object recall threshold; unobserved pixels
-        # are never filled from the source alone.
+        # 连贯的颜色分离可以拒绝有纹理的空桌面，即使
+        # 它的单个像素和密集边缘能通过那两个比例。
+        # 至少一半的源物体主体必须具备实际对比度，与
+        # 密集的缺失物体召回阈值一致；未观测到的像素
+        # 绝不单独从源填充。
         accepted = edge_support >= .70 and contrast_fraction >= .50 and median_separation > 20
         if accepted:
             result[mask & foreground] = 255

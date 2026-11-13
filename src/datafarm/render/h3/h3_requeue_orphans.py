@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Requeue running tickets whose worker lease is gone (crashed / timed out workers).
+"""将 worker 租约已消失（worker 崩溃 / 超时）的运行中 ticket 重新入队。
 
-A running ticket is named <ticket>@<host>-<pid>-<profile>.json.  If no live lease on <host> has that pid, the ticket goes
-back to pending/<ticket profile>/ (rendered chunks are kept; the worker resumes from the first missing chunk).  Leases
-come from `${GPU_SCHEDULER} leases`; the queue is <run>/queue (run directory = --run-dir or env H3_RUN).  One pass per
-call: run it when workers may have died, by hand or from whatever already supervises the deployment.
+运行中的 ticket 命名为 <ticket>@<host>-<pid>-<profile>.json。若 <host> 上没有持有该 pid 的存活租约，ticket 会
+回到 pending/<ticket profile>/（已渲染的分块保留；worker 从第一个缺失的分块继续）。租约
+来自 `${GPU_SCHEDULER} leases`；队列位于 <run>/queue（run 目录 = --run-dir 或环境变量 H3_RUN）。每次调用
+只跑一遍：在 worker 可能已死亡时手动运行，或由已经在监管该部署的任何进程运行。
 
   python3 h3_requeue_orphans.py [--run-dir <run>]
 """
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import h3_paths
 
-# <host>-<pid>-<profile>: the pid is the last all-digit field before a profile that starts with a letter
+# <host>-<pid>-<profile>: pid 是 profile（以字母开头）之前的最后一个全数字字段
 CLAIM_TAG = re.compile(r"(.+)-(\d+)-([A-Za-z][\w.-]*)$")
 
 
@@ -26,7 +26,7 @@ def main() -> int:
     args = ap.parse_args()
     run = h3_paths.run_dir(args.run_dir)
     result = subprocess.run([h3_paths.gpu_scheduler(), "leases"], capture_output=True, text=True)
-    if result.returncode:  # an unknown lease table says nothing about which workers are alive
+    if result.returncode:  # 读不到的租约表无法说明哪些 worker 还活着
         raise SystemExit(f"scheduler leases failed: {result.stderr.strip()[-300:]}")
     live_pids = set()
     for line in result.stdout.splitlines():
@@ -41,7 +41,7 @@ def main() -> int:
         host, pid, profile = m.groups()
         if (host, pid) in live_pids:
             continue
-        try:  # back to the ticket's own profile queue
+        try:  # 回到 ticket 自己的 profile 队列
             profile = json.loads(t.read_text()).get("profile") or profile
         except ValueError:
             pass

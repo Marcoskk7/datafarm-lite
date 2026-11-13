@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Track the TABLETOP through one panel of a generated T-layout video with SAM2.1 video (CPU ok).
+"""用 SAM2.1 video 在生成的 T 形布局视频的单个 panel 中跟踪 TABLETOP（CPU 可用）。
 
-Prompts: positive points on bright, low-saturation, low-texture pixels in the lower panel + negatives on the wall band, at
-frame 0 and re-prompted every --every frames (recovers after long occlusions).  Output: uint8 masks (frames, h, w) .npy,
-consumed by h3_ood_restyle.py --masks.
+Prompt：在下方面板中明亮、低饱和、低纹理的像素上取正点，在 wall 条带上取负点，在第 0 帧以及每隔 --every 帧
+重新给出这些 prompt（长时间遮挡后可以恢复）。输出：uint8 mask (frames, h, w) .npy，由
+h3_ood_restyle.py --masks 使用。
 
   python h3_sam2_table_masks.py --video final.mp4 --panel head --out masks_head.npy [--max-frames N] [--threads N]
-SAM2.1 weights: directory of facebook/sam2.1-hiera-large from the H3_SAM2 binding (h3_paths.py; offline load).
+SAM2.1 权重：来自 H3_SAM2 binding 的 facebook/sam2.1-hiera-large 目录（h3_paths.py；离线加载）。
 """
 
 import argparse

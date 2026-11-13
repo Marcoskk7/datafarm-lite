@@ -1,13 +1,13 @@
-"""Explicit reference roles for render jobs."""
+"""render job 的显式 reference role。"""
 import hashlib
 import json
 
 from datafarm.render.seedance.common import verify_file
 
-# Device-state appearance references (e.g. a display unlit / lit).  They show how a
-# state and product look, never where the device is. Local product shape comes from
-# the real references; placement, motion/contact and state timing come from the
-# carrier video. Order is fixed: off, on, then the source frame zero.
+# 设备状态外观 reference（例如显示器熄灭 / 点亮）。它们展示某状态和产品的
+# 外观，绝不表示设备所在的位置。局部产品形状来自真实 reference；摆放、
+# 运动/接触与状态时序来自 carrier 视频。顺序固定：off、on，然后是
+# source 第零帧。
 STATE_ROLES = ('device_state_off', 'device_state_on')
 REAL_SCENE_ROLE = 'real_scene_reference'
 

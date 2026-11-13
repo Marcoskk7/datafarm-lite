@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Deployment bindings for the H3 control-hybrid render tools (stdlib only).
+"""H3 control-hybrid 渲染工具的部署绑定（仅用标准库）。
 
-The harness has no machine defaults: the run directory, the H3 interpreter, model/repo roots and the scheduler are resolved
-here, at the moment a tool needs them, and a missing or non-existent value fails closed.
+harness 没有机器默认值：run directory、H3 解释器、model/repo 根目录和 scheduler 都在
+工具需要它们的时刻在此解析，缺失或不存在即 fail closed。
 
-  run directory   --run-dir <dir>  or  env H3_RUN            (data only: tasks/, recipes/, pkgs/, queue/, cache/,
-                                                              screen/, reviews/, eval/realpool/; never code)
-  bindings        env <KEY>, else env DATAFARM_<KEY>, else an explicit entry of the runtime bindings file
-                  (DATAFARM_BINDINGS, else <DATAFARM_WORKSPACE or this checkout>/bindings.json); no built-in default
-                  except H3_PYTHON, which falls back to the current interpreter.
+  run directory   --run-dir <dir>  or  env H3_RUN            (仅数据：tasks/, recipes/, pkgs/, queue/, cache/,
+                                                              screen/, reviews/, eval/realpool/；绝不含代码)
+  bindings        env <KEY>, 否则 env DATAFARM_<KEY>, 否则 runtime bindings 文件中的显式条目
+                  (DATAFARM_BINDINGS, 否则 <DATAFARM_WORKSPACE 或本检出目录>/bindings.json)；除 H3_PYTHON
+                  回退到当前解释器外，没有内建默认值。
 
-Keys: H3_PYTHON (python with torch/diffusers/VideoX-Fun deps), H3_MODELS (contains MiniMax-H3/Ref2VA and
-MiniMax-H3-Fun-Controlnet-Union/), H3_VIDEOX_FUN (VideoX-Fun checkout with vendor/videox_fun applied),
-H3_TURBO_LORA (Sol-H3 Turbo 4-step Ref2VA LoRA file), GPU_SCHEDULER (scheduler executable), H3_EVAL_DINO (DINOv2-base
-directory for the frozen EVAL-v1 scorer), H3_SAM2 (sam2.1-hiera-large directory, OOD tools only),
-H3_HED_ANNOTATOR_REPO (ControlNet annotator source read by the soft-HED tool of the patched VideoX-Fun).
+Keys: H3_PYTHON（含 torch/diffusers/VideoX-Fun 依赖的 python）、H3_MODELS（包含 MiniMax-H3/Ref2VA 与
+MiniMax-H3-Fun-Controlnet-Union/）、H3_VIDEOX_FUN（已应用 vendor/videox_fun 的 VideoX-Fun 检出目录）、
+H3_TURBO_LORA（Sol-H3 Turbo 4-step Ref2VA LoRA 文件）、GPU_SCHEDULER（scheduler 可执行文件）、H3_EVAL_DINO
+（用于冻结 EVAL-v1 评分器的 DINOv2-base 目录）、H3_SAM2（sam2.1-hiera-large 目录，仅 OOD 工具使用）、
+H3_HED_ANNOTATOR_REPO（打过补丁的 VideoX-Fun 的 soft-HED 工具所读取的 ControlNet annotator 源码）。
 
-  python3 h3_paths.py get H3_MODELS        # prints the resolved value or exits 2 with the reason
-  python3 h3_paths.py get H3_RUN          # the run directory (env H3_RUN)
-  python3 h3_paths.py show                 # every key: value or why it is unresolved
+  python3 h3_paths.py get H3_MODELS        # 打印解析后的值，或退出码 2 并给出原因
+  python3 h3_paths.py get H3_RUN          # run directory（env H3_RUN）
+  python3 h3_paths.py show                 # 每个 key：值或无法解析的原因
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[3]  # src/datafarm/render/h3 -> the datafarm source checkout that ships this harness
+REPO = HERE.parents[3]  # src/datafarm/render/h3 -> 携带此 harness 的 datafarm 源码检出目录
 EVAL_DIR = REPO / "evaluations" / "render-h3"
 BINDING_KEYS = ("H3_PYTHON", "H3_MODELS", "H3_VIDEOX_FUN", "H3_TURBO_LORA", "GPU_SCHEDULER", "H3_EVAL_DINO", "H3_SAM2",
                 "H3_HED_ANNOTATOR_REPO")
@@ -37,7 +37,7 @@ _RUN_DIR: Path | None = None
 
 
 class MissingBinding(SystemExit):
-    """A required deployment value is absent or does not exist (raised as SystemExit so CLIs stop cleanly)."""
+    """必需的部署值缺失或不存在（以 SystemExit 抛出，使 CLI 干净退出）。"""
 
     def __init__(self, message: str):
         super().__init__(message)
@@ -53,7 +53,7 @@ def add_run_dir_arg(parser) -> None:
 
 
 def set_run_dir(path) -> Path:
-    """Pin the run directory for this process (CLIs call it with --run-dir before doing any work)."""
+    """为本进程固定 run directory（CLI 在做任何工作之前用 --run-dir 调用它）。"""
     global _RUN_DIR
     if path is None:
         return run_dir()
@@ -61,7 +61,7 @@ def set_run_dir(path) -> Path:
     if not p.is_dir():
         raise MissingBinding(f"--run-dir {p} is not an existing directory")
     _RUN_DIR = p
-    os.environ["H3_RUN"] = str(p)  # child tools (enqueue -> package builders) inherit the same run directory
+    os.environ["H3_RUN"] = str(p)  # 子工具（enqueue -> package builders）继承同一 run directory
     return p
 
 
@@ -80,8 +80,8 @@ def run_dir(arg=None) -> Path:
 
 
 def _bindings_file() -> dict:
-    """Explicit entries of the runtime bindings file only (never datafarm.runtime defaults)."""
-    datafarm_src()  # imported here so `--help` and environment-only lookups never touch the bindings file
+    """仅取 runtime bindings 文件的显式条目（绝不使用 datafarm.runtime 默认值）。"""
+    datafarm_src()  # 在此导入，使 `--help` 和纯环境变量查找从不触碰 bindings 文件
     from datafarm.runtime import explicit_bindings
     try:
         return explicit_bindings()
@@ -90,7 +90,7 @@ def _bindings_file() -> dict:
 
 
 def binding(key: str, *, required: bool = True, must_exist: bool = True) -> str | None:
-    """Resolved value of `key`; None only when the binding is absent and required=False (use require() otherwise)."""
+    """`key` 的解析值；仅当 binding 缺失且 required=False 时才为 None（否则请用 require()）。"""
     if key not in BINDING_KEYS:
         raise MissingBinding(f"unknown H3 control-hybrid binding {key}; known: {', '.join(BINDING_KEYS)}")
     value = os.environ.get(key) or os.environ.get("DATAFARM_" + key) or _bindings_file().get(key)
@@ -107,7 +107,7 @@ def binding(key: str, *, required: bool = True, must_exist: bool = True) -> str 
 
 
 def require(key: str, *, must_exist: bool = True) -> str:
-    """A required binding: always a non-empty string, otherwise MissingBinding (never None)."""
+    """必需的 binding：始终是非空字符串，否则抛出 MissingBinding（绝不返回 None）。"""
     return binding(key, required=True, must_exist=must_exist)
 
 
@@ -143,7 +143,7 @@ def eval_script() -> Path:
     return EVAL_DIR / "h3eval.py"
 
 
-_MODEL_LAYOUT = {  # key -> (binding root, path inside it)
+_MODEL_LAYOUT = {  # key -> (binding 根, 其内路径)
     "base_model": ("H3_MODELS", ("MiniMax-H3", "Ref2VA")),
     "control_checkpoint": ("H3_MODELS", ("MiniMax-H3-Fun-Controlnet-Union", "MiniMax-H3-Fun-Controlnet-Union.safetensors")),
     "control_config": ("H3_VIDEOX_FUN", ("config", "minimax_h3", "minimax_h3_control.yaml")),
@@ -154,7 +154,7 @@ _MODEL_LAYOUT = {  # key -> (binding root, path inside it)
 
 
 def default_model_path(key: str) -> str:
-    """One model/repo file the recipe's `control` section uses when it does not name it explicitly."""
+    """recipe 的 `control` 段未显式写明时所用的某个 model/repo 文件。"""
     root, parts = _MODEL_LAYOUT[key]
     return str(Path(require(root), *parts))
 
@@ -164,7 +164,7 @@ def default_model_paths() -> dict:
 
 
 def expand(value):
-    """Replace ${KEY} binding placeholders (configs/render/h3-*.json) by resolved values; unknown keys fail."""
+    """把 ${KEY} binding 占位符（configs/render/h3-*.json）替换为解析后的值；未知 key 直接失败。"""
     if isinstance(value, str):
         def sub(match):
             return python_exe() if match[1] == "H3_PYTHON" else require(match[1])

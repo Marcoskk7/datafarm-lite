@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Crop rendered wide-FOV wrist views back to the white episode's own wrist camera model.
+"""把渲染出的宽视场腕部视角裁回白色 episode 自身的腕部相机模型。
 
-With a wide wrist white (datafarm.simulation.white_replay wrist_fov_factor F < 1: same camera pose and principal point,
-focal length x F) H3 sees more of the scene around the gripper and renders the wrist views with real context; this
-step crops both wrist panels of the final T-layout video back by F around each wrist camera's principal point and
-scales them to 640x360, so the output again has the white's own wrist intrinsics.  The carrier clip is cropped the same
-way (frame i still corresponds) and the result is rescored with EVAL-v1.
+当腕部为宽视场白色（datafarm.simulation.white_replay wrist_fov_factor F < 1：相机位姿与主点不变，
+焦距 x F）时，H3 能看到夹爪周围更多的场景，并以真实上下文渲染腕部视角；本步骤把最终
+T-layout 视频的两个腕部面板分别围绕各自腕部相机的主点按 F 裁回，并缩放到 640x360，
+使输出的腕部内参重新与白色一致。carrier 片段也按同样方式裁剪
+（第 i 帧仍然对应），结果再以 EVAL-v1 重新评分。
 
-The bundle episode records `wide_wrist: {"factor": F, "principal_points": {"left": [cx, cy], "right": [cx, cy]}}`
-(pixels of the 1280x720 wrist camera, from the replay report); `h3_package.py build` copies it into package.json and
-`h3_finalize.py` runs this step after the exposure lock.
+bundle episode 记录 `wide_wrist: {"factor": F, "principal_points": {"left": [cx, cy], "right": [cx, cy]}}`
+（单位为 1280x720 腕部相机的像素，来自 replay 报告）；`h3_package.py build` 会把它复制进 package.json，
+`h3_finalize.py` 在曝光锁定之后运行本步骤。
 
   python h3_wrist_crop.py --package <exposure-locked package> [--run-dir <run>]
 """
@@ -29,8 +29,8 @@ PANELS = (("left", 0), ("right", 640))
 
 
 def crop_window(factor: float, pp, cam_w: int = 1280, cam_h: int = 720) -> tuple[float, float, float, float]:
-    """(x0, y0, w, h) in a 640x360 panel: the wide view scaled by `factor` about the camera's principal point, i.e. the
-    part of the wide image the original camera saw, clamped inside the panel."""
+    """返回 640x360 面板内的 (x0, y0, w, h)：即宽视角图围绕相机主点按 `factor` 缩小后，
+    原相机所看到的宽图部分，并夹取在面板范围内。"""
     if not 0.3 <= float(factor) < 1.0:
         raise ValueError(f"wide wrist factor {factor} outside [0.3, 1)")
     sx, sy = PANEL_W / cam_w, PANEL_H / cam_h
@@ -50,8 +50,8 @@ def filter_graph(factor: float, pps: dict) -> str:
 
 
 def crop_back(src: Path, run: Path) -> Path | None:
-    """<run>/pkgs/<src recipe>-wristcrop/<task>/<tag> from an assembled package whose package.json has wide_wrist;
-    None when it has none."""
+    """由 package.json 含 wide_wrist 的已拼装 package 生成 <run>/pkgs/<src recipe>-wristcrop/<task>/<tag>；
+    若其中没有 wide_wrist 则返回 None。"""
     src = Path(src).resolve()
     pkg = json.loads((src / "package.json").read_text())
     ww = pkg.get("wide_wrist")

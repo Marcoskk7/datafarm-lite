@@ -1,23 +1,20 @@
-"""Rollout backends: run one agent-written expert on one seed and classify the outcome.
+"""Rollout 后端：在一个 seed 上运行一个由 agent 编写的 expert，并对结果分类。
 
-A rollout is one generated job script per attempt (``job.sh`` in a harness-owned run
-directory):
+每次尝试对应一个生成的作业脚本（位于工具链持有的运行目录中的 ``job.sh``）：
 
-1. heartbeat + environment record (digests of physics/material files);
-2. an isolation probe inside the exact sandbox the expert will run in (masked paths must
-   stay hidden even after an ``umount`` attempt), fail closed on a leak;
-3. the simulator step **inside** the sandbox (agent code executes only here; the run-dir
-   root is read-only, only declared working directories and caches are writable);
-   when the runner refuses a pre-existing output directory, it can write a new
-   child of a writable working directory and the harness moves it afterward;
-4. the judge steps **outside** the sandbox (verifier code is masked from step 3), writing
-   verdict files into the run-dir root that step 3 could not touch;
-5. ``harness-job.json`` with exit codes, written last.
+1. 心跳 + 环境记录（physics/material 文件的摘要）；
+2. 在 expert 实际运行所用的同一沙箱内进行隔离探测（被屏蔽的路径即使在尝试
+   ``umount`` 之后也必须保持隐藏），一旦发生泄漏即失败关闭（fail closed）；
+3. 沙箱**内部**的仿真器步骤（agent 代码只在此处执行；运行目录根为只读，
+   只有声明的可写工作目录与缓存可写）；当 runner 拒绝已存在的输出目录时，
+   它可以写入某个可写工作目录的新子目录，之后由工具链将其移动；
+4. 沙箱**外部**的 judge 步骤（verifier 代码在第 3 步中被屏蔽），将 verdict
+   文件写入第 3 步无法触碰的运行目录根；
+5. 最后写入包含退出码的 ``harness-job.json``。
 
-Outcomes are classified by the harness, not by the agent: judged (counted), expert error
-(counted: e.g. the trace capacity was exceeded or the plugin raised), and infrastructure
-classes that are not counted (invalid initial state, simulator start-up failure, judge
-failure, lost node, timeout, isolation failure, submission failure).
+结果由工具链而非 agent 分类：judged（计入）、expert error（计入：例如
+trace 容量超限或插件抛出异常），以及不计入的基础设施类（初始状态无效、
+仿真器启动失败、judge 失败、节点丢失、超时、隔离失败、提交失败）。
 """
 
 from __future__ import annotations
@@ -88,10 +85,10 @@ class RolloutBackend(Protocol):
 
 
 class LaunchError(HarnessError):
-    """The rollout could not be started (no GPU free, submit failed). Not an attempt."""
+    """Rollout 无法启动（无空闲 GPU、提交失败）。这不构成一次尝试。"""
 
 
-# --------------------------------------------------------------------------- classification
+# --------------------------------------------------------------------------- 分类
 
 
 def _read_json_quiet(path: Path) -> Any:
@@ -113,7 +110,7 @@ def _log_tail(path: Path, limit: int = 400_000) -> str:
 
 
 def classify_run_dir(run_dir: Path, rollout_cfg: Mapping[str, Any], *, status: str = "finished") -> Outcome:
-    """Classify a finished (or lost / timed-out) job directory."""
+    """对已完成（或丢失 / 超时）的作业目录进行分类。"""
 
     if status in _STATUS_DETAIL:
         return Outcome(status, False, None, {}, None, None, None, None, _STATUS_DETAIL[status])
@@ -144,8 +141,8 @@ def classify_run_dir(run_dir: Path, rollout_cfg: Mapping[str, Any], *, status: s
         return out("judged", success, fields, "judged by " + str(verdict_cfg.get("name", "verifier")))
     classify = rollout_cfg.get("classify", {})
     log = _log_tail(run_dir / rollout_cfg.get("sim", {}).get("log", "sim.log"))
-    # Native crashes often echo the entire command, including expert_snapshot.py.
-    # That filename alone does not establish a Python expert exception.
+    # 原生崩溃常常会回显整条命令，其中包含 expert_snapshot.py。
+    # 仅凭该文件名不足以认定是 Python expert 异常。
     if sim_exit in (-11, 139, -6, 134, -9, 137, -15, 143, -25, 153):
         return out("sim_failure", None, {}, "simulator native crash or signal termination; no task verdict")
     for pattern in classify.get("infra_regex", []):
@@ -163,8 +160,8 @@ def classify_run_dir(run_dir: Path, rollout_cfg: Mapping[str, Any], *, status: s
                    + str(failure.get("exception_message", "unknown"))[:200])
     for pattern in classify.get("expert_error_regex", []):
         if pattern == r"expert_snapshot\.py":
-            # The launcher prints this path in its command on timeout too.
-            # Require an actual Python traceback frame for this classifier.
+            # 启动器在超时时也会打印该路径。
+            # 因此该分类器要求出现真正的 Python traceback 帧。
             pattern = r'File ["\'][^"\']*expert_snapshot\.py["\']'
         match = re.search(pattern, log)
         if match:
@@ -176,11 +173,11 @@ def classify_run_dir(run_dir: Path, rollout_cfg: Mapping[str, Any], *, status: s
     return out("judge_failure", None, {}, "the simulator finished but no verdict was produced")
 
 
-# --------------------------------------------------------------------------- job script
+# --------------------------------------------------------------------------- 作业脚本
 
 
 def _q(value: str) -> str:
-    """Quote for bash, leaving ``${VAR}`` references expandable."""
+    """为 bash 加引号，同时让 ``${VAR}`` 引用保持可展开。"""
 
     if "${" in value:
         return '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("`", "\\`") + '"'
@@ -313,11 +310,11 @@ def prepare_run_dir(spec: AttemptSpec, expert_source: bytes, adapter: TaskAdapte
     make_empty_file(spec.run_dir)
 
 
-# --------------------------------------------------------------------------- job backends
+# --------------------------------------------------------------------------- 作业后端
 
 
 class JobRolloutBackend:
-    """Shared logic for job-script backends (``command`` submits, ``local`` runs here)."""
+    """作业脚本后端的共享逻辑（``command`` 负责提交，``local`` 在本机运行）。"""
 
     name = "job"
 
@@ -327,8 +324,8 @@ class JobRolloutBackend:
         self.cfg = adapter.rollout
         self.masked = list(masked)
         self.isolation_override = isolation_override
-        # Jobs are real processes writing real files: liveness uses the real clock, whatever
-        # clock the harness uses for budgets (``clock_now`` is accepted for symmetry only).
+        # 作业是真实进程、写真实文件：存活性一律使用真实时钟，无论工具链
+        # 用哪个时钟计算预算（``clock_now`` 仅为对称性而接受）。
         self.now = time.time
         self.stale_after_s = float(self.cfg.get("stale_after_s", 900))
         self.max_wall_s = float(self.cfg.get("max_wall_s", 3 * 3600))
@@ -365,8 +362,8 @@ class JobRolloutBackend:
 
 
 class CommandRolloutBackend(JobRolloutBackend):
-    """Submit ``job.sh`` with the adapter's submit command (``gpu-scheduler submit`` in
-    production). A failed submission raises :class:`LaunchError` (not an attempt)."""
+    """用 adapter 的提交命令提交 ``job.sh``（生产环境中为 ``gpu-scheduler submit``）。
+    提交失败会抛出 :class:`LaunchError`（不算一次尝试）。"""
 
     name = "command"
 
@@ -401,7 +398,7 @@ class CommandRolloutBackend(JobRolloutBackend):
 
 
 class LocalRolloutBackend(JobRolloutBackend):
-    """Run ``job.sh`` as a local background process (dry runs, single-node operation)."""
+    """以本地后台进程运行 ``job.sh``（用于 dry run、单节点运行）。"""
 
     name = "local"
 
@@ -430,7 +427,7 @@ class LocalRolloutBackend(JobRolloutBackend):
         now = self.now()
         proc = self.procs.get(spec.attempt_id)
         if status == "running" and proc is not None and proc.poll() is not None:
-            # Process gone: give the result file a moment (it is written last), then lost.
+            # 进程已消失：先给结果文件一点时间（它最后才写入），然后判定为丢失。
             if not (spec.run_dir / "harness-job.json").exists():
                 exited = self.exit_seen.setdefault(spec.attempt_id, now)
                 if now - exited > 5:
@@ -439,14 +436,14 @@ class LocalRolloutBackend(JobRolloutBackend):
                 return "finished"
         return status
 
-# --------------------------------------------------------------------------- fake backend
+# --------------------------------------------------------------------------- 假后端
 
 FAKE_FAMILIES = ("family_a", "family_b", "family_c", "family_d")
 
 
 def fake_outcome(spec: AttemptSpec, source: bytes) -> Outcome:
-    """Deterministic stand-in: ``FAKE_QUALITY = q`` in the expert sets the pass probability,
-    ``FAKE_RAISE`` makes an expert error, seed 13 is an invalid start."""
+    """确定性的替代实现：expert 中的 ``FAKE_QUALITY = q`` 决定通过概率，
+    ``FAKE_RAISE`` 制造 expert 错误，seed 13 则是无效起始状态。"""
 
     text = source.decode("utf-8", "replace")
     family = FAKE_FAMILIES[spec.seed % len(FAKE_FAMILIES)]
@@ -464,7 +461,7 @@ def fake_outcome(spec: AttemptSpec, source: bytes) -> Outcome:
 
 
 class FakeRolloutBackend:
-    """In-process backend for tests: finishes after ``polls_to_finish`` polls."""
+    """供测试使用的进程内后端：经过 ``polls_to_finish`` 次 poll 后完成。"""
 
     name = "fake"
 

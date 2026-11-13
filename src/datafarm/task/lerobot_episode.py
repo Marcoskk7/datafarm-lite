@@ -1,13 +1,13 @@
-"""One episode of a LeRobot v2.x dataset as a self-contained task input folder.
+"""将 LeRobot v2.x 数据集中的单个 episode 作为自包含任务输入文件夹。
 
-`pipeline_agent.py prepare --episode <dir>` hashes every file under the folder, so a whole dataset is the wrong
-input.  This module copies (hard-links when it can) one episode's camera videos, its parquet log, the dataset's
-`meta/` description and an optional robot package into a new folder, and writes `episode.json`: where each file came
-from, its sha256, the camera mapping, the fps, the task text and the state and action fields.  It does not interpret
-the robot's joints; grounding does, against the real views.
+`pipeline_agent.py prepare --episode <dir>` 会哈希该文件夹下的每个文件，因此整个数据集是错误的
+输入。本模块把一个 episode 的相机视频、其 parquet 日志、数据集的 `meta/` 描述以及可选的机器人包
+复制（在可行时硬链接）到新文件夹中，并写入 `episode.json`：每个文件的来源、其 sha256、
+相机映射、fps、任务文本以及 state 与 action 字段。它不解释机器人的
+关节；grounding 会对照真实视图来完成这一点。
 
-Layout read (codebase_version v2.0 / v2.1): meta/info.json (`data_path`, `video_path`, `chunks_size`, `fps`,
-`features`), meta/episodes.jsonl (`episode_index`, `tasks`, `length`), meta/tasks.jsonl.
+读取的布局（codebase_version v2.0 / v2.1）：meta/info.json（`data_path`、`video_path`、`chunks_size`、`fps`、
+`features`）、meta/episodes.jsonl（`episode_index`、`tasks`、`length`）、meta/tasks.jsonl。
 """
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def _jsonl(path: Path) -> list[dict]:
 
 
 def parquet_columns(path: Path) -> dict | None:
-    """Rows and column names of the episode log, or None when pyarrow is not installed."""
+    """episode 日志的行数与列名；未安装 pyarrow 时返回 None。"""
     try:
         import pyarrow.parquet as pq
     except ImportError:
@@ -62,7 +62,7 @@ def parquet_columns(path: Path) -> dict | None:
 
 def import_episode(dataset: Path, episode: int, out: Path, cameras: dict | None = None,
                    robot_package: Path | None = None) -> dict:
-    """Write the episode folder; `cameras` maps an output camera name to a dataset video key or a video file."""
+    """写入 episode 文件夹；`cameras` 将输出相机名映射到数据集 video key 或视频文件。"""
     dataset, out = Path(dataset), Path(out)
     if out.exists() and any(out.iterdir()):
         raise EpisodeImportError(f"{out} exists and is not empty")

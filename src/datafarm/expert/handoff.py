@@ -1,12 +1,12 @@
-"""Handoff bundle: everything round N+1 needs from round N, assembled by the harness.
+"""交接包：第 N+1 轮从第 N 轮所需的一切，由 harness 组装。
 
-Instead of an operator copying the previous expert, summarising the held-out evaluation and
-appending known problems to the next brief, the bundle does this from harness records: the frozen expert (by digest), the agent's REPORT/NOTES
-(read without following links), the harness attempt ledger, a failure taxonomy, an
-agent-safe holdout summary (per-family pass counts and failure labels, never seeds or
-per-seed states), costs from the agent-call ledger, and the known brief defects (operator
-list plus defects detected from the round's own events). It then renders and lints the
-next brief.
+不再由操作员复制上一轮的 expert、总结留出评估结果并把已知问题追加到下一份 brief，
+而是由交接包根据 harness 记录完成这些工作：冻结的 expert（按 digest）、agent 的
+REPORT/NOTES（读取时不跟随链接）、harness 尝试账本、失败分类、agent 安全的
+holdout 摘要（按 family 的通过计数与失败标签，绝不包含 seed 或
+逐 seed 状态）、来自 agent 调用账本的成本，以及已知的 brief 缺陷（操作员
+列表，加上从本轮自身事件中检测出的缺陷）。随后它会渲染并 lint
+下一份 brief。
 """
 
 from __future__ import annotations
@@ -113,7 +113,7 @@ def detected_defects(paths: RoundPaths, state: RoundState) -> list[dict[str, Any
 
 
 def agent_safe_holdout_summary(results: Mapping[str, Any] | None) -> dict[str, Any] | None:
-    """Aggregates only: per-family pass counts and failure labels; no seeds, no states."""
+    """仅聚合结果：按 family 的通过计数与失败标签；不含 seed，不含状态。"""
 
     if not results:
         return None
@@ -183,8 +183,8 @@ def handoff_markdown(bundle: Mapping[str, Any], *, handoff_dir: str = "handoff-i
     if costs.get("calls"):
         lines.append(f"- **Cost of the previous round:** ${costs.get('cost_usd_known', 0):.2f} over "
                      f"{costs.get('calls')} sessions ({costs.get('calls_with_unknown_cost', 0)} with unknown cost).")
-    # bundle.json keeps every recorded defect; the brief shows only problems observed in
-    # (or reported for) the previous round itself.
+    # bundle.json 保留所有已记录的缺陷；brief 只展示在上一轮本身
+    # （或针对上一轮报告）观察到的问题。
     defects = list(bundle.get("open_issues") or []) + list(bundle.get("detected_defects") or [])
     if defects:
         lines.append("- **Problems observed in the previous round:**")

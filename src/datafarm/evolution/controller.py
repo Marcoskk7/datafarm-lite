@@ -1,4 +1,4 @@
-"""Bounded foreground improvement sessions, paired evaluation, and version promotion."""
+"""有界的前台改进会话、配对评估与版本晋升。"""
 from __future__ import annotations
 
 import json
@@ -15,16 +15,16 @@ PROTECTED = ('AGENTS.md', 'prompts/instructions/authority-and-scope.md',
              'prompts/instructions/instruction-layers.md', 'prompts/instructions/mode-and-style-contract.md',
              'prompts/instructions/task-cost.md', 'configs/standing-rules.json',
              'evaluations/',
-             # Roots of trust that measure candidates: the harness's holdout, sandbox and
-             # expert audit, and the admission certificate issuer. Changing them is an
-             # evaluator revision, never an optimization candidate.
+             # 度量候选的信任根：harness 的 holdout、sandbox 与 expert 审计，
+             # 以及准入证书签发器。修改它们属于评估器修订，
+             # 永远不是优化候选。
              'src/datafarm/expert/holdout.py',
              'src/datafarm/expert/isolation.py', 'src/datafarm/expert/audit.py',
              'tools/issue_admission_certificate.py',
-             # The gate itself: a promoted candidate must not rewrite how later candidates are judged.
+             # 门控本身：已晋升的候选不得改写后续候选的评判方式。
              'src/datafarm/evolution/', 'tools/pipeline_evolve.py')
-# Evaluator checks run with the candidate's src/ on PYTHONPATH, so a new top-level module there
-# (json.py, numpy/, sitecustomize.py, a .pth file) would run inside the frozen evaluator.
+# 评估器检查会以候选的 src/ 作为 PYTHONPATH 运行，因此该目录下新增的顶层模块
+# (json.py、numpy/、sitecustomize.py、.pth 文件) 会在冻结的评估器内部执行。
 INTERPRETER_HOOKS = ('sitecustomize.py', 'usercustomize.py')
 
 
@@ -78,7 +78,7 @@ def propose(store, parent, source_root, proposal, event_ids, policy_id):
 
 
 def assess(store, name, *, timeout=600, promote=True):
-    """A retry creates a new attempt; all previous logs remain untouched."""
+    """重试会创建新的尝试；在此之前的所有日志保持原样。"""
     with store.lock('controller'):
         return _assess(store, name, timeout=timeout, promote=promote)
 
@@ -92,8 +92,8 @@ def _assess(store, name, *, timeout, promote):
     state = store.get('states', name)
     if state['status'] == 'promoted':
         return state
-    # Recover an interrupted activation after the atomic pointer was written but
-    # before the candidate state was updated. Do not rerun paid evaluations.
+    # 恢复一种被中断的激活：原子指针已写入，但候选状态尚未更新。
+    # 不要重跑需要付费的评估。
     current = active(store)
     if current:
         current_version = store.get('versions', current)
@@ -105,7 +105,7 @@ def _assess(store, name, *, timeout, promote):
     if active(store) != candidate['parent']:
         return store.transition(name, 'stale', reason='rebase on active version and evaluate again')
     policy, _ = check_policy(store, candidate['policy'])
-    # Re-check scope from the stored sources, not only the record written at proposal.
+    # 基于已存储的源码重新检查范围，而不只是在提议时写下的记录。
     escaped = out_of_scope(changed_paths(store, candidate['parent'], candidate['source']), policy)
     if escaped:
         return store.transition(name, 'rejected', reason=f'change outside optimization scope: {escaped[0]}')
@@ -148,7 +148,7 @@ def _assess(store, name, *, timeout, promote):
 
 
 def cycle(store, *, root, driver, policy_path, max_candidates=1, timeout=600, event_ids=None):
-    """Invoke an actual coding driver; never synthesize a claimed agent success."""
+    """调用真实的编码 driver；绝不编造 agent 已成功执行的结论。"""
     if max_candidates < 1 or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError('candidate and wall budgets must be positive')
     if driver.get('input', 'messages') not in {'text', 'messages'}:

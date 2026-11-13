@@ -1,19 +1,19 @@
-"""Task-Expert authoring eval suite: tasks x models x repeats, holdout-scored.
+"""Task-Expert 编写评测套件：tasks x models x repeats，按 holdout 评分。
 
-Each cell is one complete authoring round (prepare -> sessions -> holdout evaluation).
-A round is *verified* when its final expert's holdout pass rate reaches the suite
-threshold. Per (task, backend, model) the report gives:
+每个 cell 是一轮完整的编写（prepare -> sessions -> holdout evaluation）。
+当某一轮最终 expert 的 holdout 通过率达到套件阈值时，该轮即视为 *verified*。
+对每个 (task, backend, model)，报告给出：
 
-* round-level ``pass@k`` = P(at least one of k independent rounds is verified) and
-  ``pass^k`` = P(all k rounds are verified), with the unbiased estimators
-  ``1 - C(n-c, k)/C(n, k)`` and ``C(c, k)/C(n, k)`` over n evaluated rounds with c verified;
-* mean holdout pass rate, cost per verified expert (known cost / verified rounds), active
-  wall time, counted rollouts, infrastructure failures;
-* violations: tamper, isolation, concurrency, budget, holdout-seed and non-development
-  seed requests, audit and unsafe-path rejections.
+* 轮级 ``pass@k`` = P（k 个独立轮中至少一轮 verified）与
+  ``pass^k`` = P（全部 k 轮均 verified），使用无偏估计
+  ``1 - C(n-c, k)/C(n, k)`` 与 ``C(c, k)/C(n, k)``，其中 n 为已评测轮数、c 为 verified 轮数；
+* 平均 holdout 通过率、每个 verified expert 的成本（已知成本 / verified 轮数）、活跃
+  wall time、计入的 rollout 数、基础设施失败次数；
+* violations：tamper、isolation、concurrency、budget、holdout-seed 及非开发用
+  seed 请求、审计与不安全路径拒绝。
 
-Tasks without a working adapter are listed with the exact interfaces they lack instead
-of being faked.
+没有可用 adapter 的任务会列出其缺失的确切接口，而不是
+伪造。
 """
 
 from __future__ import annotations
@@ -226,7 +226,7 @@ def run_suite(suite_path: str | Path, out_dir: str | Path, *, clock: Clock, fake
 
     suite = load_suite(suite_path)
     out = Path(out_dir)
-    runtime = Clock()  # rounds run real processes: budgets and holdout deadlines need real time
+    runtime = Clock()  # 轮次运行真实进程：预算与 holdout 截止时间依赖真实时间
     plan = read_json(out / "plan.json") if (out / "plan.json").exists() else plan_suite(suite, out, now=clock.now())
     if plan["suite_sha256"] != suite["_sha256"]:
         raise HarnessError("the suite file changed since it was planned; plan into a new directory")

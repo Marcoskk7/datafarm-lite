@@ -1,4 +1,4 @@
-"""Setup-distribution acceptance contract."""
+"""setup 分布验收契约。"""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ CLAIMS = {"fixed_setup", "local_robustness", "broad_deployment"}
 
 
 class DistributionContractError(ValueError):
-    """A setup distribution is missing evidence required for its claim."""
+    """某个 setup 分布缺少其 claim 所需的证据。"""
 
 
 def _require(condition: bool, message: str) -> None:
@@ -85,7 +85,7 @@ def validate_distribution_acceptance_contract(
     target_task: str,
     required_claim: str,
 ) -> None:
-    """Validate actual captured coverage before video generation or training."""
+    """在视频生成或训练之前，校验实际采集到的覆盖情况。"""
 
     _require(contract.get("schema_version") == RECEIPT_SCHEMA, "unsupported distribution-acceptance schema")
     claim, objects = _validate_common(contract, target_task=target_task)

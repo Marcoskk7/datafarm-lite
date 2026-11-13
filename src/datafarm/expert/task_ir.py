@@ -1,8 +1,8 @@
-"""Stage-graph profile of the Task IR (``datafarm.task-ir`` payload, profile ``stage-graph/1``).
+"""Task IR 的 stage-graph profile（``datafarm.task-ir`` payload，profile ``stage-graph/1``）。
 
-The v1 Task IR schema only requires six payload keys. This profile gives them typed content so that the
-same document is (a) the expert's skeleton, (b) the runtime monitor list (stage markers and predicate
-checks that feed the rollout digest), and (c) the map from terminal predicates to judge criteria:
+v1 Task IR schema 只要求六个 payload 键。本 profile 赋予它们带类型的内容，使同一份文档同时是
+(a) expert 的骨架、(b) 运行时监视列表（为 rollout digest 提供输入的 stage 标记与谓词检查），
+以及 (c) 从终止谓词到 judge 判据的映射：
 
     demand               str
     roles                {role: {"binding": str, "kind": str}}
@@ -15,8 +15,8 @@ checks that feed the rollout digest), and (c) the map from terminal predicates t
     skill_evidence       [{"skill": str, "evidence": str}]
     strategy_space       optional [{"param": str, "values": [..], "reason": str}]
 
-``validate_stage_graph`` returns human-readable problems (empty list = valid). It checks structure and
-cross-references only; whether predicates are physically adequate is decided by rollouts and the judge.
+``validate_stage_graph`` 返回人类可读的问题列表（空列表 = 有效）。它只检查结构和
+交叉引用；谓词在物理上是否充分，由 rollout 和 judge 判定。
 """
 from __future__ import annotations
 
@@ -33,10 +33,10 @@ def _is_num_or_str(v: Any) -> bool:
 
 
 def validate_stage_graph(payload: Mapping[str, Any], *, judge_criteria: list[str] | None = None) -> list[str]:
-    """Validate a Task IR payload against the stage-graph profile.
+    """按 stage-graph profile 校验 Task IR payload。
 
-    judge_criteria: optional list of criterion ids from the frozen judge; when given, every criterion must be
-    covered by at least one terminal/transient predicate and no predicate may cite an unknown criterion.
+    judge_criteria：可选的冻结 judge 判据 id 列表；给定时，每个判据都必须被至少一个
+    terminal/transient 谓词覆盖，且任何谓词都不得引用未知判据。
     """
     p: list[str] = []
     if not isinstance(payload, Mapping):

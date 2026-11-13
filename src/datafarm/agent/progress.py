@@ -1,7 +1,7 @@
-"""Supervisor-owned status publication and source-bound external-job transitions.
+"""由 supervisor 掌控的状态发布与 source-bound 外部任务状态转移。
 
-No notifier, submission or independent success criteria live here. Completion
-counts are verified deliveries; producer claims are labelled separately.
+这里不包含任何通知器、提交或独立的成功判据。完成计数是经过验证的交付；
+生产者的声明会单独标注。
 """
 from __future__ import annotations
 from datafarm.common import sha256_file
@@ -29,16 +29,16 @@ def refresh_external_jobs(work):
         try:
             record = json.loads(status_path.read_text())
         except (OSError, ValueError):
-            continue  # unknown never means failed, absent, or safe to resubmit
+            continue  # unknown 绝不表示 failed、absent 或可以安全重新提交
         if record.get('id') != job['id']:
             continue
         status = record.get('status')
         if status == 'exported-unqualified':
-            status = 'finished'  # transport only; qualification remains unverified
+            status = 'finished'  # 仅表示传输完成；合格性仍未验证
         if status not in {'queued','running','complete','completed','finished','succeeded',
                           'failed','error','cancelled','needs-input','unknown'}:
             continue
-        # A zero exit is not delivery success, but a nonzero cannot be job success.
+        # 退出码为零不代表交付成功，但非零一定不代表任务成功。
         if status in {'complete','completed','finished','succeeded'} and record.get('exit_code', 0) != 0:
             status = 'failed'
         evidence = {'path': str(status_path.resolve()),
@@ -75,7 +75,7 @@ def publish(work, runtime):
     control_path = work / '.runtime/control.json'
     control = json.loads(control_path.read_text()) if control_path.exists() else {}
     result = control.get('last_result', {})
-    # Only the host's verify_delivery result certifies full requested delivery.
+    # 只有 host 的 verify_delivery 结果才能认证完整的请求交付。
     verified = result.get('valid') is True and result.get('status') == 'complete'
     worker = runtime.get('worker')
     row = {'work':str(work),'phase':state.get('phase'),

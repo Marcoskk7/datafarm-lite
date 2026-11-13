@@ -1,10 +1,9 @@
-"""Append-only ledger of LLM / agent calls, one JSON object per line.
+"""LLM / agent 调用的只追加账本，每行一个 JSON 对象。
 
-Every model call made by pipeline code (planning reviews, VLM screening, task-expert
-authoring sessions) is recorded by the *controller* that issues it, never by the agent.
-Records are written before the caller acts on a response, so failed and abandoned calls
-stay in the denominator. Credentials, prompts and responses are never stored here; only
-their SHA-256 digests and provider metadata.
+pipeline 代码发起的每一次模型调用（规划评审、VLM 筛选、task-expert 编写会话）都由
+发起它的 *controller* 记录，绝不由 agent 记录。记录在调用方依据响应行动之前写入，
+因此失败和被放弃的调用仍留在分母中。凭据、prompt 和响应从不存放在这里，只保存
+它们的 SHA-256 摘要和 provider 元数据。
 """
 
 from __future__ import annotations
@@ -20,12 +19,12 @@ SCHEMA = "datafarm.agent-call/1"
 
 STATUSES = frozenset(
     {
-        "ok",  # a response was received and parsed
-        "invalid_response",  # a response arrived but failed parsing or schema checks
-        "error",  # transport or provider error
+        "ok",  # 已收到并解析响应
+        "invalid_response",  # 已收到响应，但解析或 schema 校验失败
+        "error",  # 传输或 provider 错误
         "timeout",
-        "cache_hit",  # served from the deterministic replay cache, no provider call
-        "aborted",  # the controller stopped the call (budget, signal, operator)
+        "cache_hit",  # 由确定性重放缓存提供，未调用 provider
+        "aborted",  # controller 停止了该调用（预算、信号、操作员）
         "budget_exhausted",
     }
 )
@@ -38,7 +37,7 @@ def new_call_id() -> str:
 @dataclasses.dataclass(frozen=True)
 class AgentCallRecord:
     call_id: str
-    component: str  # which controller issued the call, e.g. "expert-harness/session"
+    component: str  # 哪个 controller 发起了该调用，例如 "expert-harness/session"
     backend: str  # "claude-cli" | "codex-exec" | "<provider>-chat" | "fake" | ...
     model: str
     started_at: str
@@ -84,7 +83,7 @@ class AgentCallRecord:
 
 
 def append_call(path: str | Path, record: AgentCallRecord) -> None:
-    """Append one record under an exclusive lock and fsync it."""
+    """在独占锁下追加一条记录并 fsync。"""
 
     append_jsonl(path, record.to_dict(), allow_nan=True)
 
@@ -105,7 +104,7 @@ def read_calls(path: str | Path) -> list[AgentCallRecord]:
 
 
 def summarize(records: Iterable[AgentCallRecord]) -> dict[str, Any]:
-    """Denominator-preserving totals; unknown costs are counted, not treated as zero."""
+    """保持分母的汇总；未知费用计入统计，而不是当作零。"""
 
     items = list(records)
     by_status: dict[str, int] = {}

@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Per-chunk seed selection (assembly-only, no GPU): a screening model's choice.json, else a pixel occupancy screen.
+"""逐 chunk 的 seed 选择（仅组装，不使用 GPU）：优先采用筛选模型的 choice.json，否则用像素占用筛选。
 
-Candidates are packages of the same recipe/episode rendered with different seed offsets.  Chunks render independently, so
-a chunk may come from any seed.  The choice file (schema h3.seed-screen/1, see h3_screen_prep.py) names one candidate per
-chunk; the derived package links those chunk outputs.  The screen is not the acceptance review.
+候选是同一 recipe/episode 用不同 seed 偏移渲染出的包。chunk 独立渲染，因此
+一个 chunk 可来自任意 seed。choice 文件（schema 为 h3.seed-screen/1，见 h3_screen_prep.py）为每个
+chunk 指定一个候选；派生包会链接这些 chunk 输出。筛选不是验收评审。
 
-Without a choice file the chunk goes to the candidate with the lowest carrier-grounded occupancy penalty (the fallback
-when the VLM screen produced no valid answer).  Per view, against the white clip of the chunk:
-  invented = generated colourful pixels (S>=70, V>=40) farther than 15 px from any carrier colourful pixel
-             + 0.5 x generated near-black pixels (V<50) farther than 25 px from any carrier robot/colourful pixel
-  missing  = carrier colourful pixels (eroded) with no generated colourful pixel within 9 px
-penalty = mean of the worst quarter of (frame, view) values of invented + 0.5 x missing over the chunk's keep range,
-plus 0.01 x the mean per-view Lab distance to the first full-view real reference (global drift, e.g. a black table).
-The robot term assumes a dark robot in the carrier (recolour the white robot first, white_replay `@robot`).  Pixel
-penalties miss content errors a VLM sees (cables, a white arm); the fallback is recorded in the package's selection.
+没有 choice 文件时，chunk 会选择 carrier-grounded 占用惩罚最低的候选（这是
+VLM 筛选未给出有效答案时的回退方案）。每个 view，对照该 chunk 的 white 片段：
+  invented = 生成的彩色像素（S>=70, V>=40）距离任何 carrier 彩色像素超过 15 px
+             + 0.5 x 生成的近黑像素（V<50）距离任何 carrier 机器人/彩色像素超过 25 px
+  missing  = carrier 彩色像素（经腐蚀）在 9 px 内没有生成的彩色像素
+penalty = 该 chunk 的 keep 范围内 (frame, view) 的 invented + 0.5 x missing 最差四分之一值的均值，
+再加上到第一条 full-view 真实参考的逐 view Lab 距离均值的 0.01 倍（全局漂移，例如黑色桌面）。
+机器人项假设 carrier 中是深色机器人（需先给白色机器人重新上色，white_replay `@robot`）。像素
+惩罚会漏掉 VLM 能看出的内容错误（线缆、白色手臂）；回退方案会记录在包的 selection 中。
 
   python h3_select.py --cands <pkg_s0> <pkg_s1> ... --recipe <run>/recipes/<name>.json [--choice-file <choice.json>]
-  (the derived package goes to <run>/pkgs/<recipe name>/<task>/<tag>; run directory = --run-dir or env H3_RUN)
+  （派生包写入 <run>/pkgs/<recipe name>/<task>/<tag>；run 目录 = --run-dir 或环境变量 H3_RUN）
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ OUTPUT_NAME = "chunk-render.mp4"
 
 
 def choice_problem(screen, chunks: int, cands: int) -> str | None:
-    """Why a choice.json cannot be used for `chunks` chunks and `cands` candidates (None when it can)."""
+    """说明 choice.json 为何不能用于 `chunks` 个 chunk 和 `cands` 个候选（可用时返回 None）。"""
     try:
         if screen.get("schema") != SCREEN_SCHEMA:
             return f"schema is {screen.get('schema')!r}, not {SCREEN_SCHEMA}"
@@ -62,7 +62,7 @@ def _masks(frame):
 
 
 def reference_lab(pkg_dir: Path) -> dict | None:
-    """Mean Lab per view of the package's first full-view real reference (a generator input, not the eval pool)."""
+    """包中第一条 full-view 真实参考（生成器输入，非 eval 池）的逐 view 平均 Lab。"""
     import cv2
     intent = Path(pkg_dir) / "contract" / "intent.json"
     if not intent.is_file():
@@ -80,7 +80,7 @@ def reference_lab(pkg_dir: Path) -> dict | None:
 
 
 def occupancy_penalty(white: str, generated: str, lo: int, hi: int, ref_lab: dict | None = None) -> float:
-    """Occupancy (+ appearance drift) penalty of one generated chunk against its white clip, frames [lo, hi) step 3."""
+    """一个生成 chunk 相对其 white 片段的占用（+ 外观漂移）惩罚，帧区间 [lo, hi)，步长 3。"""
     import cv2
     import numpy as np
     cw, gw = read_frames(white, lo, hi, 3), read_frames(generated, lo, hi, 3)
@@ -116,7 +116,7 @@ def occupancy_penalty(white: str, generated: str, lo: int, hi: int, ref_lab: dic
 
 
 def occupancy_table(cands: list[Path], manifests: list[dict]) -> list[list[float]]:
-    """Penalty per chunk (rows) and candidate (columns); a missing chunk output scores 1e9."""
+    """逐 chunk（行）、逐候选（列）的惩罚；缺失的 chunk 输出记为 1e9。"""
     ref_lab = reference_lab(cands[0])
     table = []
     for k, job in enumerate(manifests[0]["jobs"]):
