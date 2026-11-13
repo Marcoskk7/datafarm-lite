@@ -19,6 +19,7 @@
 | 物体资产（可选） | [usdcraft](reference/usdcraft.md) | `src/datafarm/simulation/usdcraft.py` |
 | 仿真器资格认定 | [simulator-qualification](reference/simulator-qualification.md) | `src/datafarm/simulation/sim_qualification.py` |
 | 任务契约、冻结 judge、expert harness | [expert-harness](reference/expert-harness.md) | `src/datafarm/expert/` |
+| CaP 修复搜索、动作证据与已验证修复技能 | [cap-search](reference/cap-search.md) | `src/datafarm/cap/`, `tools/cap_search.py` |
 | 渲染契约 | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
 | H3 control hybrid 与 Seedance | [rendering](reference/rendering.md) | `src/datafarm/render/h3/`, `src/datafarm/render/seedance/` |
 | 渲染 verifier | [render-verifier](reference/render-verifier.md) | `src/datafarm/verify/` |
