@@ -1,0 +1,24 @@
+{
+  "scope": "Initial unmodified full-suite failure record before portability fixes",
+  "passed": 767,
+  "failed": 13,
+  "skipped": 7,
+  "subtests_passed": 109,
+  "raw_log_sha256": "29b59b68e1feb6bea83b553cc57be5bef00d417cb8b28c4c720937a40f0c54a0",
+  "raw_evidence": "Retained in private run logs, unchanged",
+  "failed_nodeids": [
+    "tests/test_expert_harness_core.py::BriefTests::test_template_brief_renders_and_lints",
+    "tests/test_h3_carrier_quality.py::test_carrier_compose_refuses_a_low_rate_white_and_keeps_every_frame",
+    "tests/test_h3_carrier_quality.py::test_tail_padded_package_is_cut_back_to_the_episode_length",
+    "tests/test_h3_control_hybrid.py::test_shell_scripts_parse_and_fail_closed_without_run_dir[launch_control_worker.sh]",
+    "tests/test_h3_control_hybrid.py::test_scheduler_launch_fails_closed_without_scheduler_binding",
+    "tests/test_h3_control_hybrid.py::test_vendored_videox_fun_patch_matches_its_recorded_hash",
+    "tests/test_h3_control_hybrid.py::test_builder_cpu_path_produces_a_gate_checked_control_package",
+    "tests/test_h3_control_hybrid.py::test_lora_fuser_is_shipped_and_unmodified",
+    "tests/test_h3_finalize_flow.py::test_build_finalize_score_and_ood_on_cpu",
+    "tests/test_h3_finalize_flow.py::test_unusable_seed_screen_falls_back_to_the_occupancy_screen",
+    "tests/test_h3_finalize_flow.py::test_rejected_build_leaves_no_ticket",
+    "tests/test_h3_pool.py::test_scheduler_pool_keeps_residents_and_scales_with_the_queue",
+    "tests/test_h3_pool.py::test_local_pool_starts_workers_on_free_listed_gpus_and_requeues_dead_claims"
+  ]
+}

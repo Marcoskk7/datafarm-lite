@@ -42,7 +42,7 @@
 3. 基线翻译改写了要求原样保留的 LoRA fuser 文档字符串；恢复 `main` 中原始源码的 LF 字节，SHA-256 回到既有测试固定值，没有修改期望摘要。
 4. 服务器系统 FFmpeg 不支持 `fps_mode`；在本轮独立环境安装 registry 分发的 imageio-ffmpeg，通过本轮专用 PATH 使用，不覆盖系统二进制。
 
-这些修复未修改机器人资产、任务 Judge 或成功门槛。最终完整 Linux 回归：**781 通过、7 跳过、109 个 subtest 通过**，耗时 632.57 秒；两条依赖插件弃用警告。lint 11 条规则无违规，指令审计无错误。见 `pytest-final.txt`、`lint-final.txt`、`audit-final.txt`；首次失败报告保留在 `pytest-initial.txt`。本机新增/相关协议检查也覆盖格式错误、缓存篡改、超时不重发、Verifier 隔离、同代不可见成绩和 FYP 个人 token 不进入子进程。
+这些修复未修改机器人资产、任务 Judge 或成功门槛。最终完整 Linux 回归：**781 通过、7 跳过、109 个 subtest 通过**，耗时 632.57 秒；两条依赖插件弃用警告。lint 11 条规则无违规，指令审计无错误。见 `pytest-final.txt`、`lint-final.txt`、`audit-final.txt`；首次失败的条目与原始日志摘要保留在 `pytest-initial-summary.json`，完整原日志在私有运行目录保持原样。本机新增/相关协议检查也覆盖格式错误、缓存篡改、超时不重发、Verifier 隔离、同代不可见成绩和 FYP 个人 token 不进入子进程。
 
 下图上排是真实记录回放，下排是 H3 诊断生成；列为各自的起始、中间和结束位置。H3 中间帧明显改变了动作幅度，未作为轨迹一致性通过证据。
 
