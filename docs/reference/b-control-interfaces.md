@@ -2,6 +2,8 @@
 
 版本：`b-control/0.1.0-draft`。日期：2026-11-14（Asia/Shanghai）。状态：可评审的设计稿，新增接口尚未实现或完成机器人任务验收。
 
+实现进展：结构发现、profile 合并、Isaac Lab 运行实例绑定、关节状态读取与目标暂存已实现，见 [自动绑定说明](robot-auto-binding.md)。本文其余完整运行时、原语、Judge、Episode 与导出契约仍为设计稿。
+
 本文落实用户确定的路线：以 `translate-view` 为基线，仿真框架固定 Isaac Lab 3.0，复用已有 Newton + MJWarp 配置；取消独立后端选择探针、10 次抓放前置门槛和 SAPIEN 回退路径。设计不新增付费调用、远程运行或训练任务。
 
 ## 1. 范围与责任
