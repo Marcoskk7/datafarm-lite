@@ -24,11 +24,21 @@
 
 完整 pytest 尚未执行：当前普通 Python 缺少 pytest。指令层审计因上游 `datafarm.common` 在 Windows 导入 `fcntl` 失败，尚未通过。这里的 CPU 检查不证明机器人抓放、LLM 成功率或物理重放通过。
 
+## 已确定的仿真后端
+
+用户在本次对话明确要求：“这部分探针取消，直接确定使用Issac lab3.0作为仿真后端”。此决定替代之前通过抓放探针选择或切换后端的建议。
+
+- 仿真框架固定为 Isaac Lab 3.0，复用工作区 `IsaacLab-3.0` 的独立环境及已验证机器人资产。
+- 物理解算沿用现有已验证配置 Newton + MJWarp（`newton_mjwarp`）；Isaac Lab 是仿真框架，Newton/MJWarp 是其物理后端配置。
+- 取消独立的后端选择／抓放探针阶段和“10 次至少 8 次成功后再决定后端”的前置门槛，取消 SAPIEN 回退开发路径。
+- 后续开发直接进入 Robot API、任务契约与 Episode 接口；任务成功率、记录准确性及重放验收仍在相应开发阶段实测。
+- 当前资产验收范围为无界面机器人动力学基线；相机、任务抓放和完整场景集成尚未验收。
+
 ## B 线接续路径
 
 1. 与 A 线固定 SceneGraph 交接字段，以及 Judge/Episode 的单位、坐标系、四元数、时间和关节语义。
-2. 复用工作区 `IsaacLab-3.0/validated_usd/airbot_single/robot.usda` 和 `robot_profiles.py`；先验证任务场景中的手写抓放探针，10 次至少 8 次通过，再决定后端。Lab 3.0 当前资产验收为无界面物理基线，相机与抓放尚未验收。
-3. 封装 Robot API，接入已有 `src/datafarm/cap/`，冻结 Judge，分离开发和隐藏评估种子。
+2. 在固定的 Isaac Lab 3.0 环境中，复用 `IsaacLab-3.0/validated_usd/airbot_single/robot.usda` 和 `robot_profiles.py`，直接实现 Robot API 的复位、观测、末端控制、夹爪、步进与接触读取，并对接 A 线场景。
+3. 接入已有 `src/datafarm/cap/`，冻结 Judge，分离开发和隐藏评估种子。
 4. 隐藏评估达到 80% 后，先采一条 Episode 与 A 线联调，完成位置重放误差不超过 1 cm 的检查和 HDF5 导出，再扩到 20 条。
 
 工作区 `DataFarm-MVP` 与 `aspire-agent` 是参考实现，不是本分支的新基线。旧推盘入屉与非接触任务的通过记录不能代替完整抓放验收。
