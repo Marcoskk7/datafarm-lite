@@ -1,0 +1,8 @@
+{
+  "round_dir": "runs/my-task/prepared-round",
+  "expert_class": "Expert",
+  "trace_relative": "primitive.jsonl",
+  "timeout_s": 600,
+  "poll_s": 0.25,
+  "observation_mode": "privileged_state"
+}

@@ -13,7 +13,8 @@ from .io import digest, read_json, source_digest, write_json, write_source
 
 
 class XHEngine:
-    def __init__(self, round_dir, expert_class, trace_relative, *, timeout_s=600, poll_s=.25):
+    def __init__(self, round_dir, expert_class, trace_relative, *, timeout_s=600, poll_s=.25,
+                 observation_mode='primitive_trace'):
         self.round = Path(round_dir).resolve()
         if any(not (self.round/'broker'/name).is_dir() for name in ('requests','responses','results')):
             raise ValueError('Use a prepared expert-harness round with public broker directories')
@@ -30,6 +31,9 @@ class XHEngine:
         self.expert_class,self.trace_relative = expert_class,trace
         self.timeout_s,self.poll_s = timeout_s,poll_s
         self.episodes = {}
+        if observation_mode not in ('primitive_trace','privileged_state'):
+            raise ValueError('Unsupported observation mode')
+        self.observation_mode = observation_mode
 
     def _request(self, kind, args):
         identity = digest({'kind':kind,'args':args})
@@ -109,6 +113,9 @@ class XHEngine:
                      'trace':[{'event_id':r['event_id'],'api':r['api'],
                                'error':r.get('error'),'result':r.get('result')} for r in trace]}
             self.episodes[raw['attempt_id']]=trace;episodes.append(episode)
+            if self.observation_mode == 'privileged_state':
+                from .state_feedback import feedback
+                episode['privileged_state'] = feedback(trace, raw.get('outcome_class')=='expert_error')
         return {'episodes':episodes}
 
     def inspect(self, episode_id, event_ids):

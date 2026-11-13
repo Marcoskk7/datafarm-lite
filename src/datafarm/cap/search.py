@@ -19,8 +19,15 @@ class SearchConfig:
     population: int = 2
     max_inspections: int = 2
     max_model_calls: int = 12
+    observation_mode: str = 'primitive_trace'
+    population_schedule: str = 'sequential'
+    require_skill_attestation: bool = False
 
     def validate(self):
+        if self.observation_mode not in ('primitive_trace','privileged_state') or self.population_schedule not in ('sequential','generation'):
+            raise ValueError('Unsupported observation mode or population schedule')
+        if type(self.require_skill_attestation) is not bool:
+            raise ValueError('require_skill_attestation must be bool')
         groups = (self.debug_seeds,self.validation_seeds,self.verification_seeds)
         flat = [s for g in groups for s in g]
         if any(not g for g in groups) or any(type(s) is not int or s < 0 for s in flat):
@@ -71,8 +78,10 @@ class SearchRunner:
         self.provider,self.engine,self.library = provider,engine,library
         self.config = (config or SearchConfig()).validate()
         self.calls = 0
+        self.proposal_metadata = {}
 
     def ask(self, request, root):
+        request = {**request, 'observation_mode': self.config.observation_mode}
         if self.calls >= self.config.max_model_calls:
             raise BudgetExhausted('Provider decision budget exhausted')
         self.calls += 1
@@ -101,6 +110,7 @@ class SearchRunner:
                 if (not isinstance(code,str) or not 1 <= len(code) <= 24000
                         or not isinstance(hypothesis,str) or not hypothesis.strip()):
                     raise ValueError('Invalid program proposal')
+                self.proposal_metadata[source_digest(code)] = decision
                 return code,hypothesis
             episode = decision.get('episode_id'); events = decision.get('event_ids')
             if (decision.get('action') != 'inspect' or i == self.config.max_inspections
@@ -112,7 +122,16 @@ class SearchRunner:
                                                 'events':self.engine.inspect(episode,events)})
 
     def execute(self, code, seeds, phase):
-        return checked_result(self.engine.evaluate(code,seeds,phase),seeds,phase)
+        result = checked_result(self.engine.evaluate(code,seeds,phase),seeds,phase)
+        if self.config.observation_mode == 'privileged_state':
+            from .state_feedback import validate_state
+            for episode in result['episodes']:
+                state = episode.get('privileged_state', {})
+                if state.get('availability') == 'available':
+                    validate_state(state.get('initial'));validate_state(state.get('final'))
+                elif state != {'availability':'unavailable','reason':'expert_error_before_first_primitive'}:
+                    raise ValueError('Executor did not provide privileged state feedback')
+        return result
 
     def run(self, task, directory, initial_program=None):
         if (not isinstance(task,dict) or not isinstance(task.get('name'),str) or not task['name']
@@ -129,12 +148,13 @@ class SearchRunner:
         history=[];seen=set();exhausted=False
         for generation in range(self.config.max_generations+1):
             siblings=[]
+            parents = list(history) if self.config.population_schedule == 'generation' else history
             for slot in range(1 if generation==0 else self.config.population):
                 try:
                     if generation==0 and initial_program is not None:
                         code,hypothesis=initial_program,'Evaluate supplied P0 before repairing'
                     else:
-                        code,hypothesis=self.program(task,history,skills,root,siblings=siblings)
+                        code,hypothesis=self.program(task,parents,skills,root,siblings=siblings)
                 except BudgetExhausted:
                     exhausted=True;break
                 sha=source_digest(code);siblings.append(hypothesis)
@@ -179,6 +199,8 @@ class SearchRunner:
             verification=self.execute(code,self.config.verification_seeds,'verification')
             verification['program_sha256']=source_digest(code)
             write_json(root/'skill-verification.json',verification)
+            if self.config.require_skill_attestation and self.proposal_metadata[source_digest(code)].get('proposal_applied_as_written') is not True:
+                return {'status':'defective','reason':'Verifier did not apply the proposed skill as written'}
             if verification['success_rate'] != 1:return {'status':'defective'}
             source={'repaired_failure':True,'debug_success_rate':1,'validation_success_rate':1,
                     'program_sha256':winner['sha256']}
