@@ -1,16 +1,16 @@
 ---
 name: verifier-rejection-recheck
-description: Independently recheck render verifier/VLM rejections against source motion, actual real references and authorized style.
+description: 针对源运动、实际真实参考和已授权风格，独立复核 render verifier/VLM 的拒绝结论。
 ---
 
 # verifier-rejection-recheck
 
-Read `prompts/instructions/render.md` and the task's verifier spec. Automated rejection is a hypothesis to investigate, not a fact to relay unchanged.
+阅读 `prompts/instructions/render.md` 和任务的 verifier spec。自动拒绝是一个待调查的假设，而不是原样转述的事实。
 
-1. Record gate, threshold, measured value, sample, frames/timestamps and verifier version. Compare source and generated measurements; locate visible evidence.
-2. For appearance, require actual real-image references and in-scope mode/axes. OOD axes permit only reasonable real-world changes from the baseline. Missing references or evidence remains unverified and cannot be promoted. A pure-white source frame is not real appearance evidence.
-3. Personally open/decode and compare source, real images and generated video across relevant phases; export bound side-by-side evidence/contact sheets or review pages. Cover the reference baseline, robot body, mounted cameras/cables and task objects when present, table/background, and photographic consistency in every task-declared view. Record absent components as evidenced not-applicable rather than inventing them. A local texture/crop cannot establish full-scene realism. Do not claim whole-video validity from sparse frames, prompt text, hashes or another reviewer's prose.
-4. Distinguish confirmed defect, verifier false positive and unverified. Explain measurement and visibility. Correct false-positive general rules and recalibrate, rather than adjusting one sample's threshold.
-5. Approved OOD variation, realistic object shape relative to crude proxies, hard shadows and directional light are not inherently defects. OOD must actually be authorized for this run. Exposure default 60/255 is only a gross guard. Task-specific contact semantics come from the current task contract, never a different task example.
-6. Prioritize hallucinated arms/objects, wrong counts/topology, wrist identity, action order, terminal relation, seam jumps and unexplained temporal appearance changes. Distinguish expected panel gutters from generated black artifacts.
-7. Report sample | gate | measurement | threshold | visibility | verdict | evidence. Real references supply appearance, never action/layout authority or permission to add entities. Never rerender solely on an unexamined VLM rejection; missing required reference provenance or direct visual-comparison evidence still blocks admission.
+1. 记录 gate、阈值、测量值、样本、帧/时间戳和 verifier 版本。比较源测量值与生成测量值；定位可见证据。
+2. 对于外观，需要实际的真实图像参考以及范围内的 mode/轴。OOD 轴仅允许相对基线做出合理的真实世界变化。缺少参考或证据则保持未验证，且不可提升。纯白的源帧不是真实外观证据。
+3. 亲自打开/解码源、真实图像和生成视频，跨相关阶段进行比较；导出绑定的并排证据/contact sheet 或评审页面。在任务声明的每个视图中覆盖参考基线、机器人本体、已安装相机/线缆（若存在）、任务物体（若存在）、桌面/背景以及照片级一致性。将缺失的组件记录为有证据支持的不适用，而不是虚构它们。局部纹理/裁剪无法确立全场景真实感。不要仅凭稀疏帧、prompt 文本、哈希或其他评审者的文字就声称整段视频有效。
+4. 区分已确认缺陷、verifier 误报和未验证。解释测量和可见性。纠正误报的通用规则并重新校准，而不是调整单个样本的阈值。
+5. 已批准的 OOD 变化、相对于粗糙代理模型的合理物体形状、硬阴影和方向光并非固有缺陷。OOD 必须确实为本 run 授权。曝光默认 60/255 仅为粗粒度防护。任务特定的接触语义来自当前任务合约，绝不要来自其他任务示例。
+6. 优先检查幻觉出的手臂/物体、错误的数量/拓扑、腕部身份、动作顺序、终点关系、接缝跳变以及无法解释的时间外观变化。区分预期的面板 gutter 与生成的黑边伪影。
+7. 报告 sample | gate | measurement | threshold | visibility | verdict | evidence。真实参考提供外观，绝不提供动作/布局权限，也不提供添加实体的许可。绝不要仅因未经检查的 VLM 拒绝就重新渲染；缺少必需的参考来源或直接的视觉对比证据仍会阻止准入。

@@ -1,128 +1,126 @@
-# Render contract
+# 渲染契约
 
-Every render request is bound to a per-task *render contract*. The agent writes a render
-intent (mode, authorized appearance changes, real reference images, appearance requirements)
-and a five-slot task overlay. `render_policy` validates both and expands them through fixed
-prompt templates the overlay cannot replace. The result is one compiled contract file. Before
-a provider request leaves the process, the actual payload is checked against that file:
-the prompt text, the ordered real-image bytes, and the presence of the source video. The
-module makes no network calls. It proves *bindings*. It does not prove that an image is
-really a photograph or that the model followed the prompt.
+每个渲染请求都绑定到一份任务级*渲染契约*。agent 编写一份渲染
+意图（模式、已授权的外观更改、真实参考图像、外观要求）
+和一个五槽任务 overlay。`render_policy` 验证两者，并通过 overlay 无法替换的固定
+prompt 模板展开它们。结果是单个编译后的契约文件。在
+provider 请求离开进程之前，会对照该文件检查实际 payload：
+prompt 文本、有序的真实图像字节以及源视频的存在。该
+模块不发起网络调用。它证明的是*绑定*。它不证明图像
+真的是照片，也不证明模型遵循了 prompt。
 
-## Guarantees
+## 保证
 
-1. **A render cannot be compiled with an unresolved mode.** The intent must use schema
-   `datafarm.render-intent/1`, `mode` must be `sim2real` or `ood`, and `run_id`, `task_id` and
-   `real_baseline` must be nonempty strings.
-2. **The mode confirmation is scoped to this run, task and mode.** `mode_confirmation` must
-   repeat the same `run_id`, `task_id` and `mode`, and carry a nonempty `quote` and `source`.
-   A confirmation copied from another run fails.
-3. **Mode and OOD axes agree, and the axes are the confirmed ones.** `ood` needs at least one
-   entry in `authorized_ood_axes`; `sim2real` needs none. The list must equal
-   `mode_confirmation.authorized_ood_axes` exactly. Each axis needs a nonempty name (a string,
-   or a dict with `axis`).
-4. **An OOD axis may change appearance only.** The JSON text of every axis (name and any other
-   fields) is matched against `PROTECTED_OOD_AXIS`. A match on the robot (robot, arm, gripper,
-   end-effector), cameras (camera, viewpoint, camera/view layout), objects (object count,
-   number of objects, added/removed/extra objects, distractors) or motion (motion, trajectory,
-   timing, action, pose) rejects the intent, as do the Chinese terms in the same pattern.
-   This is a lexical, fail-closed guard on axis names, not a semantic check.
-5. **Every real-scene area is classified, and three are always required.**
-   `appearance_requirements` must have exactly the keys of `REFERENCE_AREAS` (`robot_body`,
-   `attached_cameras_and_cables`, `task_objects`, `table_and_background`,
-   `photographic_character`), each with a boolean `required` and a nonempty `description`.
-   `robot_body`, `table_and_background` and `photographic_character` must be `required: true`.
-   `appearance_views` must be distinct nonempty names. `appearance_invariants` must be
-   nonempty.
-6. **Every real reference is a decodable, hash-bound image with declared provenance.** Each
-   entry must match its `sha256` (`bound_file`, absolute paths allowed), decode as PNG, JPEG
-   or WEBP, and declare `provenance.kind` `real-episode-frame` or `real-photo`. The kind
-   `source-frame` and any other structural kind are refused. `provenance.source` is itself
-   hash-bound, and an episode frame needs a non-negative integer `frame`. Each entry also
-   declares `scope` (`full-view` or `local-detail`), `views` (a subset of
-   `appearance_views`), an in-bounds integer `[x, y, w, h]` region per claimed view in
-   `view_regions`, and `coverage` (a subset of `REFERENCE_AREAS` plus `full_scene`).
-7. **Every declared view has a full-scene real reference, and the references cover every
-   required area.** For each view in `appearance_views`, at least one reference has
-   `scope: full-view`, names that view, and lists `full_scene`. The union of `coverage` must
-   include every area marked `required`. A single local wrist texture cannot satisfy this.
-8. **The task overlay fills exactly five slots and cannot reach the mode or reference policy.**
-   The overlay keys must equal `VARIABLES` (`TASK_DESCRIPTION`, `SOURCE_VIDEO_ROLE`,
-   `CAMERA_TIMING_CONTRACT`, `TASK_EVENT_CONTRACT`, `CONTINUITY_CONTRACT`), all nonempty.
-   `MODE`, the reference map, views, baseline, axes and invariants come only from the
-   intent. A lexical backstop (`CONFLICT`) rejects slot text that tries to switch off the
-   real references (for example "ignore real references", "source-only").
-9. **The prompt text comes from the repository templates.** The compiled prompt is
-   `prompts/render/common-v1.txt` followed by `prompts/render/<mode>-v1.txt`, expanded with
-   `string.Template.substitute`. Unexpanded `${` or `{{` is refused. The path and sha256 of
-   each template are recorded.
-10. **A compiled contract is only usable while it still recompiles to itself.** Loading
-    re-validates the intent (so every reference is re-hashed) and checks `intent_sha256` and
-    `prompt_sha256`. It then recompiles with the *current* repository templates and requires
-    byte-equal output, so an edited template, reference or intent invalidates it. If
-    `DATAFARM_RENDER_MODE` is set, it must equal the confirmed mode.
-11. **A Seedance request is checked before it is persisted or sent.** The payload must contain
-    exactly one text item, equal to the compiled prompt. Every `image_url` must be an inline
-    `data:image/...;base64,` URL; opaque URLs are refused because their bytes cannot be
-    verified. The decoded image hashes must start with the ordered real-reference hashes
-    (missing, reordered or replaced images fail), and a nonempty `video_url` must be present.
-    `create_once` runs this check before it writes `task.json` and before the POST. With no
-    contract path, it raises before any call.
-12. **A resumed Seedance task reuses its provider ID only under the same verified policy.**
-    The stored `render_policy` receipt must match the current contract file hash, intent and
-    prompt hashes, and real-image prefix. Otherwise the run fails rather than re-posting.
-13. **An H3 manifest is checked globally and per job.** The `reference_images` files must
-    hash to the ordered real references (as a prefix). The manifest prompt must equal the
-    compiled prompt, or, when `prompt_lowering` is set, `lower_h3_prompt(contract, lowering)`.
-    Every job must use the same reference list. A chunk-visibility job's prompt is recomputed
-    from its closed-schema `chunk_facts`; any other job must reuse the manifest prompt.
+1. **渲染不能在模式未解析时被编译。** 意图必须使用 schema
+   `datafarm.render-intent/1`，`mode` 必须为 `sim2real` 或 `ood`，且 `run_id`、`task_id` 和
+   `real_baseline` 必须是非空字符串。
+2. **模式确认限定于本次 run、任务和模式。** `mode_confirmation` 必须
+   重复相同的 `run_id`、`task_id` 和 `mode`，并带有非空的 `quote` 和 `source`。
+   从其他 run 复制的确认会失败。
+3. **模式与 OOD 轴一致，且轴是已确认的那些。** `ood` 至少需要
+   `authorized_ood_axes` 中一个条目；`sim2real` 不需要。该列表必须与
+   `mode_confirmation.authorized_ood_axes` 完全相等。每个轴需要一个非空名称（字符串，
+   或带 `axis` 的 dict）。
+4. **OOD 轴只能改变外观。** 每个轴的 JSON 文本（名称及任何其他
+   字段）都会与 `PROTECTED_OOD_AXIS` 匹配。对机器人（robot、arm、gripper、
+   end-effector）、相机（camera、viewpoint、camera/view layout）、物体（object count、
+   number of objects、added/removed/extra objects、distractors）或运动（motion、trajectory、
+   timing、action、pose）的匹配会拒绝该意图，同一模式中的中文术语也一样。
+   这是对轴名称的词汇式、失败即拒绝的防护，不是语义检查。
+5. **每个真实场景区域都被分类，且有三个始终必需。**
+   `appearance_requirements` 必须恰好具有 `REFERENCE_AREAS` 的键（`robot_body`、
+   `attached_cameras_and_cables`、`task_objects`、`table_and_background`、
+   `photographic_character`），每个都带布尔 `required` 和非空 `description`。
+   `robot_body`、`table_and_background` 和 `photographic_character` 必须为 `required: true`。
+   `appearance_views` 必须是互不相同的非空名称。`appearance_invariants` 必须
+   非空。
+6. **每个真实参考都是可解码、哈希绑定的图像，且来源已声明。** 每个
+   条目必须与其 `sha256` 匹配（`bound_file`，允许绝对路径），解码为 PNG、JPEG
+   或 WEBP，并声明 `provenance.kind` 为 `real-episode-frame` 或 `real-photo`。`source-frame`
+   类型及任何其他结构性类型都会被拒绝。`provenance.source` 本身也是
+   哈希绑定的，episode 帧需要非负整数 `frame`。每个条目还
+   声明 `scope`（`full-view` 或 `local-detail`）、`views`（`appearance_views` 的子集）、
+   每个声明视角的界内整数 `[x, y, w, h]` 区域（位于 `view_regions` 中），
+   以及 `coverage`（`REFERENCE_AREAS` 加 `full_scene` 的子集）。
+7. **每个声明的视角都有一个全场景真实参考，且参考覆盖每个必需
+   区域。** 对于 `appearance_views` 中的每个视角，至少有一个参考具有
+   `scope: full-view`、指名该视角并列出 `full_scene`。`coverage` 的并集必须
+   包含每个标记为 `required` 的区域。单个局部腕部纹理无法满足这一点。
+8. **任务 overlay 恰好填充五个槽位，且不能触及模式或参考策略。**
+   overlay 键必须等于 `VARIABLES`（`TASK_DESCRIPTION`、`SOURCE_VIDEO_ROLE`、
+   `CAMERA_TIMING_CONTRACT`、`TASK_EVENT_CONTRACT`、`CONTINUITY_CONTRACT`），全部非空。
+   `MODE`、参考映射、视角、基线、轴和不变量只来自
+   意图。词汇式兜底（`CONFLICT`）会拒绝试图关闭
+   真实参考的槽位文本（例如 “ignore real references”、“source-only”）。
+9. **prompt 文本来自仓库模板。** 编译后的 prompt 是
+   `prompts/render/common-v1.txt` 后接 `prompts/render/<mode>-v1.txt`，用
+   `string.Template.substitute` 展开。未展开的 `${` 或 `{{` 会被拒绝。每个模板的路径和 sha256
+   都会被记录。
+10. **编译后的契约只有在其仍能重新编译为自身时才可用。** 加载时会
+    重新验证意图（因此每个参考都会重新计算哈希），并检查 `intent_sha256` 和
+    `prompt_sha256`。然后它用*当前*仓库模板重新编译，并要求
+    字节相等，因此被编辑的模板、参考或意图会使其失效。如果
+    设置了 `DATAFARM_RENDER_MODE`，它必须等于已确认的模式。
+11. **Seedance 请求在持久化或发送之前会被检查。** payload 必须包含
+    恰好一个文本条目，且等于编译后的 prompt。每个 `image_url` 都必须是内联的
+    `data:image/...;base64,` URL；不透明 URL 会被拒绝，因为其字节无法
+    验证。解码后的图像哈希必须以有序的真实参考哈希
+    开头（缺失、重排或替换的图像会失败），且必须存在非空的 `video_url`。
+    `create_once` 在写入 `task.json` 之前、在 POST 之前运行此检查。没有
+    契约路径时，它会在任何调用之前抛出。
+12. **恢复的 Seedance 任务只有在相同已验证策略下才复用其 provider ID。**
+    存储的 `render_policy` 收据必须与当前契约文件哈希、意图和
+    prompt 哈希以及真实图像前缀匹配。否则运行失败，而不是重新提交。
+13. **H3 清单会全局和逐作业检查。** `reference_images` 文件必须
+    哈希到有序真实参考（作为前缀）。清单 prompt 必须等于
+    编译后的 prompt，或者当设置了 `prompt_lowering` 时等于 `lower_h3_prompt(contract, lowering)`。
+    每个作业必须使用相同的参考列表。chunk-visibility 作业的 prompt 由其闭合 schema 的 `chunk_facts` 重新计算；
+    任何其他作业必须复用清单 prompt。
 
-Code: `src/datafarm/render/policy.py`, `src/datafarm/render/seedance/client.py`, `src/datafarm/render/seedance/batch.py`, `tools/render_policy.py`.
+代码：`src/datafarm/render/policy.py`, `src/datafarm/render/seedance/client.py`, `src/datafarm/render/seedance/batch.py`, `tools/render_policy.py`。
 
-## Data model
+## 数据模型
 
-- **Render intent** (`datafarm.render-intent/1`): `run_id`, `task_id`, `mode`,
-  `mode_confirmation {run_id, task_id, mode, quote, source, authorized_ood_axes}`,
-  `real_baseline`, `authorized_ood_axes`, `appearance_views`, `appearance_requirements`
-  (five areas, `{required, description}`), `appearance_invariants`, `real_references`.
-  The template `configs/render/render-intent.template.json` is intentionally
-  uncompilable (`mode: unresolved`, nulls).
-- **Real reference**: `path`, `sha256`, `provenance {kind, source {path, sha256},
-  description, frame?}`, `scope`, `views`, `view_regions {view: [x, y, w, h]}`, `coverage`.
-  Relative paths resolve against the intent's directory.
-- **Overlay**: a JSON object with exactly the five `VARIABLES` keys.
-- **Compiled contract** (`datafarm.render-contract/1`): `intent`, `intent_root` (absolute),
-  `overlay`, `prompt`, `prompt_sha256`, `templates [{path, sha256}]`, `intent_sha256`
-  (`json_sha` of the intent with sorted keys).
-- **Submission receipt** (`datafarm.render-submission/1`, returned by the two checks):
-  `contract_sha256`, `intent_sha256`, `prompt_sha256`, `actual_image_sha256s`,
-  `payload_sha256`, `provider` (`seedance` or `h3`), plus `model` (Seedance) or
-  `prompt_lowering` and `submitted_prompt_sha256` (H3). Seedance stores it in `task.json`
-  under `contract.render_policy`. The H3 worker writes it to `policy-receipt.json`.
+- **渲染意图**（`datafarm.render-intent/1`）：`run_id`、`task_id`、`mode`、
+  `mode_confirmation {run_id, task_id, mode, quote, source, authorized_ood_axes}`、
+  `real_baseline`、`authorized_ood_axes`、`appearance_views`、`appearance_requirements`
+  （五个区域，`{required, description}`）、`appearance_invariants`、`real_references`。
+  模板 `configs/render/render-intent.template.json` 被有意设为
+  不可编译（`mode: unresolved`、null）。
+- **真实参考**：`path`、`sha256`、`provenance {kind, source {path, sha256},
+  description, frame?}`, `scope`, `views`, `view_regions {view: [x, y, w, h]}`, `coverage`。相对路径相对意图所在目录解析。
+- **Overlay**：恰好带有五个 `VARIABLES` 键的 JSON 对象。
+- **编译后契约**（`datafarm.render-contract/1`）：`intent`、`intent_root`（绝对）、
+  `overlay`、`prompt`、`prompt_sha256`、`templates [{path, sha256}]`、`intent_sha256`
+  （对键排序后的意图的 `json_sha`）。
+- **提交收据**（`datafarm.render-submission/1`，由两个检查返回）：
+  `contract_sha256`、`intent_sha256`、`prompt_sha256`、`actual_image_sha256s`、
+  `payload_sha256`、`provider`（`seedance` 或 `h3`），外加 `model`（Seedance）或
+  `prompt_lowering` 和 `submitted_prompt_sha256`（H3）。Seedance 将其存于 `task.json`
+  的 `contract.render_policy` 下。H3 worker 将其写入 `policy-receipt.json`。
 
-## Reference order in a request
+## 请求中的参考顺序
 
-A Seedance job holds the authoritative, ordered list of real scene images in `real_references`, and repeats `role=real_scene_reference` for each image in `references`, with `path` and `sha256` matching item by item in the same order. Only `source_frame_zero`, `continuity_same_state` or both may follow. The payload builder places all real images before the auxiliary images, and the policy check compares the actual payload prefix with the ordered hashes, so a missing, reordered or substituted image fails before the POST. Multiple jobs use their own contract paths and must not change the process environment concurrently. Request evidence stores hashes, not signed URLs or credentials.
+Seedance 作业在 `real_references` 中持有真实场景图像的权威有序列表，并为每张图像重复 `role=real_scene_reference`，这些图像位于 `references` 中，`path` 和 `sha256` 按相同顺序逐项匹配。其后只能跟 `source_frame_zero`、`continuity_same_state` 或两者。payload 构建器把所有真实图像放在辅助图像之前，策略检查会把实际 payload 前缀与有序哈希比较，因此缺失、重排或替换的图像会在 POST 之前失败。多个作业使用各自的契约路径，且不得并发更改进程环境。请求证据存储哈希，而不是签名 URL 或凭据。
 
-A compiled contract does not prove that an image comes from the real robot: the source videos and photos and the extraction mapping still need independent review. Querying an existing task ID makes no new request and does not admit that record.
+编译后的契约不能证明图像来自真实机器人：源视频和照片以及提取映射仍需要独立审查。查询现有任务 ID 不会发起新请求，也不构成对该记录的准入。
 
-## How it works
+## 工作原理
 
-1. The agent derives the intent and overlay from the current episode and the user's
-   scoped instruction (see [`prompts/instructions/mode-and-style-contract.md`](../../prompts/instructions/mode-and-style-contract.md)).
-2. `tools/render_policy.py compile` validates the intent, checks the overlay, expands the
-   templates and writes the contract. The file is opened in exclusive mode, so an existing
-   contract is never overwritten.
-3. Seedance: `batch.run_one` builds the payload. `create_once` calls `check_seedance_payload`
-   with the job's `render_contract` (or `DATAFARM_RENDER_CONTRACT`), then persists the record,
-   then POSTs.
-4. H3: `h3_package.py build` writes the manifest and per-chunk prompts, and its
-   `audit` calls `check_h3_payload`. The worker repeats `audit` before rendering
-   (see [rendering](rendering.md)).
-5. Delivery verification reloads the contract and compares it with the stored submission
-   receipt (see [delivery and admission](delivery-and-admission.md)).
+1. agent 根据当前 episode 和用户限定范围的指令推导意图和 overlay
+   （见 [`prompts/instructions/mode-and-style-contract.md`](../../prompts/instructions/mode-and-style-contract.md)）。
+2. `tools/render_policy.py compile` 验证意图、检查 overlay、展开
+   模板并写出契约。文件以独占模式打开，因此现有
+   契约绝不会被覆盖。
+3. Seedance：`batch.run_one` 构建 payload。`create_once` 调用 `check_seedance_payload`，传入作业的 `render_contract`（或 `DATAFARM_RENDER_CONTRACT`），
+   然后持久化记录，然后 POST。
+4. H3：`h3_package.py build` 写出清单和每 chunk 的 prompt，其
+   `audit` 调用 `check_h3_payload`。worker 在渲染前重复 `audit`
+   （见 [rendering](rendering.md)）。
+5. 交付验证重新加载契约，并与存储的提交
+   收据比较（见 [delivery and admission](delivery-and-admission.md)）。
 
-## Entry points
+## 入口点
 
 ```bash
 python tools/render_policy.py compile --intent <task>/render-intent.json \
@@ -131,56 +129,54 @@ python tools/render_policy.py check-seedance --contract <task>/render-contract.j
 python tools/render_policy.py check-h3 --contract <task>/render-contract.json --payload <job-manifest.json>
 ```
 
-Each command prints `{"schema": ..., "valid": true}` and exits 0, or prints
-`render-policy: <reason>` to stderr and exits 2.
+每个命令都打印 `{"schema": ..., "valid": true}` 并以 0 退出，或把
+`render-policy: <reason>` 打印到 stderr 并以 2 退出。
 
-## Configuration
+## 配置
 
-| Key | Default | Effect |
+| 键 | 默认值 | 效果 |
 |---|---|---|
-| `DATAFARM_RENDER_CONTRACT` (env) | unset | Contract path used by `create_once` when the job contract has no `render_contract`. Unset and absent raises `ContractError`. |
-| `DATAFARM_RENDER_MODE` (env) | unset | If set, must equal the contract's mode, or `load_contract` fails. It cannot select a mode. |
-| `prompts/render/common-v1.txt`, `sim2real-v1.txt`, `ood-v1.txt` | repository files | Core prompt body. Editing one invalidates every contract compiled from the earlier text. |
-| `prompts/render/h3-caption-*.txt` | repository files | H3 lowerings (`H3_LOWERINGS`). |
+| `DATAFARM_RENDER_CONTRACT` (env) | 未设置 | `create_once` 在作业契约没有 `render_contract` 时使用的契约路径。未设置且缺失时抛出 `ContractError`。 |
+| `DATAFARM_RENDER_MODE` (env) | 未设置 | 若设置，必须等于契约的模式，否则 `load_contract` 失败。它不能选择模式。 |
+| `prompts/render/common-v1.txt`, `sim2real-v1.txt`, `ood-v1.txt` | 仓库文件 | 核心 prompt 正文。编辑其中一个会使所有基于早期文本编译的契约失效。 |
+| `prompts/render/h3-caption-*.txt` | 仓库文件 | H3 lowering（`H3_LOWERINGS`）。 |
 
-## Failure behaviour
+## 失败行为
 
-- All rule violations raise `task_contract.ContractError` (a `ValueError`) with a message
-  naming the rule. Missing files raise `FileNotFoundError` from `Path.resolve(strict=True)`.
-- `create_once` raises before writing `task.json`, so a refused payload leaves no attempt
-  record and makes no HTTP call.
-- A contract whose templates, references or intent changed after compilation fails at
-  every later load: at resume, at delivery verification and in the H3 worker.
+- 所有规则违规都会抛出 `task_contract.ContractError`（一个 `ValueError`），消息
+  指明规则。文件缺失会抛出 `FileNotFoundError`，来自 `Path.resolve(strict=True)`。
+- `create_once` 在写 `task.json` 之前抛出，因此被拒绝的 payload 不会留下尝试
+  记录，也不会发起 HTTP 调用。
+- 模板、参考或意图在编译后发生变化的契约，会在
+  之后每次加载时失败：恢复时、交付验证时以及 H3 worker 中。
 
-## Limitations
+## 局限性
 
-- **Lexical guards only.** `PROTECTED_OOD_AXIS` and `CONFLICT` are word lists. A paraphrase
-  that avoids them ("manipulator colour", "a cluttered tabletop") passes compilation. Some
-  harmless wording ("camera exposure", "lighting timing") is refused. The render reviewer
-  must still check rendered content against the axes.
-- **Inconsistent axis vocabulary across layers.** `PROTECTED_OOD_AXIS` refuses an axis that
-  mentions `distractors`. The render verifier spec accepts `distractors` as a perturbed OOD
-  axis (`src/datafarm/verify/spec.py::OOD_AXES`, and `src/datafarm/verify/realism.py::BACKGROUND_AXES`).
-- **Provenance is declared, not proven.** The code checks hashes, decodability and region
-  bounds. It cannot tell a real photo from a rendered image that is labelled `real-photo`.
-- **The Seedance source video is only checked for presence.** `check_seedance_payload` does
-  not hash the `video_url` target. The carrier bytes are bound separately: the upload is
-  re-downloaded and hashed (`src/datafarm/render/seedance/upload_transport.py::exchange`), and the recipe pins
-  `source_sha256`.
-- **In `batch.run_one`, the carrier upload happens before the policy check.** A job with a
-  broken contract has already published its carrier to the opt-in upload host when
-  `create_once` refuses it.
-- **Images after the real-reference prefix are not checked here.** Structure and continuity
-  images are validated by `src/datafarm/render/seedance/references.py::images`, not by
-  `render_policy`.
-- **H3 chunk facts are trusted as written.** `check_h3_payload` recomputes each chunk prompt
-  from the manifest's `chunk_facts`. It does not re-measure those facts from the carrier and
-  does not check `chunk_facts_detector`.
-- **Templates are protected by hashing, not access control.** `prompts/render/` is not in the
-  evolution controller's protected list (`src/datafarm/evolution/controller.py::PROTECTED`).
-  An edit is detected because earlier contracts stop loading; nothing prevents a new contract
-  from compiling against edited templates.
-- **The contract is tied to its location.** It stores an absolute `intent_root`, so moving a
-  run directory invalidates it.
-- **No quality claim.** A valid contract and payload say nothing about whether the
-  generated video follows the prompt. That is the job of verification and review.
+- **只有词汇式防护。** `PROTECTED_OOD_AXIS` 和 `CONFLICT` 是词表。避开它们的改写
+  （“manipulator colour”、“a cluttered tabletop”）会通过编译。一些
+  无害措辞（“camera exposure”、“lighting timing”）会被拒绝。渲染 reviewer
+  仍必须对照这些轴检查渲染内容。
+- **跨层的轴词汇不一致。** `PROTECTED_OOD_AXIS` 拒绝提到 `distractors` 的轴。
+  渲染 verifier spec 接受 `distractors` 作为受扰动的 OOD
+  轴（`src/datafarm/verify/spec.py::OOD_AXES`，以及 `src/datafarm/verify/realism.py::BACKGROUND_AXES`）。
+- **来源是声明而非证明。** 代码检查哈希、可解码性和区域
+  边界。它无法分辨真实照片和被标为 `real-photo` 的渲染图像。
+- **Seedance 源视频只检查存在性。** `check_seedance_payload` 不会
+  对 `video_url` 目标做哈希。carrier 字节单独绑定：上传会被
+  重新下载并哈希（`src/datafarm/render/seedance/upload_transport.py::exchange`），且配方固定
+  `source_sha256`。
+- **在 `batch.run_one` 中，carrier 上传发生在策略检查之前。** 当
+  `create_once` 拒绝一个有问题的契约作业时，该作业的 carrier 已经发布到了 opt-in 上传主机。
+- **真实参考前缀之后的图像不在此处检查。** 结构和连续性
+  图像由 `src/datafarm/render/seedance/references.py::images` 验证，而不是由
+  `render_policy` 验证。
+- **H3 chunk facts 按原样信任。** `check_h3_payload` 从清单的 `chunk_facts` 重新计算每个 chunk prompt。
+  它不会从 carrier 重新测量这些事实，也不检查 `chunk_facts_detector`。
+- **模板由哈希保护，而非访问控制。** `prompts/render/` 不在
+  演化控制器的保护列表中（`src/datafarm/evolution/controller.py::PROTECTED`）。
+  编辑会被检测到，因为更早的契约停止加载；但没有任何机制阻止新契约
+  针对被编辑的模板编译。
+- **契约与其位置绑定。** 它存储绝对的 `intent_root`，因此移动
+  run 目录会使其失效。
+- **没有质量主张。** 有效的契约和 payload 并不说明生成的视频
+  是否遵循 prompt。那是验证和审查的职责。

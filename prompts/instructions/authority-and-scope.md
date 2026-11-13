@@ -1,30 +1,30 @@
-# Authority, scope and authorization
+# 权限、范围与授权
 
-The same task uses one explicit goal from the request, prompt and payload through to review.
+同一个任务从请求、prompt 和 payload 一直到评审，都使用同一个显式目标。
 
-**Conflicts.** Within the host platform's higher-level instructions, resolve conflicts in this order: the user's current
-explicit request; still-valid user decisions with a matching scope; reproducible raw evidence; summaries; progress notes
-and drafts. A later date does not turn an unapproved inference into a user decision. Raw evidence can overturn a
-judgment that something works, but it cannot create authorization.
+**冲突。** 在宿主平台的更高层指令之内，按以下顺序解决冲突：用户当前的
+显式请求；范围匹配且仍然有效的用户决定；可复现的原始证据；摘要；进度记录
+和草稿。更晚的日期不会把未经批准的推断变成用户决定。原始证据可以推翻
+「某个东西能工作」的判断，但它不能创造授权。
 
-**Exceptions.** Each exception records the rule ID, the user's exact words or a verifiable source, the task/dataset/run,
-the axes allowed to change, the time and the expiry conditions. A note that OOD was allowed, or a file name containing
-ood, is not enough. Provider choice, GPU count, paid quota and data target are separate dimensions.
+**例外。** 每个例外都记录规则 ID、用户的原话或可验证来源、任务/数据集/运行、
+允许改变的维度、时间以及失效条件。一条「允许 OOD」的说明，或一个文件名包含
+ood，都不够。Provider 选择、GPU 数量、付费配额和数据目标是彼此独立的维度。
 
-**Mode and references.** If the mode is unclear, ask first. Both OOD and non-OOD use real-world images and reach
-real-world style. When real references are unavailable, pause rendering and state what is missing; do not switch to
-text-only or structure-image generation. Reference leakage is a quality problem to fix and gives no permission to drop
-the real references.
+**模式与参考。** 如果模式不明确，先询问。OOD 和非 OOD 都使用真实世界图像并达到
+真实世界风格。当真实参考不可用时，暂停渲染并说明缺少什么；不要切换到
+纯文本或结构图像生成。参考泄漏是需要修复的质量问题，它不授予丢弃
+真实参考的许可。
 
-**Granted work.** Do not ask again for work the user already authorized, including GPU use, paid-provider calls and
-recovery within the granted scope. Anything beyond the scope, or any other service, needs its own authorization. Asking
-about the mode obtains goal information; it does not re-approve compute already granted. GPU and paid-provider
-authorization comes from the current deployment and session; obtaining the repository grants none.
+**已授予的工作。** 不要为用户已经授权的工作再次询问，包括 GPU 使用、付费
+provider 调用以及在授权范围内的恢复。超出范围，或任何其他服务，都需要
+各自的授权。询问模式是在获取目标信息；它不重新批准已经授予的计算。GPU 和付费 provider
+授权来自当前部署和 session；获得仓库不授予任何授权。
 
-**One source of rules.** Long-lived behavior rules live in this repository. External AGENTS files and skills may only
-link to the canonical version or distribute copies of the same version; they must not keep a semantically independent
-set of rules.
+**规则只有一个来源。** 长期行为规则存在于本仓库。外部 AGENTS 文件和 skill 只能
+链接到规范版本，或分发同一版本的副本；它们不得保留语义上独立的
+一套规则。
 
-**Technical decisions.** The orchestrating agent generates and measures the technical choices of a task, including the
-adapter, judge, scene, brief and prompt. Do not turn these outputs into a to-do for the user. A flag-for-human from the
-expert author goes to the orchestrator first; the name does not mean every technical failure interrupts the user.
+**技术决定。** 编排 agent 生成并衡量任务的技术选择，包括
+adapter、judge、场景、brief 和 prompt。不要把这些产物变成给用户的待办事项。来自
+专家作者的 flag-for-human 首先交给编排者；这个名字不意味着每个技术失败都会打断用户。

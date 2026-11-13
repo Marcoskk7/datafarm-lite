@@ -1,30 +1,27 @@
-# Notices
+# 声明
 
-The DataFarm source code in this repository is released under the MIT License
-(`LICENSE`). Components that derive from third-party projects keep their upstream licenses, listed below. Nothing in this repository grants rights to models,
-simulators, services or data that it does not contain.
+本仓库中的 DataFarm 源代码以 MIT License（`LICENSE`）发布。源自第三方项目的组件保留其上游许可证，列于下方。本仓库中的任何内容都不授予对它所不包含的模型、模拟器、服务或数据的权利。
 
-## Third-party code in this repository
+## 本仓库中的第三方代码
 
-| Path | Upstream | License | Notes |
+| 路径 | 上游 | 许可证 | 备注 |
 |---|---|---|---|
-| `vendor/trainer/` | [openpi](https://github.com/Physical-Intelligence/openpi) (Physical Intelligence) | Apache-2.0 (`vendor/trainer/LICENSE`) | Modified by the DataFarm authors (Apache-2.0 section 4(b)): dataset adapters, joint/EEF action modes, admission-bound training entry points; see `vendor/trainer/README.md`. Only the files that this project trains with are included, and each modified file carries a notice. `LICENSE_GEMMA.txt` applies to PaliGemma weights, which are not included. |
-| `vendor/videox_fun/` | [VideoX-Fun](https://github.com/aigc-apps/VideoX-Fun) | Apache-2.0 | A patch against upstream for the control pipeline and edge (HED) control preparation; see the README in that directory. |
-| `src/datafarm/render/h3/h3_lora.py` | Sol-H3 `h3_runtime/lora.py` | Not yet confirmed | Unmodified copy (sha256 `0e8222b76e086f8f100092e325a08e86bfc8bd33fb404c8b8b0cdd4d3d56362c`). Not covered by the MIT License of this repository until its terms are confirmed. |
+| `vendor/trainer/` | [openpi](https://github.com/Physical-Intelligence/openpi)（Physical Intelligence） | Apache-2.0（`vendor/trainer/LICENSE`） | 由 DataFarm 作者修改（Apache-2.0 第 4(b) 节）：dataset adapters、joint/EEF action modes、admission-bound training entry points；参见 `vendor/trainer/README.md`。仅包含本项目训练所用的文件，每个被修改的文件都带有声明。`LICENSE_GEMMA.txt` 适用于未包含在内的 PaliGemma 权重。 |
+| `vendor/videox_fun/` | [VideoX-Fun](https://github.com/aigc-apps/VideoX-Fun) | Apache-2.0 | 针对 upstream 的补丁，用于 control pipeline 和 edge（HED）control 准备；参见该目录中的 README。 |
+| `src/datafarm/render/h3/h3_lora.py` | Sol-H3 `h3_runtime/lora.py` | 尚未确认 | 未修改的副本（sha256 `0e8222b76e086f8f100092e325a08e86bfc8bd33fb404c8b8b0cdd4d3d56362c`）。在其条款得到确认之前，不受本仓库 MIT License 的覆盖。 |
 
 
-## Not included, obtained separately
+## 未包含，需单独获取
 
-| Component | Used for | Terms |
+| 组件 | 用途 | 条款 |
 |---|---|---|
-| MiniMax-H3 weights | default renderer (`docs/reference/rendering.md`) | Obtain from their publishers. The MiniMax-H3 model license restricts some uses of generated outputs (including training other AI models) and some territories. Review it before rendering training data with H3; this repository grants no rights to the model or its outputs. |
-| Seedance API | second renderer | Hosted service under its provider's terms. |
-| [USDCraft](https://github.com/NVlabs/USDCraft) | optional object-asset generation (`docs/reference/usdcraft.md`) | Apache-2.0; install it separately. |
-| RoboTwin 2.0, SAPIEN, Isaac Sim | simulation | Their own licenses. |
-| GPU scheduler | job placement (`docs/deployment.md`) | Supplied by the deployment. |
-| PiPER robot description and SDK | robot model, joint limits | From the robot vendor. |
-| pi0.5 / PaliGemma checkpoints | policy training | openpi and Gemma terms. |
-| Real calibration episodes, rendered datasets, checkpoints | data | Not distributed with the code. |
+| MiniMax-H3 权重 | 默认渲染器（`docs/reference/rendering.md`） | 从其发布者处获取。MiniMax-H3 模型许可证限制生成输出的某些用途（包括训练其他 AI 模型）以及某些地区。在使用 H3 渲染训练数据之前请审阅该许可证；本仓库不授予对该模型或其输出的任何权利。 |
+| Seedance API | 第二渲染器 | 按其 provider 条款提供的托管服务。 |
+| [USDCraft](https://github.com/NVlabs/USDCraft) | 可选的物体资产生成（`docs/reference/usdcraft.md`） | Apache-2.0；需单独安装。 |
+| RoboTwin 2.0、SAPIEN、Isaac Sim | 模拟 | 其各自的许可证。 |
+| GPU scheduler | 作业放置（`docs/deployment.md`） | 由 deployment 提供。 |
+| PiPER 机器人描述与 SDK | 机器人模型、关节限位 | 来自机器人供应商。 |
+| pi0.5 / PaliGemma checkpoints | 策略训练 | openpi 和 Gemma 条款。 |
+| 真实标定 episode、渲染数据集、checkpoints | 数据 | 不随代码分发。 |
 
-Run records, receipts and certificates produced by this code bind content by hash; they do
-not grant redistribution rights for the content they describe.
+本代码产生的运行记录、receipt 和证书通过哈希绑定内容；它们不授予对其所描述内容的再分发权利。

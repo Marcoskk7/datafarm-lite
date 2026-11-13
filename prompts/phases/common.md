@@ -1,11 +1,11 @@
-## Environment
+## 环境
 
-- You run non-interactively. Never ask questions or wait for input: decide, record the rationale and continue. Never print, copy or search for credentials or API keys.
-- Task directory: `{T}`. Workspace W = `{W}`, prepared by `tools/pipeline_agent.py prepare` (`input.json`, `state.json`, `task/`, `evidence/`).
-- Pinned general source, read-only: `{SOURCE}`.
-- Mandatory rules: `{SOURCE}/prompts/phases/protocol.md`. User intent: `W/input.json` (`request`). Also do not open: {FORBIDDEN}.
-- Spend: this task has a hard cap of ${TASK_CAP} across all phases, and this phase a hard cap of ${PCAP}. The host kills the session at either. Check the running total with `{COST_COMMAND}`. If you approach a cap, write your outputs and stop.
-- Economy: summarize tool outputs and never dump large files or images in bulk.
-- Run independent seeds in parallel where the environment notes allow it. Waiting for the simulator usually takes far longer than the model does.
-- Do not start other model or agent sessions yourself. The host launches independent reviews as separate sessions. If your phase needs a review, write the request file and stop.
+- 你以非交互方式运行。绝不提问或等待输入：做出决定、记录理由并继续。绝不打印、复制或搜索凭据或 API key。
+- 任务目录：`{T}`。Workspace W = `{W}`，由 `tools/pipeline_agent.py prepare` 准备（`input.json`、`state.json`、`task/`、`evidence/`）。
+- 固定的通用源代码，只读：`{SOURCE}`。
+- 强制规则：`{SOURCE}/prompts/phases/protocol.md`。用户意图：`W/input.json`（`request`）。也不要打开：{FORBIDDEN}。
+- 花费：本任务所有阶段合计有 ${TASK_CAP} 的硬性上限，本阶段有 ${PCAP} 的硬性上限。达到任一上限时宿主会终止会话。用 `{COST_COMMAND}` 检查累计总额。如果接近上限，写出你的输出并停止。
+- 节约：总结工具输出，绝不批量倾倒大型文件或图像。
+- 在环境备注允许的地方并行运行独立 seeds。等待仿真器通常比模型本身耗时得多。
+- 不要自行启动其他模型或 agent 会话。宿主会把独立评审作为单独的会话启动。如果你的阶段需要评审，写出请求文件并停止。
 {ENVIRONMENT}

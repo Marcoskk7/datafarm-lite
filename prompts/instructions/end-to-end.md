@@ -1,26 +1,14 @@
-# From request to training
+# 从请求到训练
 
-DataFarm's output is training data with provenance, action labels and review evidence, plus policy results when requested. The
-system has five versioned intermediate representations, in order: Grounding IR (real basis), Task IR (task and expert), Episode IR
-(authoritative trajectory), Render IR (rendering output), Admission Certificate. The names only indicate duties; validity depends on
-the input, the evidence and an independent verifier.
+DataFarm 的输出是带来源、动作标签和评审证据的训练数据，并在被要求时还提供策略结果。系统有五个带版本的中间表示，按顺序为：Grounding IR（真实基础）、Task IR（任务与 expert）、Episode IR（权威轨迹）、Render IR（渲染输出）、Admission Certificate。这些名称只表明职责；有效性取决于输入、证据和独立验证者。
 
-1. **Parse the request:** task, sample target, data mode, real references, allowed changes, training state mode, budget. If the mode
-   is unclear, ask first. "Randomized table height" does not mean "freely replacing the real scene".
-2. **Real basis and task:** save the camera, robot, object and reference sources. The AI-written expert is developed, rolled out and
-   held out in isolation through the expert harness. A candidate real-camera calibration without acceptance is not a general hardware calibration.
-3. **Collect trajectories:** authoritative simulated replay, saving the same-source actions, state and images, seeds, versions and actual
-   joint readbacks. New collection and replanning obey the joint-margin requirements. Never crop only the labels while keeping the images.
-4. **Small-batch rendering:** freeze the intent, prompt and real references, verify the actual payload, and review the complete action
-   stages and the real appearance. Fix systemic failures first; do not expand to the full batch.
-5. **Production and review:** verify each item as it completes, independently recheck rejections first, retry a bounded number of
-   times, and keep the fixed candidate denominator and replacement relationships. Full count does not replace full quality.
-6. **Data admission:** issue the certificate once the independent motion/topology and style/reference evidence is complete. The builder
-   checks video/action synchronization and the source hashes.
-7. **Training and evaluation:** an explicit state mode; register the job, checkpoint, evaluation protocol and metrics. Started does not
-   mean complete, and complete does not mean deployment succeeded.
-8. **Close-out:** report what is completed, missing, failed or pending verification for the stage range the user asked for, keeping
-   rejections and costs. The ledger closes on verifiable outputs; a hand-written all-pass is not allowed.
+1. **解析请求：** 任务、样本目标、数据模式、真实参考、允许的变化、训练状态模式、预算。如果模式不清晰，先询问。"随机化桌面高度" 并不意味着 "自由替换真实场景"。
+2. **真实基础与任务：** 保存相机、机器人、物体和参考来源。AI 编写的 expert 通过 expert harness 在隔离中开发、rollout 和 held out。未经验收的候选真实相机校准不是通用硬件校准。
+3. **采集轨迹：** 权威的模拟重放，保存同源动作、状态和图像、seed、版本和实际关节回读。新的采集和重新规划遵守关节余量要求。绝不只裁剪标签而保留图像。
+4. **小批量渲染：** 冻结意图、prompt 和真实参考，验证实际 payload，并评审完整动作阶段和真实外观。先修复系统性失败；不要扩展到完整批次。
+5. **生产与评审：** 每个项完成时验证，先独立复核拒绝，重试有界次数，并保留固定的候选分母和替换关系。完整数量不能替代完整质量。
+6. **数据准入：** 一旦独立的运动/拓扑和风格/参考证据完整，就签发证书。builder 检查视频/动作同步和来源哈希。
+7. **训练与评估：** 明确的状态模式；注册 job、checkpoint、评估协议和指标。已启动不意味着完成，完成不意味着部署成功。
+8. **收尾：** 针对用户要求的阶段范围，报告已完成、缺失、失败或待验证的内容，保留拒绝和成本。台账在可验证输出上关闭；不允许手写的全通过。
 
-The new-task entry first executes `new-task-adaptation` and `sim-grounding`: the orchestrator generates the adapter, judge, task
-requirements and render overlay; the user does not fill them in. Documents and CPU contract tests are not evidence of real task success.
+新任务入口首先执行 `new-task-adaptation` 和 `sim-grounding`：orchestrator 生成 adapter、judge、任务要求和渲染叠加；用户不填写它们。文档和 CPU 合约测试不是真实任务成功的证据。

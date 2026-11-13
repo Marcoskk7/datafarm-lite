@@ -105,7 +105,7 @@ def test_pi_phase_is_priced_from_session_files_and_recorded(task):
     assert (task / 'phases/P1/final.md').read_text().strip() == 'final words'
     assert 'message_update' not in (task / 'phases/P1/stream.jsonl').read_text()
     assert 'brief text' in (task / 'phases/P1/prompt.md').read_text()
-    assert 'instructions for any coding agent' in (task / 'phases/P1/prompt.md').read_text()
+    assert '任何编码 agent 的指令' in (task / 'phases/P1/prompt.md').read_text()
     assert phases.cost_status(task)['task_usd'] == pytest.approx(.012)
 
 
@@ -237,7 +237,7 @@ def test_templates_render_and_name_real_files(task, template):
 
 def test_review_template_requires_all_views_and_raw_hashes():
     text = (ROOT / 'prompts/phases/R3.md').read_text()
-    assert 'Look at every contact sheet' in text and '`raw_files`' in text and '"sha256"' in text
+    assert '查看每张 contact sheet' in text and '`raw_files`' in text and '"sha256"' in text
     assert '`raw_files`' in (ROOT / 'prompts/phases/R3b.md').read_text()
     assert '`--status`' in (ROOT / 'prompts/phases/R2.md').read_text()
 
@@ -343,5 +343,5 @@ def test_contract_folder_follows_an_amendment(task):
     assert '`W/reviews/R1/`' in default and '`W/reviews/R1u/`' in amended and '`W/reviews/R1/`' not in amended
     r1u = phases.render_brief('R1u', phases.brief_values(task, config(phase_caps_usd={'R1u': 5}), 'R1u', 'R1u',
                                                          source=ROOT))
-    assert '`W/reviews/user-feedback-001/`' in r1u and 'Never edit the earlier freeze' in r1u
+    assert '`W/reviews/user-feedback-001/`' in r1u and '绝不要编辑较早的冻结' in r1u
     assert phases.role_of('R1u') == 'reviewer' and phases.role_of('P2u') == 'producer'

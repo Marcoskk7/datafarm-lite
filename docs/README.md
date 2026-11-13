@@ -1,33 +1,33 @@
-# DataFarm documentation
+# DataFarm 文档
 
-Start with [quickstart](quickstart.md), [deployment](deployment.md) and [architecture](architecture.md).
-[Troubleshooting](troubleshooting.md) maps runtime statuses to recovery steps, and [development](development.md) lists the rules for changing this code.
+从 [quickstart](quickstart.md)、[deployment](deployment.md) 和 [architecture](architecture.md) 开始。
+[Troubleshooting](troubleshooting.md) 把运行时状态映射到恢复步骤，[development](development.md) 列出了修改本代码的规则。
 
-## Reference
+## 参考
 
-One note per component. Each states what the code guarantees and what it does not, with its records, entry points and configuration.
+每个组件一篇说明。每篇说明代码保证什么、不保证什么，并给出其记录、入口点和配置。
 
-| Component | Note | Code |
+| 组件 | 说明 | 代码 |
 |---|---|---|
-| Capability layer, context compiler, instruction audit, source pinning | [capability-layer](reference/capability-layer.md) | `src/datafarm/agent/context.py`, `tools/audit_instruction_layers.py`, `src/datafarm/evolution/integration.py` |
-| Agent runtime: prepare, drive, supervise, review queue, recovery | [agent-runtime](reference/agent-runtime.md) | `tools/pipeline_agent.py`, `src/datafarm/agent/runtime.py`, `src/datafarm/agent/native_codex.py` |
-| Phased runs: fresh sessions with USD caps | [phased-runs](reference/phased-runs.md) | `tools/pipeline_phases.py`, `src/datafarm/agent/phases.py` |
-| Model-call ledger and VLM reviewer calibration | [agent-calls](reference/agent-calls.md) | `src/datafarm/agent/call_log.py`, `src/datafarm/verify/reviewer_calibration.py` |
-| Run ledger | [run-ledger](reference/run-ledger.md) | `src/datafarm/ledger/` |
-| Batch supervisor | [batch-supervisor](reference/batch-supervisor.md) | `src/datafarm/batch/` |
-| Grounding and the physical-quantity ledger | [grounding](reference/grounding.md) | `src/datafarm/core/grounding.py` |
-| Object assets (optional) | [usdcraft](reference/usdcraft.md) | `src/datafarm/simulation/usdcraft.py` |
-| Simulator qualification | [simulator-qualification](reference/simulator-qualification.md) | `src/datafarm/simulation/sim_qualification.py` |
-| Task contract, frozen judge, expert harness | [expert-harness](reference/expert-harness.md) | `src/datafarm/expert/` |
-| Render contract | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
-| H3 control hybrid and Seedance | [rendering](reference/rendering.md) | `src/datafarm/render/h3/`, `src/datafarm/render/seedance/` |
-| Render verifier | [render-verifier](reference/render-verifier.md) | `src/datafarm/verify/` |
-| Review, delivery and admission | [delivery-and-admission](reference/delivery-and-admission.md) | `src/datafarm/task/contract.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/core/admission.py` |
-| Policy training (pi0.5) | [policy-training](reference/policy-training.md) | `tools/launch_pi05_training.py`, `src/datafarm/training/` |
-| Whole-task cost control | [cost-control](reference/cost-control.md) | `src/datafarm/agent/cost_budget.py` |
-| Capability evolution | [capability-evolution](reference/capability-evolution.md) | `src/datafarm/evolution/` |
+| 能力层、上下文编译器、指令审计、源码固定 | [capability-layer](reference/capability-layer.md) | `src/datafarm/agent/context.py`, `tools/audit_instruction_layers.py`, `src/datafarm/evolution/integration.py` |
+| Agent 运行时：prepare、drive、supervise、审查队列、恢复 | [agent-runtime](reference/agent-runtime.md) | `tools/pipeline_agent.py`, `src/datafarm/agent/runtime.py`, `src/datafarm/agent/native_codex.py` |
+| 分阶段运行：带 USD 上限的全新会话 | [phased-runs](reference/phased-runs.md) | `tools/pipeline_phases.py`, `src/datafarm/agent/phases.py` |
+| 模型调用账本与 VLM reviewer 校准 | [agent-calls](reference/agent-calls.md) | `src/datafarm/agent/call_log.py`, `src/datafarm/verify/reviewer_calibration.py` |
+| 运行账本 | [run-ledger](reference/run-ledger.md) | `src/datafarm/ledger/` |
+| 批量 supervisor | [batch-supervisor](reference/batch-supervisor.md) | `src/datafarm/batch/` |
+| Grounding 与物理量账本 | [grounding](reference/grounding.md) | `src/datafarm/core/grounding.py` |
+| 物体资产（可选） | [usdcraft](reference/usdcraft.md) | `src/datafarm/simulation/usdcraft.py` |
+| 仿真器资格认定 | [simulator-qualification](reference/simulator-qualification.md) | `src/datafarm/simulation/sim_qualification.py` |
+| 任务契约、冻结 judge、expert harness | [expert-harness](reference/expert-harness.md) | `src/datafarm/expert/` |
+| 渲染契约 | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
+| H3 control hybrid 与 Seedance | [rendering](reference/rendering.md) | `src/datafarm/render/h3/`, `src/datafarm/render/seedance/` |
+| 渲染 verifier | [render-verifier](reference/render-verifier.md) | `src/datafarm/verify/` |
+| 审查、交付与准入 | [delivery-and-admission](reference/delivery-and-admission.md) | `src/datafarm/task/contract.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/core/admission.py` |
+| 策略训练（pi0.5） | [policy-training](reference/policy-training.md) | `tools/launch_pi05_training.py`, `src/datafarm/training/` |
+| 整任务成本控制 | [cost-control](reference/cost-control.md) | `src/datafarm/agent/cost_budget.py` |
+| 能力演化 | [capability-evolution](reference/capability-evolution.md) | `src/datafarm/evolution/` |
 
-## What the agents read
+## agent 读取什么
 
-The rules loaded into agent sessions are not documentation pages. They live in [`prompts/instructions/`](../prompts/instructions), [`prompts/roles/`](../prompts/roles) and [`.agents/skills/`](../.agents/skills), and
-[`configs/agent-instructions.json`](../configs/agent-instructions.json) lists what each role loads. Start from [`AGENTS.md`](../AGENTS.md). [`configs/README.md`](../configs/README.md) maps the configuration directory.
+加载到 agent 会话中的规则不是文档页面。它们位于 [`prompts/instructions/`](../prompts/instructions)、[`prompts/roles/`](../prompts/roles) 和 [`.agents/skills/`](../.agents/skills)，而
+[`configs/agent-instructions.json`](../configs/agent-instructions.json) 列出了每个角色加载什么。从 [`AGENTS.md`](../AGENTS.md) 开始。[`configs/README.md`](../configs/README.md) 说明了配置目录的映射。

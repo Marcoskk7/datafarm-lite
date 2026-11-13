@@ -1,38 +1,38 @@
-# Capability evolution
+# 能力演化
 
-The capability layer (skills, prompts, harness code) can be improved from recorded feedback without hand-editing a running deployment. A coding driver edits a copy of the active source. The host then evaluates the parent and the candidate with a frozen evaluator, and promotes the candidate only if it improves a declared metric without regressing any other. Promotion is a compare-and-swap of the active-version pointer. Running tasks keep their pinned source, and any version that was ever active can be restored by rollback.
+能力层（skills、prompts、harness 代码）可以根据记录的反馈改进，而无需手工编辑正在运行的部署。编码 driver 编辑活动源代码的副本。随后宿主用一个冻结的 evaluator 评估父版本和候选版本，只有当候选在声明的指标上有所改进且没有使任何其他指标回退时才提升它。提升是对活动版本指针的 compare-and-swap。运行中的任务保留其固定的源代码，任何曾经活动过的版本都可以通过回滚恢复。
 
-The rules agents follow are in [`prompts/instructions/self-improvement.md`](../../prompts/instructions/self-improvement.md).
+agent 遵循的规则见 [`prompts/instructions/self-improvement.md`](../../prompts/instructions/self-improvement.md)。
 
-## Guarantees
+## 保证
 
-1. **Feedback is recorded once, scoped, and kept.** Events are idempotent by content, carry selectors for where they apply, and can be superseded but not deleted. Importing the same event ID again writes nothing, and the same ID with different content is an error.
-2. **A candidate may change only allowed, unprotected paths.** The protected list (`PROTECTED` in `src/datafarm/evolution/controller.py`) includes `AGENTS.md`, the normative rules in `prompts/instructions/`, standing rules and `evaluations/`, the expert-harness holdout, isolation and audit modules, the admission-certificate issuer, and the evolution package and its CLI. A policy can add `protected_paths`. Interpreter hooks (`sitecustomize.py`, `usercustomize.py`, `*.pth`) are refused, and a new top-level module under `src/` must start with `datafarm_`, because the evaluator runs the candidate's `src/` on `PYTHONPATH`. Scope is checked at proposal time and again from the stored sources before evaluation.
-3. **The evaluator is frozen by content.** `freeze_policy` copies the evaluator assets into the store and names the policy by its digest. `check_policy` re-hashes them before every use.
-4. **Promotion requires a paired comparison on the same denominator.** Both evaluations must be valid and the candidate's checks must pass, `case_ids` must be identical, no metric may regress beyond its tolerance, and at least one decisive metric must improve by at least `min_improvement`.
-5. **No self-certification.** The driver writes only a candidate source and a proposal. It cannot write results. Failed and rejected candidates stay in the store.
-6. **Activation is compare-and-swap, and rollback keeps run pins.** A candidate whose parent is no longer active becomes `stale`. A crash between writing the pointer and updating the state is recovered without re-running evaluations. Rollback only targets versions that were active, and tasks already bound to a version keep it.
-7. **Lessons count only when they are evaluated explicitly.** A policy that tests lessons must set `tests_lessons` and pass `{experience}` to a check. Lessons are injected into a task's context only within their selectors.
+1. **反馈只记录一次、有范围且被保留。** Event 按内容幂等，带有适用位置的选择器，可以被取代但不能被删除。再次导入相同的 event ID 不会写入任何内容，同一 ID 而内容不同则是错误。
+2. **候选只能更改允许的、未受保护的路径。** 受保护列表（`PROTECTED`，位于 `src/datafarm/evolution/controller.py`）包括 `AGENTS.md`、`prompts/instructions/` 中的规范性规则、standing rules 和 `evaluations/`、expert-harness holdout、隔离与审计模块、准入证书签发器，以及 evolution 包及其 CLI。策略可以添加 `protected_paths`。解释器钩子（`sitecustomize.py`、`usercustomize.py`、`*.pth`）会被拒绝，`src/` 下新的顶层模块必须以 `datafarm_` 开头，因为 evaluator 会把候选的 `src/` 放到 `PYTHONPATH` 上运行。范围在 proposal 时检查一次，并在评估前从存储的源再次检查。
+3. **evaluator 按内容冻结。** `freeze_policy` 把 evaluator 资产复制到 store 中，并以摘要命名策略。`check_policy` 在每次使用前重新哈希它们。
+4. **提升需要在同一分母上进行配对比较。** 两次评估都必须有效且候选的检查必须通过，`case_ids` 必须相同，任何指标的回退不得超过其容差，且至少一个决定性指标必须改进至少 `min_improvement`。
+5. **无自我认证。** driver 只写候选源代码和 proposal。它不能写结果。失败和被拒绝的候选保留在 store 中。
+6. **激活是 compare-and-swap，回滚保留 run 的固定。** 父版本不再活动的候选会变为 `stale`。在写入指针与更新状态之间崩溃的情况会被恢复，而不会重新运行评估。回滚只针对曾经活动的版本，已绑定到某版本的任务会保留它。
+7. **lessons 只有在被显式评估时才计入。** 测试 lessons 的策略必须设置 `tests_lessons`，并向某个 check 传入 `{experience}`。lessons 只在其选择器范围内注入任务的上下文。
 
-Code: `src/datafarm/evolution/`.
+代码：`src/datafarm/evolution/`。
 
-## Data model
+## 数据模型
 
-The store directory (`--store`) holds:
+store 目录（`--store`）包含：
 
-- `events/`: feedback records;
-- `sources/`: content-addressed source snapshots;
-- `versions/`: `{source, parent, lessons, evaluation}`;
-- `candidates/`: `datafarm.evolution-candidate/1`: parent, source, events, policy, proposal, lessons, changed_paths;
-- `states/`: `proposed`, `evaluating`, `rejected`, `verified` (shadow evaluation only), `promoted`, `stale` or `evaluation-error`;
-- `policies/<digest>/`: frozen evaluator assets;
-- `evaluations/`, `activations/`, `active.json`, `cycles/`.
+- `events/`：反馈记录；
+- `sources/`：内容寻址的源代码快照；
+- `versions/`：`{source, parent, lessons, evaluation}`；
+- `candidates/`：`datafarm.evolution-candidate/1`：包含 parent、source、events、policy、proposal、lessons、changed_paths；
+- `states/`：`proposed`、`evaluating`、`rejected`、`verified`（仅影子评估）、`promoted`、`stale` 或 `evaluation-error`；
+- `policies/<digest>/`：冻结的 evaluator 资产；
+- `evaluations/`、`activations/`、`active.json`、`cycles/`。
 
-An evaluation policy (`datafarm.evolution-policy/1`) contains `allowed_paths` and `protected_paths`, `checks` (`[{id, argv containing {repo} and {report}, timeout}]`), `metrics`, `evidence_level` (`software`, `simulator`, `new-task` or `meta-improvement`), `assets` (evaluator files, relative to the policy file) and optionally `tests_lessons`.
+一个评估策略（`datafarm.evolution-policy/1`）包含 `allowed_paths` 和 `protected_paths`、`checks`（`[{id, argv containing {repo} and {report}, timeout}]`）、`metrics`、`evidence_level`（`software`、`simulator`、`new-task` 或 `meta-improvement`）、`assets`（evaluator 文件，相对于策略文件）以及可选的 `tests_lessons`。
 
-## Using it
+## 使用方式
 
-Put the store outside the source directory or inside `.datafarm`. Raw videos, full outputs and models do not go into the source version.
+把 store 放在源代码目录之外或 `.datafarm` 内。原始视频、完整输出和模型不进入源代码版本。
 
 ```bash
 python tools/pipeline_evolve.py --store /data/evolution init
@@ -40,11 +40,11 @@ python tools/pipeline_agent.py prepare --episode /data/episode.mp4 --request-fil
   --target-count 100 --output /data/task --evolution-store /data/evolution --scope /data/task-scope.json
 ```
 
-The scope is an optional exact-match selector such as `{"task_family":"my-task","hardware":"my-robot"}`. A `run_id` is added automatically. Without `--evolution-store`, `prepare` pins the invoked source in the repository's `.datafarm/evolution`; with it, the store's active version is used.
+scope 是可选的精确匹配选择器，例如 `{"task_family":"my-task","hardware":"my-robot"}`。会自动添加 `run_id`。没有 `--evolution-store` 时，`prepare` 会把被调用的源代码固定在仓库的 `.datafarm/evolution` 中；提供它时，则使用 store 的活动版本。
 
-### Recording feedback
+### 记录反馈
 
-The host saves an event and imports it when a user correction, a manual patch, a check or a task ends:
+当用户纠正、手工补丁、检查或任务结束时，宿主保存一个 event 并导入它：
 
 ```json
 {
@@ -64,17 +64,17 @@ python tools/pipeline_evolve.py --store /data/evolution record-change \
   --evidence /data/test-output.txt
 ```
 
-`record-change` compares the active parent with the current source and saves before and after snapshots and the changed paths. It does not promote. Use `--parent` to record a fix for an inactive development branch. Task sessions record their own results.
+`record-change` 将活动父版本与当前源代码比较，并保存前后快照及变更路径。它不会提升。使用 `--parent` 为未活动的开发分支记录修复。任务会话会记录它们自己的结果。
 
-### Driver and evaluator
+### Driver 与 evaluator
 
-The driver uses the same argv and stdin form as the task entry point, and runs in the candidate source copy:
+driver 使用与任务入口点相同的 argv 和 stdin 形式，并在候选源代码副本中运行：
 
 ```json
 {"argv": ["/opt/your-agent", "run"], "input": "messages"}
 ```
 
-The evaluation policy and its code and data are frozen into the store first, so a candidate cannot replace them by rewriting its own tests. `check.py` below is provided by the deployment and computes metrics for the real improvement target. `argv` is not interpreted by a shell and must not contain credentials.
+评估策略及其代码和数据会先被冻结到 store 中，因此候选无法通过重写自己的测试来替换它们。下面的 `check.py` 由部署提供，并针对真实改进目标计算指标。`argv` 不会由 shell 解释，且不得包含凭据。
 
 ```json
 {
@@ -91,13 +91,13 @@ The evaluation policy and its code and data are frozen into the store first, so 
 }
 ```
 
-A metric rule is `min`, `max`, or a noise-aware object such as `{"direction": "max", "min_improvement": 0.10}` or `{"direction": "min", "tolerance": 0.10, "relative": true, "decisive": false}`. `tolerance` is the maximum allowed regression (default 0), `relative` scales it by the parent value (default false), `min_improvement` is the minimum gain that counts (default 0), and a metric with `decisive: false` only guards against regression. For a noisy evaluation, first determine these thresholds by measuring the parent against itself.
+指标规则是 `min`、`max`，或诸如 `{"direction": "max", "min_improvement": 0.10}` 或 `{"direction": "min", "tolerance": 0.10, "relative": true, "decisive": false}` 这样的噪声感知对象。`tolerance` 是允许的最大回退（默认 0），`relative` 按父值缩放它（默认 false），`min_improvement` 是计入的最小增益（默认 0），而 `decisive: false` 的指标只用于防止回退。对于有噪声的评估，先通过让父版本与自身比较来确定这些阈值。
 
-An exit code of 0 from a check means the measurement completed, and a report with `passed: false` means a failure was measured. A crash is not a valid baseline failure. The report is `{"passed":true,"case_ids":["a","b"],"metrics":{...}}`: case IDs are unique, both versions run the same cases, and metrics are finite numbers. List every important metric that must not regress.
+check 退出码为 0 表示测量完成，而 `passed: false` 的报告表示测到了失败。崩溃不是有效的基线失败。报告为 `{"passed":true,"case_ids":["a","b"],"metrics":{...}}`：case ID 唯一，两个版本运行相同的 case，指标是有限数。列出每一个不得回退的重要指标。
 
-`evaluations/evolution-software/policy.json` is a runnable deterministic example. It verifies software behaviour only.
+`evaluations/evolution-software/policy.json` 是一个可运行的确定性示例。它只验证软件行为。
 
-### Running a cycle
+### 运行一个 cycle
 
 ```bash
 python tools/pipeline_evolve.py --store /data/evolution cycle \
@@ -108,19 +108,19 @@ python tools/pipeline_evolve.py --store /data/evolution evaluate \
 python tools/pipeline_evolve.py --store /data/evolution rollback --version PREVIOUS_VERSION
 ```
 
-`cycle` freezes the policy, copies the active source, gives the driver the `pipeline-improver` role context with the pending feedback, reads the proposal and snapshots the candidate, evaluates the parent and the candidate, and promotes if `compare` accepts. `--timeout` is the wall budget for the whole cycle. By default it does not reprocess feedback that already produced a candidate; select it with `--event EVENT_ID`. After a restart, `status` shows where it stopped, and `evaluate` creates a new evaluation without overwriting results.
+`cycle` 冻结策略、复制活动源代码、向 driver 提供带有待处理反馈的 `pipeline-improver` 角色上下文、读取 proposal 并快照候选、评估父版本与候选，并在 `compare` 接受时提升。`--timeout` 是整个 cycle 的 wall budget（实际耗时预算）。默认它不会重新处理已经产生候选的反馈；用 `--event EVENT_ID` 选择它。重启之后，`status` 显示它停在哪里，而 `evaluate` 会创建新的评估而不覆盖结果。
 
-`pipeline_agent.py drive --evolution-driver D --evolution-policy P --evolution-timeout T` runs one bounded cycle after a task. It is refused for any budgeted task that is not `disabled`. It is a foreground controller; long-running operation must be hosted by a deployment service.
+`pipeline_agent.py drive --evolution-driver D --evolution-policy P --evolution-timeout T` 在任务之后运行一个有界的 cycle。对于任何不是 `disabled` 的有预算任务，它都会被拒绝。它是一个前台控制器；长时间运行必须由部署服务托管。
 
-## Failure behaviour
+## 失败行为
 
-- An out-of-scope change, a tampered policy or candidate, or a changed denominator is rejected and recorded. The active version does not change.
-- A timeout or driver failure ends the cycle and keeps its logs. A timeout bounds the local process group; it does not revoke remote paid jobs.
-- Running tasks are never switched to a newly promoted version. `rollback` does not change existing runs, delete outputs or reset the working tree.
+- 范围外的更改、被篡改的策略或候选、或改变的分母会被拒绝并记录。活动版本不变。
+- 超时或 driver 失败会结束 cycle 并保留其日志。超时约束本地进程组；它不会撤销远程付费作业。
+- 运行中的任务永远不会切换到新提升的版本。`rollback` 不会更改现有 run、删除输出或重置工作树。
 
-## Limitations
+## 限制
 
-- **One run per arm.** Promotion compares one baseline run with one candidate run, with no replication or confidence interval in the controller. Replicated evaluation must be part of the policy's checks when evidence above `software` level is claimed.
-- **Scope is path-based.** The protected-path list does not stop a candidate from changing behaviour through an allowed module that a protected module imports.
-- **Same-UID trust.** The driver runs as the same user as the store. Candidate code can read the files the evaluator passes to it, so hidden cases and holdout must be protected by a separate identity or sandbox.
-- **Promotion is not evidence of real-task improvement.** It shows that the frozen evaluator measured an improvement at the policy's `evidence_level`, and nothing more. The underlying model weights are not trained.
+- **每个 arm 只有一次 run。** 提升比较一次基线 run 与一次候选 run，控制器中没有重复或置信区间。当声称高于 `software` 级别的证据时，重复评估必须作为策略 checks 的一部分。
+- **范围基于路径。** 受保护路径列表无法阻止候选通过一个受保护模块导入的允许模块来改变行为。
+- **同 UID 信任。** driver 与 store 以同一用户运行。候选代码可以读取 evaluator 传给它的文件，因此隐藏用例和 holdout 必须由独立身份或沙箱保护。
+- **提升不是真实任务改进的证据。** 它只表明冻结的 evaluator 在策略的 `evidence_level` 上测得了改进，仅此而已。底层模型权重并未被训练。

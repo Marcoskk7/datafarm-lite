@@ -1,39 +1,32 @@
-# Runtime examples
+# 运行时示例
 
-- `native-codex.json`: native driver for an existing Codex CLI login; the model follows the deployment settings.
-- `claude-code.json`: Claude Code through `agent_cli_driver.py`; it uses your Claude Code login and `bypassPermissions`.
-- `pi-solpi.json`: Pi through `agent_cli_driver.py`; it uses your Pi settings and loads SoL-Pi once `pi install` has added it.
-- `sol-pi.template.json`: SoL-Pi settings with all four mechanisms on; copy it to `~/.pi/agent/sol-pi.json` and fill in the reducer model.
-- `agent_cli_driver.py`: the argv driver behind those two configs.
-- `phases-solpi.json`, `phases-claude-code.json`, `phases-codex.json`: harness, prices and USD caps for [phased runs](../../docs/reference/phased-runs.md). Check the prices against your provider and fill in `environment`.
-- `phases-solpi-cross-model.json`: the Pi config with one model for producers and another for reviewers (`roles`); replace `<provider>` with your Pi provider names.
-- `budget-disabled.json`: cost policy whose target and limit are not acted on; usage is still recorded and unknown costs stay unknown.
-- `budget-enforced.json`: strict cost policy; it needs a metered driver and cannot be used with the native CLI.
-- `metered_codex_driver.py`: an example metered driver; see [cost control](../../docs/reference/cost-control.md).
+- `native-codex.json`：面向已有 Codex CLI 登录的原生 driver；模型遵循部署设置。
+- `claude-code.json`：通过 `agent_cli_driver.py` 使用 Claude Code；它使用你的 Claude Code 登录与 `bypassPermissions`。
+- `pi-solpi.json`：通过 `agent_cli_driver.py` 使用 Pi；它使用你的 Pi 设置，并在 `pi install` 添加 SoL-Pi 后加载它。
+- `sol-pi.template.json`：开启全部四种机制的 SoL-Pi 设置；将其复制到 `~/.pi/agent/sol-pi.json` 并填写 reducer 模型。
+- `agent_cli_driver.py`：这两个配置背后的 argv driver。
+- `phases-solpi.json`、`phases-claude-code.json`、`phases-codex.json`：用于[分阶段运行](../../docs/reference/phased-runs.md)的 harness、价格与美元上限。对照你的 provider 核对价格并填写 `environment`。
+- `phases-solpi-cross-model.json`：Pi 配置，生产方用一个模型、审查者用另一个模型（`roles`）；把 `<provider>` 换成你的 Pi provider 名称。
+- `budget-disabled.json`：其目标与限额不生效的成本策略；用量仍会被记录，unknown 成本保持 unknown。
+- `budget-enforced.json`：严格的成本策略；它需要计量 driver，不能与原生 CLI 一起使用。
+- `metered_codex_driver.py`：一个计量 driver 示例；参见[成本控制](../../docs/reference/cost-control.md)。
 
-## How the harnesses differ
+## harness 之间有何不同
 
-| | Codex (native) | SoL-Pi, Claude Code (`agent_cli_driver.py`) |
+| | Codex（原生） | SoL-Pi、Claude Code（`agent_cli_driver.py`） |
 |---|---|---|
-| A later session | resumes the same thread | starts fresh and continues from the task's files |
-| Author and reviewer identity | taken from the Codex thread | taken from the session ID in the CLI's stream |
-| Output | `stdout.log` | also `agent-output.jsonl` in the session folder |
+| 之后的会话 | 恢复同一 thread | 全新开始并从任务文件继续 |
+| author 与 reviewer 身份 | 取自 Codex thread | 取自 CLI 流中的会话 ID |
+| 输出 | `stdout.log` | 会话文件夹中还有 `agent-output.jsonl` |
 
-Set `/path/to/PyRUA-Lean` in the config to the absolute path of your checkout, because the driver
-runs from the task directory. Anything after `--` in `argv` goes to the CLI, for example `"--model", "<model>"`.
+在配置中把 `/path/to/PyRUA-Lean` 设为你 checkout 的绝对路径，因为 driver 从任务目录运行。`--` 之后、位于 `argv` 中的任何内容都会传给 CLI，例如 `"--model", "<model>"`。
 
-To confirm that SoL-Pi loaded, look in a session's `pi-sessions/*.jsonl` for a `sol-pi-online-context-state-v1` entry
-(it needs `onlineContextCompact`). Pi runs without any error when SoL-Pi is missing, so this is easy to overlook.
+要确认 SoL-Pi 已加载，请在某个会话的 `pi-sessions/*.jsonl` 中查找 `sol-pi-online-context-state-v1` 条目（它需要 `onlineContextCompact`）。当 SoL-Pi 缺失时 Pi 会无错误地运行，因此这一点很容易被忽视。
 
-`agent_cli_driver.py` does not report cost, so the ledger records these sessions as unknown and an enforced
-budget refuses them. Token usage stays in `agent-output.jsonl`.
+`agent_cli_driver.py` 不报告成本，因此 ledger 把这些会话记录为 unknown，enforced 预算会拒绝它们。token 用量保留在 `agent-output.jsonl` 中。
 
-To add another harness, add a profile to `agent_cli_driver.py`: the command, and how its JSON stream gives the
-session ID and reports a failed run. Copy `claude-code.json` and change the profile name. The driver contract is in
-[agent runtime](../../docs/reference/agent-runtime.md).
+要添加另一个 harness，请在 `agent_cli_driver.py` 中添加一个 profile：命令，以及其 JSON 流如何给出会话 ID 并报告失败的运行。复制 `claude-code.json` 并更改 profile 名称。driver 契约在 [agent runtime](../../docs/reference/agent-runtime.md) 中。
 
-The optional [expert harness](../../docs/reference/expert-harness.md) starts its authoring agent itself and has its
-own `agent.backend` setting, which supports Claude Code and Codex but not Pi.
+可选的 [expert harness](../../docs/reference/expert-harness.md) 会自行启动其 authoring agent，并有自己的 `agent.backend` 设置，支持 Claude Code 与 Codex，但不支持 Pi。
 
-The default cost policy is `configs/task-cost-policy.json`. These files configure the runtime; they do not show that a
-simulator, a provider or a result works. See [quickstart](../../docs/quickstart.md) and [agent runtime](../../docs/reference/agent-runtime.md).
+默认成本策略是 `configs/task-cost-policy.json`。这些文件配置运行时；它们并不表示模拟器、provider 或结果能正常工作。参见 [quickstart](../../docs/quickstart.md) 与 [agent runtime](../../docs/reference/agent-runtime.md)。

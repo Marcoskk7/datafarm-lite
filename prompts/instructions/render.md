@@ -1,58 +1,41 @@
-# Rendering: fix the target, then verify the references and the final video
+# 渲染：先固定目标，再验证参考与最终视频
 
-Rendering turns the action-authoritative white-model video into a real-world-style video. Never rewrite actions to improve appearance. First apply
-`prompts/instructions/mode-and-style-contract.md`.
+渲染把以动作为权威的白模视频转换成真实世界风格的视频。绝不要为了改善外观而改写动作。先应用 `prompts/instructions/mode-and-style-contract.md`。
 
-## Before submission
+## 提交之前
 
-- Confirm the mode and the approved scope, and register the real image sources and hashes.
-- Check the paths in the configuration against the actual request item by item. Record the provider reference slot mapping and the final expanded prompt.
-- For a Seedance task, put the full-scene real images into `job.real_references` in authority order, and use `real_scene_reference` for each item in `references`; source and continuity images may only come after them.
-- After the payload is built and before the POST, check that the actual image hash prefixes match the render intent exactly.
-- An ordinary source first frame may only supplement geometric anchoring.
-- If a real reference is unreadable or overridden by source-only, stop. Automatic downgrade is forbidden.
-- Read protected credentials at runtime only.
+- 确认模式与已批准的范围，并登记真实图像来源与哈希。
+- 逐项核对配置中的路径与实际请求。记录 provider 参考槽位映射与最终展开的 prompt。
+- 对 Seedance 任务，按权威顺序把整场景真实图像放入 `job.real_references`，并使用 `real_scene_reference` 作为 `references` 中每一项；源图像与连续性图像只能排在它们之后。
+- 在 payload 构建之后、POST 之前，检查实际图像哈希前缀与渲染意图完全一致。
+- 普通源首帧只能补充几何锚定。
+- 如果某个真实参考不可读或被 source-only 覆盖，停止。禁止自动降级。
+- 只在运行时读取受保护的凭据。
 
 ## Canary
 
-For Seedance, choose a representative small batch according to task length and variation. H3 first runs 2 complete episode prefixes, stops if any real appearance has not been adopted, and then runs the
-fixed 8-item canary. H3 defaults to the control hybrid route (`docs/reference/rendering.md`). Compare the white model, the real references and the generated video item by item, covering
-approach, grasp, move, release, final state and seams. First, middle and last frames can only serve as a preliminary screen.
+对 Seedance，根据任务长度与变化选择一个小而有代表性的批次。H3 先运行 2 个完整的 episode 前缀，若任一真实外观未被采用则停止，然后运行固定的 8 项 canary。H3 默认走 control hybrid 路线（`docs/reference/rendering.md`）。逐项对比白模、真实参考与生成视频，覆盖接近、抓取、移动、释放、最终状态与接缝。首帧、中间帧与末帧只能作为初步筛查。
 
-Record structural normality and style normality separately. Both the executing agent and the independent reviewer personally decode the real images or episode and view them beside the generated video. Save
-comparison images and frame numbers for the real baseline, the robot body, the attached cameras/cables and objects that actually exist, the table/background, and the photographic feel of all declared
-views. A component that does not exist uses `not_applicable` with an evidence-backed reason and must not be invented. Whole-scene conclusions use full-view evidence; local texture, the prompt or a hash
-cannot substitute.
+分别记录结构正常性与风格正常性。执行 agent 与独立审查者都要亲自解码真实图像或 episode，并将其与生成视频并排观看。保存真实基线、机器人本体、实际存在的附属相机/线缆与物体、桌面/背景，以及所有声明视角摄影质感的对比图与帧编号。一个不存在的组件使用 `not_applicable` 并附有证据支撑的原因，不得凭空捏造。整场景结论使用全视角证据；局部纹理、prompt 或哈希都不能替代。
 
-A real object's outline improving toward the real reference is not a deviation from the white model, but object counts, contacts, camera identity and events must be preserved. When an extra gripper leaks in from a
-reference, fix the cropping or role of the real image, the way it is referenced, or the prompt, and verify with a paired small sample first. Never delete all the real images. Any cropping keeps the source mapping and
-must still provide valid real-appearance evidence. The real reference supplies appearance only and must not copy its actions or layout or add entities.
+一个真实物体的轮廓向真实参考靠拢并不是偏离白模，但物体数量、接触、相机身份与事件必须被保留。当某个参考泄漏进来一只多余的夹爪时，修复真实图像的裁剪或角色、它的引用方式，或 prompt，并先用配对的小样本验证。绝不要删除所有真实图像。任何裁剪都保留源映射，并且仍必须提供有效的真实外观证据。真实参考只提供外观，不得复制其动作或布局，也不得添加实体。
 
-## Render verifier
+## 渲染验证器
 
-Every task has a render verifier spec. Copy `configs/render-verifier/template.json` into the task workspace, write one entity per Task IR role and declare panels, events, seams and the realism mode
-(`docs/reference/render-verifier.md`). After independent review has accepted a canary render, calibrate the spec with `tools/calibrate_render_verifier.py`: the positive control must pass and every constructible
-counterfactual must be caught. Then run `tools/verify_render.py` on each generated episode and keep its `receipt.json`. A machine pass does not replace the independent review, and on the H3 route it does not replace EVAL-v1.
+每个任务都有一个渲染验证器规范。把 `configs/render-verifier/template.json` 复制到任务工作区，为每个 Task IR 角色写一个实体，并声明面板、事件、接缝与真实感模式（`docs/reference/render-verifier.md`）。在独立审查接受一次 canary 渲染之后，用 `tools/calibrate_render_verifier.py` 校准规范：正对照必须通过，每个可构造的反事实都必须被捕获。然后在每个生成的 episode 上运行 `tools/verify_render.py` 并保留其 `receipt.json`。机器通过不能替代独立审查，在 H3 路线上也不能替代 EVAL-v1。
 
-## Batch expansion and stopping
+## 批量扩展与停止
 
-Verify each item as it completes. When a high proportion of the same kind of problem appears in the first 5-10 items, pause new submissions and look for the systemic cause rather than waiting for the whole batch. The
-actual batch policy sets thresholds, and they must not be lowered to reach the target. Upload or service crashes and quality rejections are separate: an infrastructure failure does not consume the quality seed budget. Use
-bounded retries, backoff, and a stop on consecutive zero progress. Measured throughput is not a general concurrency rule.
+每个 item 完成时就验证它。当最初 5-10 项中出现高比例的同类问题时，暂停新的提交并寻找系统性原因，而不是等待整个 batch。实际的 batch 策略设定阈值，且不得为了达成目标而调低它们。上传或服务崩溃与质量拒绝是分开的：基础设施故障不消耗质量 seed 预算。使用有界重试、退避，以及在连续零进度时停止。实测吞吐量不是通用的并发规则。
 
-## Review standards
+## 审查标准
 
-The real references and the approved changes together define the target; an OOD change must still be a plausible real change from the real baseline. Hard shadows and directional light are not defects in themselves, and exposure
-drift of 60/255 by default is only a coarse guard. Focus on added or missing objects and arms, object and container topology, wrist-view swaps, reference layout leakage, stage order, final state, seams and unexplained temporal changes.
-Tell a pre-defined layout gutter apart from added black borders in the frame.
+真实参考与已批准的变化共同定义了目标；OOD 变化仍必须是从真实基线出发的合理真实变化。硬阴影与方向光本身不是缺陷，默认 60/255 的曝光漂移只是一个粗粒度守卫。关注增加或缺失的物体与机械臂、物体与容器拓扑、腕部视角互换、参考布局泄漏、阶段顺序、最终状态、接缝以及无法解释的时间变化。区分预定义的布局留白与画面中新加的黑边。
 
-Every automatic rejection is first independently rechecked per `verifier-rejection-recheck`; do not report it to the user as a certain defect. If the full evidence has not been seen, it is unverified. Fix a false positive by repairing the
-general rule and recalibrating, not by changing a threshold for one sample. Output a per-sample table and a side-by-side review page so the user can recheck; the review page does not replace a certificate.
+每一次自动拒绝都先按 `verifier-rejection-recheck` 独立复核；不要把它作为确定的缺陷报告给用户。如果尚未看到完整证据，它就是未经核实的。修复误报要通过修复通用规则并重新校准，而不是为一个样本更改阈值。输出逐样本表格与并排审查页面，以便用户复核；审查页面不能替代证书。
 
-## Completion
+## 完成
 
-Fully record the intent, payload, reference sources, final video, and independent style and structure evidence. The target count, candidate attempts, crashes, each kind of rejection, admitted count and cost must be traceable. Technical
-success, a machine gate pass or a full file count must not be used to claim the real style is qualified.
+完整记录意图、payload、参考来源、最终视频，以及独立的风格与结构证据。目标数量、候选尝试、崩溃、各类拒绝、被接纳数量与成本都必须可追溯。技术成功、机器 gate 通过或文件数量齐全，都不得用来声称真实风格已合格。
 
-Task-specific facts stay in the task's contract: a real device's shape should match its real references and must not copy a simplified simulated proxy. Object counts, colours and left/right arm order come from the current Task and Episode
-contract, and no single task may be hard-coded as a general rule.
+任务特定的事实留在任务的契约中：真实设备的形状应与其真实参考一致，且不得复制简化后的仿真代理。物体数量、颜色与左右臂顺序来自当前的 Task 与 Episode 契约，任何单一任务都不得被硬编码为通用规则。

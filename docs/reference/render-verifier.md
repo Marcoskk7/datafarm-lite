@@ -1,109 +1,109 @@
-# Render verifier
+# Render 验证器
 
-This document describes how a generated video is judged by machine before it can be admitted. Every task has a spec.
-The code is in `src/datafarm/verify/`, the entry point is `tools/verify_render.py`, and calibration is `tools/calibrate_render_verifier.py`.
+本文档描述生成视频在被准入前如何由机器判定。每个任务都有一个 spec。
+代码位于 `src/datafarm/verify/`，入口是 `tools/verify_render.py`，校准工具是 `tools/calibrate_render_verifier.py`。
 
-## 1. Fixed part and task part
+## 1. 固定部分与任务部分
 
-The Render layer repaints the simulated white carrier into a target-domain video. The judgment has two parts:
+Render 层将模拟的 white carrier 重绘为目标域视频。判定有两个部分：
 
-- **Fixed part (code, does not change with the task):** the check families, the decision logic, the persistence rule, fail-closed behaviour and the report format.
-- **Task part (data, written by the agent):** a JSON spec with the panel layout, the colour keys and geometric primitives of each role in the Task IR, the object names in the state, the real-robot references and the OOD perturbation axes.
+- **固定部分（代码，不随任务变化）：** 检查族、决策逻辑、持续性规则、fail-closed 行为和报告格式。
+- **任务部分（数据，由 agent 编写）：** 一个 JSON spec，包含 Task IR 中每个角色的面板布局、颜色键和几何基元、状态中的物体名称、真实机器人参考以及 OOD 扰动轴。
 
-A new task only writes a spec, not a new verifier.
+新任务只需编写 spec，而不是新的 verifier。
 
-## 2. Inputs and authority
+## 2. 输入与权限
 
-| Input | Authoritative for | Source |
+| 输入 | 权威用于 | 来源 |
 |---|---|---|
-| carrier (white-model video) | geometry, entity visibility, timing | Episode IR |
-| Simulation state (object poses, camera K/extrinsics, gripper commands) | full object outlines, event instants | Episode IR |
-| Real-robot video (same layout) | appearance, camera exposure and flicker behavior | Grounding IR |
-| Appearance reference image | only used to check layout leakage | Render IR |
-| Generated video | the object being judged, with no authority whatsoever | provider |
+| carrier（white-model 视频） | 几何、实体可见性、时序 | Episode IR |
+| 模拟状态（物体位姿、相机 K/外参、夹爪命令） | 完整物体轮廓、事件时刻 | Episode IR |
+| 真实机器人视频（相同布局） | 外观、相机曝光和闪烁行为 | Grounding IR |
+| 外观参考图像 | 仅用于检查布局泄漏 | Render IR |
+| 生成视频 | 被判定对象，无任何权威性 | provider |
 
-## 3. Nine check families
+## 3. 九个检查族
 
-Each result is one of four values:
+每个结果都是四种值之一：
 
-- `pass`;
-- `fail`;
-- `abstain`: the authority needed for the judgment is missing or it cannot be measured; **blocks admission**;
-- `not_applicable`: objectively unmeasurable, for example a moving wrist camera has no static background; does not block admission.
+- `pass`；
+- `fail`；
+- `abstain`：判定所需的权威性缺失或无法测量；**阻止准入**；
+- `not_applicable`：客观上无法测量，例如移动的腕部相机没有静态背景；不阻止准入。
 
-A sample passes if and only if all hard checks are pass or not_applicable. A defect must persist for `persist_samples` (default 3 sampled frames) before it is judged a failure.
+样本通过当且仅当所有硬检查为 pass 或 not_applicable。缺陷必须持续 `persist_samples`（默认 3 个采样帧）后才被判为失败。
 
-1. **transport**: frame count, fps, aspect ratio, black frames, sha256.
-2. **structure**:
-   - for each panel and each sampled frame, compare the cosine of the projected-geometry descriptor (blurred grayscale + gradient);
-   - estimate the global translation with phase correlation (this can catch squashing or misalignment);
-   - black borders at the panel edge: a uniform near-black band (>= 4 layout px) appears at a panel edge of the generated picture that the white model does not have, and persists; this is judged a panel crop or offset error.
-3. **entity** (one item per Task IR role):
-   - *missing*: an instance visible in the white model has no pixels of that entity near it in the generated video;
-   - *unsupported*: an entity-sized connected blob appears in the generated video, but nearby there is no white-model instance, no simulated projected outline, and no other entity;
-   - *extent*: the area of the generated entity lying outside the simulated projected outline is too large. It is treated as unmeasurable when it touches other entities or is truncated by the panel edge.
-   - Generated-side segmentation first learns the entity appearance **of this video itself** (fitting a CIELAB model on pixels authorized by the white model; multi-color objects are learned part by part), and then adds a chroma floor. In this way the entity checks judge only geometry and presence, and whether the appearance looks like the real robot is left to realism. In OOD lighting mode only this adaptive model is used, not the fixed target keys.
-   - If more than 2% of the background far from any simulated object is segmented as that entity (for example, a new table material with the same colour as a task object), the unsupported / extent items of that panel are judged abstain: color can no longer serve as evidence.
-   - A sub-check can be restricted to a panel, written as `unsupported:head`.
-4. **event**:
-   - for each event (gripper open/close, or frames given by the spec), compare the motion signal within the ROI of the entities involved;
-   - a task may use `event_local_motion_min` to require that the white-model ROI within four frames before and after the event has measurable motion; if the motion exists only in other parts of the window, the correlation peak is not used to claim this event is misaligned. The default 0 disables this requirement;
-   - search the lag, requiring |lag| <= 6 frames and correlation >= 0.3.
-5. **temporal**: three things are checked per panel at full frame rate (jumps and brightness steps are first normalized by the contrast of the two videos respectively):
-   - brightness steps that cannot be explained by the white model: the default upper limit is 10/255; the real camera's own step statistics can only raise it, never lower it;
-   - jumps;
-   - freezes.
-6. **continuity**: two kinds of problems are judged separately at segment seams:
-   - photometric jump: same threshold as flicker;
-   - structural jump: first do gain/bias matching, then require the change to exceed both a multiple of the local motion and an absolute floor.
-   - Abstain when segments are rendered but no seam is declared.
-7. **background** (fixed cameras only): on pixels where the white model does not change, the generated picture should not change either.
-   - A shadow margin is excluded near objects;
-   - darkening is tolerated within a wider "shadow reachable range";
-   - for each frame, first compute the fraction of static pixels that are still measurable after excluding moving objects and margins; if it is below the spec's `background_min_static_fraction` the frame is not judged. The default is 3%; a task with little static background may raise it. If fewer than 30% of the sampled frames in the whole segment are measurable, the panel returns not applicable, and no pass or reject conclusion is drawn from a few pixels mixed with moving shadows;
-   - if a large dark shadow of a moving object covers most of the judged pixels, almost no static background lies far from the motion, and the upper quartile of the judged pixels stays close to the first-frame exposure, the exposure is taken from that upper quartile, so the shadow is not fitted as an exposure drop. A true global exposure drop has no such upper quartile;
-   - brightening is not tolerated, and the area of connected bright-spot blobs is checked separately;
-   - overall exposure drift is only a coarse guard (default 60/255).
-8. **realism**: per panel and per region (each entity + background), compare six features against the real-robot picture:
-   - color, contrast, relative chroma, texture, sharpness, noise.
-   - Each is divided by a fixed tolerance (about one just-noticeable difference), then the real robot's own first-half/second-half fluctuation is allowed. The hard threshold is 6.0, and 3.0 and above is only a reference warning. A direct copy of the white model and a recoloured one still fail.
-   - Regions with too little coverage in the real-robot video are recorded as unmeasurable.
-9. **reference_leak**: if an entity in the appearance reference image is not at its white-model position but is filled in at the first generated frame, it is judged layout leakage.
+1. **transport**：帧数、fps、宽高比、黑帧、sha256。
+2. **structure**：
+   - 对每个面板和每个采样帧，比较投影几何描述子的余弦（模糊灰度 + 梯度）；
+   - 用相位相关估计全局平移（这可以捕捉挤压或错位）；
+   - 面板边缘的黑边：生成图像的面板边缘出现 white model 没有的均匀近黑带（>= 4 layout px）并持续存在；这被判为面板裁剪或偏移错误。
+3. **entity**（Task IR 每个角色一项）：
+   - *missing*：white model 中可见的实例在生成视频中其附近没有该实体的像素；
+   - *unsupported*：生成视频中出现实体大小的连通斑块，但其附近没有 white-model 实例、没有模拟投影轮廓、也没有其他实体；
+   - *extent*：生成实体落在模拟投影轮廓之外的面积过大。当它接触其他实体或被面板边缘截断时，视为无法测量。
+   - 生成侧分割首先学习**此视频自身**的实体外观（在 white model 授权的像素上拟合 CIELAB 模型；多色物体逐部分学习），然后加入色度下限。这样实体检查只判断几何和存在性，外观是否像真实机器人留给 realism。在 OOD 光照模式下只使用此自适应模型，不使用固定的目标颜色键。
+   - 若远离任何模拟物体的背景中超过 2% 被分割为该实体（例如与任务物体同色的新桌面材质），该面板的 unsupported / extent 项判为 abstain：颜色不再能作为证据。
+   - 子检查可以限制到某个面板，写作 `unsupported:head`。
+4. **event**：
+   - 对每个事件（夹爪打开/关闭，或 spec 给出的帧），比较所涉实体 ROI 内的运动信号；
+   - 任务可以使用 `event_local_motion_min` 要求事件前后四帧内 white-model ROI 具有可测量的运动；如果运动只存在于窗口的其他部分，则不会用相关峰来声称此事件错位。默认 0 禁用此要求；
+   - 搜索滞后，要求 |lag| <= 6 帧且相关 >= 0.3。
+5. **temporal**：每个面板在全帧率下检查三件事（跳变和亮度阶跃先分别由两个视频的对比度归一化）：
+   - 无法由 white model 解释的亮度阶跃：默认上限为 10/255；真实相机自身的阶跃统计只能提高它，绝不能降低；
+   - 跳变；
+   - 冻结。
+6. **continuity**：在片段接缝处分别判断两类问题：
+   - 光度跳变：与闪烁相同的阈值；
+   - 结构跳变：先做增益/偏置匹配，然后要求变化同时超过局部运动的倍数和一个绝对下限。
+   - 片段已渲染但未声明接缝时 abstain。
+7. **background**（仅固定相机）：在 white model 不变化的像素上，生成图像也不应变化。
+   - 物体附近排除阴影边距；
+   - 在更宽的 "阴影可达范围" 内允许变暗；
+   - 对每一帧，先计算排除移动物体和边距后仍可测量的静态像素比例；若低于 spec 的 `background_min_static_fraction` 则不判断该帧。默认 3%；静态背景很少的任务可以提高它。若整个片段中可测量的采样帧少于 30%，该面板返回 not applicable，不会从少量像素混合移动阴影中得出 pass 或 reject 结论；
+   - 若移动物体的大片深阴影覆盖了大部分被判断像素，远离运动的静态背景几乎没有，且被判断像素的上四分位数保持在首帧曝光附近，则从该上四分位数取曝光，这样阴影不会被拟合为曝光下降。真正的全局曝光下降没有这样的上四分位数；
+   - 不允许变亮，连通亮斑的面积单独检查；
+   - 整体曝光漂移只是粗粒度防护（默认 60/255）。
+8. **realism**：每个面板和每个区域（每个实体 + 背景）将六个特征与真实机器人画面比较：
+   - 颜色、对比度、相对色度、纹理、锐度、噪声。
+   - 每个特征除以固定容差（约一个最小可觉差），然后允许真实机器人自身前半/后半的波动。硬阈值为 6.0，3.0 及以上仅作参考警告。直接复制 white model 以及重新上色的版本仍会失败。
+   - 在真实机器人视频中覆盖不足的区域记录为无法测量。
+9. **reference_leak**：如果外观参考图像中的某个实体不在其 white-model 位置，却在第一生成帧中被填充，则判为布局泄漏。
 
-## 4. sim2real and OOD
+## 4. sim2real 与 OOD
 
-- **sim2real**: all features of all regions must be close to the real robot. No fixed lighting style is imposed: if the real footage has hard shadows, the render should too.
-- **OOD**: first bind this task's explicit authorization, the real baseline and real images; the spec declares only the perturbation axes within the authorized scope (`lighting`, `background`, `table_material`, `distractors`, `camera_exposure`).
-  - Authorized perturbation axes do not require pixels/features to equal the real baseline; the numeric gates skip colour and contrast for lighting and the background region for background axes, but this does not skip the real-style review. Changes beyond the authorization must still be rejected.
-  - The robot and the task objects are invariant entities and must still look like the real robot.
-  - Geometry, event, temporal and entity checks are exactly the same as in sim2real.
+- **sim2real**：所有区域的所有特征都必须接近真实机器人。不强加固定光照风格：如果真实素材有硬阴影，渲染也应有。
+- **OOD**：先绑定本任务明确授权、真实基线和真实图像；spec 只声明授权范围内的扰动轴（`lighting`、`background`、`table_material`、`distractors`、`camera_exposure`）。
+  - 已授权的扰动轴不要求像素/特征等于真实基线；数值 gate 对 lighting 跳过颜色和对比度，对 background 轴跳过背景区域，但这不会跳过真实风格评审。超出授权的变化仍必须被拒绝。
+  - 机器人和任务物体是不变实体，必须仍然看起来像真实机器人。
+  - 几何、事件、时序和实体检查与 sim2real 完全相同。
 
-## 5. Workflow for writing the spec of a new task (executed by the agent)
+## 5. 编写新任务 spec 的工作流（由 agent 执行）
 
-Copy `configs/render-verifier/template.json` into the task workspace; the spec is a task artifact.
+将 `configs/render-verifier/template.json` 复制到任务 workspace；spec 是一个任务产物。
 
-1. List all visible roles from the Task IR, and write one entity per role:
-   - `carrier_keys` segment on the white model;
-   - `target_keys` loosely cover the target-domain appearance;
-   - if the real reference object is dark, strict `target_keys` will report an object that is still visible as missing; a separate `presence_keys` can be set, used only for the presence check at the white-model expected position; the new-object and volume checks still use `target_keys`. Before enabling it, both the missing-object and the same-color added-object counterexamples must be replayed; passing the missing-object case alone does not establish entity-count admission.
-   - Multi-color objects list keys part by part, with the white-model keys and target keys matched one-to-one by index;
-   - when state exists, also write `state_objects` and the geometric primitives.
-2. Write the panels, camera names and native resolution, then visually confirm the projection alignment with the projection overlay image.
-3. Bind the real-robot reference (same layout) and the source/role of the real appearance image actually submitted, and record the mode confirmed by the user and the authorized perturbation axes; ask first if the mode is not confirmed. The existence of a reference used for verification cannot replace evidence that the generation request carried the real image.
-4. Run `validate_spec`:
-   - every Task IR role must have an entity check;
-   - segmented rendering must declare seams;
-   - OOD mode must declare perturbation axes;
-   - exemptions must state a reason.
-5. **Calibration**: pick a human-approved render as the positive example and run the counterfactual set, requiring that the positive example passes and that every class of counterfactual is caught by the corresponding check family. The counterfactuals include:
-   - removing an object, adding an object, enlarging by 1.5x;
-   - time shift, freeze, flicker;
-   - swapping the left and right wrists, horizontal squashing;
-   - background relighting, hallucinated light spots;
-   - seam frame jump, recoloring, direct copy of the white model.
-6. Run on the whole cohort, and spot-check the failure evidence and partially passed samples. When a false positive is found, fix the general rule and rerun calibration; do not tune thresholds to a single sample.
+1. 从 Task IR 列出所有可见角色，并为每个角色写一个实体：
+   - `carrier_keys` 在 white model 上分割；
+   - `target_keys` 宽松覆盖目标域外观；
+   - 如果真实参考物体是深色的，严格的 `target_keys` 会把仍可见的物体报告为 missing；可以设置单独的 `presence_keys`，仅用于 white-model 期望位置的存在性检查；新物体和体积检查仍使用 `target_keys`。启用前必须重放缺物体和同色加物体两个反例；仅通过缺物体案例不能确立实体数量准入。
+   - 多色物体逐部分列出键，white-model 键和目标键按索引一一对应；
+   - 存在状态时，还要写 `state_objects` 和几何基元。
+2. 写面板、相机名称和原生分辨率，然后用投影叠加图目视确认投影对齐。
+3. 绑定真实机器人参考（相同布局）和实际提交的真实外观图像的源/角色，并记录用户确认的模式和已授权扰动轴；模式未确认时先询问。用于验证的参考的存在不能替代生成请求携带真实图像这一证据。
+4. 运行 `validate_spec`：
+   - 每个 Task IR 角色都必须有一个实体检查；
+   - 分段渲染必须声明接缝；
+   - OOD 模式必须声明扰动轴；
+   - 豁免必须说明理由。
+5. **校准**：选一个人工批准的渲染作为正例并运行反事实集，要求正例通过且每一类反事实都被相应的检查族捕捉。反事实包括：
+   - 移除物体、添加物体、放大 1.5 倍；
+   - 时间偏移、冻结、闪烁；
+   - 交换左右腕、水平挤压；
+   - 背景重新打光、幻觉光斑；
+   - 接缝帧跳变、重新上色、直接复制 white model。
+6. 在整个 cohort 上运行，并抽查失败证据和部分通过的样本。发现误报时，修正通用规则并重新校准；不要针对单个样本调阈值。
 
-## 6. Commands
+## 6. 命令
 
 ```bash
 python tools/verify_render.py --spec <task-workspace>/verifier-spec.json \
@@ -113,90 +113,61 @@ python tools/calibrate_render_verifier.py --spec <task-workspace>/verifier-spec.
   --generated accepted.mp4 --real real-tlayout.mp4 --out <dir> [--waive robot_ghost="no robot entity in this spec"]
 ```
 
-Both tools exit 0 only on `pass` / `calibrated`, and 2 otherwise. The output is `receipt.json` (machine-readable) and `review.html`: every failed or abstained check carries "white model | generated | overlay" evidence images, and temporal evidence shows the frames before and after.
+两个工具仅在 `pass` / `calibrated` 时以 0 退出，否则为 2。输出是 `receipt.json`（机器可读）和 `review.html`：每个失败或 abstain 的检查都带有 "white model | generated | overlay" 证据图像，时序证据显示前后帧。
 
-## 7. Guarantees
+## 7. 保证
 
-1. **A verifier spec that breaks the authoring rules cannot pass anything.** `validate_spec`
-   checks the following rules:
-   - P0: panels are unique and lie inside the layout.
-   - P1: every Task IR role has an entity with a `missing` check and carrier/target colour
-     keys.
-   - P2: events name known roles.
-   - P3: a chunked render declares its seams.
-   - P4: the realism mode is explicit; `sim2real` has no perturbed axes; `ood` declares
-     axes from `OOD_AXES`.
-   - P5: waivers name a known family and give a reason; thresholds are known.
+1. **违反创作规则的 verifier spec 不能通过任何东西。** `validate_spec` 检查以下规则：
+   - P0：面板唯一且位于布局内。
+   - P1：每个 Task IR 角色都有一个带 `missing` 检查和 carrier/target 颜色键的实体。
+   - P2：事件命名已知角色。
+   - P3：分块渲染声明其接缝。
+   - P4：realism 模式明确；`sim2real` 没有扰动轴；`ood` 声明来自 `OOD_AXES` 的轴。
+   - P5：waiver 命名已知族并给出理由；阈值已知。
 
-   Any violation returns verdict `abstain` with `spec_problems`.
-2. **The verdict fails closed over fixed check families.** The families are `transport`,
-   `structure`, `entity` (presence, missing, extra/unsupported, scale), `event`, `temporal`,
-   `continuity` (seams), `background`, `realism` and `reference_leak`. Any hard `fail` makes
-   the verdict `fail`. Otherwise any hard `abstain` makes it `abstain`. A family can be
-   switched off only by a reasoned spec waiver, which yields `not_applicable`.
-3. **Realism is judged against real footage, never assumed.** Without a real clip,
-   `realism_vs_real_world` abstains. A render that is just the carrier fails. In `ood`
-   mode, only the declared axes relax features. Background axes drop the background
-   region, and `lighting` or `camera_exposure` drop the colour and contrast features.
-4. **A spec counts as calibrated only after a complete, clean mutation run.**
-   `calibrate_render_verifier.py` verifies the accepted render (positive control), then
-   injects each of the 14 defects in `counterfactual.SUITE`. These are entity
-   delete/duplicate/scale, time shift, freeze, flicker, panel swap, squeeze, relight drift,
-   light spot, seam jump, recolour, white (carrier) copy, and robot ghost. `summarize` sets
-   `calibrated` only when all of these hold:
-   - the run is not partial (`--only` runs are diagnostics);
-   - the positive control's verdict is `pass`;
-   - every constructed defect fails in its expected check;
-   - every not-constructible defect has an explicit `--waive NAME=REASON`.
+   任何违规都返回结论 `abstain` 并带 `spec_problems`。
+2. **结论在固定检查族上 fail closed。** 这些族是 `transport`、`structure`、`entity`（存在、缺失、额外/unsupported、尺度）、`event`、`temporal`、`continuity`（接缝）、`background`、`realism` 和 `reference_leak`。任何硬 `fail` 使结论为 `fail`。否则任何硬 `abstain` 使其为 `abstain`。一个族只能通过有理由的 spec waiver 关闭，结果为 `not_applicable`。
+3. **Realism 针对真实素材判断，绝不假设。** 没有真实片段时，`realism_vs_real_world` abstain。仅由 carrier 构成的渲染会失败。在 `ood` 模式下，只有已声明的轴会放宽特征。背景轴去掉背景区域，`lighting` 或 `camera_exposure` 去掉颜色和对比度特征。
+4. **只有完整、干净的变异运行后 spec 才算已校准。** `calibrate_render_verifier.py` 验证被接受的渲染（阳性对照），然后注入 `counterfactual.SUITE` 中的 14 个缺陷。这些是实体删除/复制/缩放、时间偏移、冻结、闪烁、面板交换、挤压、重新打光漂移、光斑、接缝跳变、重新上色、white（carrier）复制以及机器人残影。`summarize` 仅当以下全部成立时才设置 `calibrated`：
+   - 运行不是部分的（`--only` 运行是诊断）；
+   - 阳性对照的结论为 `pass`；
+   - 每个构造出的缺陷都在其预期检查中失败；
+   - 每个无法构造的缺陷都有显式的 `--waive NAME=REASON`。
 
-   Waivers naming unknown defects raise, and a waiver never excuses a missed defect.
-   `calibration.json` (`datafarm.render-verifier-calibration/2`) records `spec_sha256` and
-   `generated_sha256`. The tool exits 0 only when `calibrated` is true.
+   命名未知缺陷的 waiver 会抛错，waiver 绝不豁免遗漏的缺陷。`calibration.json`（`datafarm.render-verifier-calibration/2`）记录 `spec_sha256` 和 `generated_sha256`。仅当 `calibrated` 为 true 时工具才以 0 退出。
 
-Code: `src/datafarm/verify/`, `tools/verify_render.py`, `tools/calibrate_render_verifier.py`.
+代码：`src/datafarm/verify/`、`tools/verify_render.py`、`tools/calibrate_render_verifier.py`。
 
-## 8. Data model
+## 8. 数据模型
 
-- **Verifier spec** (`datafarm.render-verifier-spec/1.0.0`): layout and panels, entities
-  (role, carrier/target colour keys, checks, panels), events, `realism {mode,
-  perturbed_axes}`, thresholds, waivers, seams. Start from `configs/render-verifier/template.json`.
-- **Verifier receipt** (`receipt.json`): `verifier` (`datafarm-render-verifier-v2`), `verdict`,
-  `failed`, `abstained`, `thresholds` with provenance, input paths and sha256, `checks[]`
-  (`name`, `family`, `verdict`, `hard`, `reason`, `metrics`, `evidence`), and
-  `episode_binding`.
-- **Calibration** (`calibration.json`, `datafarm.render-verifier-calibration/2`): `spec_id`,
-  `spec_sha256`, `generated_sha256`, `positive_control_passes`, `caught`, `total`,
-  `constructed`, `missed`, `not_constructible`, `unwaived_not_constructible`, `waivers`,
-  `partial`, `calibrated`, `results`.
+- **Verifier spec**（`datafarm.render-verifier-spec/1.0.0`）：布局和面板、实体
+  （role、carrier/target 颜色键、检查、面板）、事件、`realism {mode,
+  perturbed_axes}`、阈值、waiver、seam。从 `configs/render-verifier/template.json` 开始。
+- **Verifier 回执**（`receipt.json`）：`verifier`（`datafarm-render-verifier-v2`）、`verdict`、`failed`、`abstained`、带来源的 `thresholds`、输入路径和 sha256、`checks[]`（`name`、`family`、`verdict`、`hard`、`reason`、`metrics`、`evidence`），以及 `episode_binding`。
+- **校准**（`calibration.json`，`datafarm.render-verifier-calibration/2`）：`spec_id`、`spec_sha256`、`generated_sha256`、`positive_control_passes`、`caught`、`total`、`constructed`、`missed`、`not_constructible`、`unwaived_not_constructible`、`waivers`、`partial`、`calibrated`、`results`。
 
-## 9. Configuration
+## 9. 配置
 
-| Flag / key | Default | Effect |
+| Flag / 键 | 默认值 | 作用 |
 |---|---|---|
-| `verify_render.py --families` | all | Restricts families. A restricted run can still return `pass`. |
-| `--mode`, `--perturbed-axes` | from spec | Override the realism target for this run. |
-| `--single-chunk`, `--seams`, `--expected-frames` | spec | Episode binding for continuity and transport. |
-| `calibrate --only` | all | Diagnostic subset; always `partial`, never calibrated. |
-| `calibrate --waive NAME=REASON` | none | Accepts one not-constructible counterfactual. |
-| spec `waivers {family: reason}` | none | Turns a family into `not_applicable`. |
+| `verify_render.py --families` | 全部 | 限制检查族。受限制的运行仍可返回 `pass`。 |
+| `--mode`、`--perturbed-axes` | 来自 spec | 为此 run 覆盖 realism 目标。 |
+| `--single-chunk`、`--seams`、`--expected-frames` | spec | 用于 continuity 和 transport 的 episode 绑定。 |
+| `calibrate --only` | 全部 | 诊断子集；始终 `partial`，永不 calibrated。 |
+| `calibrate --waive NAME=REASON` | 无 | 接受一个无法构造的反事实。 |
+| spec `waivers {family: reason}` | 无 | 将一个族变为 `not_applicable`。 |
 
-## 10. Known limitations
+## 10. 已知限制
 
-- Entity segmentation is based on color keys and the adaptive appearance model; no learned segmentation or tracking is used. Sizes at occlusion boundaries are unmeasurable.
-- "Appearing from nowhere" for the robot is not judged by color: black links, dark projections and dark walls cannot be separated by color. Instead `semantic_unsupported` is used (`semantic.py`, requires a GPU and the environment variable `DATAFARM_DINOV2`):
-  - prototypes are learned from the DINOv2 features of the white-model arm region in this video;
-  - if somewhere looks like an arm semantically while the white model has no simulated content there (the white-model foreground is obtained from the temporal-median background and temporal differencing, which can cover light gray links), it is judged a hallucination;
-  - if the feature distributions of the arm and the background are themselves inseparable, it is judged abstain.
-  - The "arm ghosting" counterfactual is part of calibration.
-- Shadow jumps in the white model itself (simulated shadow-map artifacts) will also make the generated video fail. This is a real visible defect, but it should be fixed back in the Episode or white-model capture stage; the report does not label it as originating from the white model.
-- The hard realism threshold is a default, not a per-task value. Run `tools/calibrate_render_verifier.py` for each new task.
-- There is no semantic-level judgment, for example whether the action was truly completed or whether an object was truly placed. This part still relies on terminal-state entity checks and human review.
-- **Calibration covers no reference-leak mutation.** `counterfactual.SUITE` has no
-  reference-layout-leak defect. `reference_layout_leak` is therefore never calibrated. It is
-  `not_applicable` when no reference image is passed, and it inspects only the first five
-  sampled frames, for entities that have an `unsupported` check.
-- **Spec waivers cannot be calibrated.** A family waived in the spec is `not_applicable`.
-  Counterfactuals that expect that family are then reported missed, and calibration fails.
-  `--waive` covers only defects that cannot be constructed.
-- **No task spec ships.** Only `configs/render-verifier/template.json` is included; each task's spec is
-  an output of the run.
+- 实体分割基于颜色键和自适应外观模型；不使用学习式分割或跟踪。遮挡边界处的尺寸无法测量。
+- 机器人的 "凭空出现" 不由颜色判断：黑色连杆、深色投影和深色墙壁无法用颜色区分。改用 `semantic_unsupported`（`semantic.py`，需要 GPU 和环境变量 `DATAFARM_DINOV2`）：
+  - 原型从本视频 white-model 手臂区域的 DINOv2 特征学习；
+  - 如果某处在语义上像手臂，而 white model 那里没有模拟内容（white-model 前景由时间中值背景和时间差分获得，可覆盖浅灰色连杆），则判为幻觉；
+  - 如果手臂与背景的特征分布本身不可分，则判为 abstain。
+  - "手臂残影" 反事实是校准的一部分。
+- white model 自身的阴影跳变（模拟 shadow-map 伪影）也会使生成视频失败。这是真实的可见缺陷，但应在 Episode 或 white-model 采集阶段修复；报告不会把它标注为源自 white model。
+- 硬 realism 阈值是默认值，不是逐任务值。为每个新任务运行 `tools/calibrate_render_verifier.py`。
+- 没有语义级判断，例如动作是否真正完成或物体是否真正放置。这部分仍依赖终态实体检查和人工评审。
+- **校准不覆盖 reference-leak 变异。** `counterfactual.SUITE` 没有 reference 布局泄漏缺陷。因此 `reference_layout_leak` 从不被校准。未传入参考图像时它为 `not_applicable`，且它只检查前五个采样帧，针对具有 `unsupported` 检查的实体。
+- **Spec waiver 无法校准。** 在 spec 中豁免的族为 `not_applicable`。期望该族的反事实随后报告为 missed，校准失败。`--waive` 只覆盖无法构造的缺陷。
+- **不附带任务 spec。** 只包含 `configs/render-verifier/template.json`；每个任务的 spec 是 run 的输出。
