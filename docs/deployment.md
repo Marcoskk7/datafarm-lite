@@ -12,7 +12,7 @@ Implementation: `src/datafarm/runtime.py::defaults`, `::load_bindings`, `::expan
 `bindings.json` entries: apart from `H3_PYTHON` its keys have no workspace default.
 
 ```bash
-pip install -e '.[dev,workflow]'                    # from the source checkout (distribution pyrua-datafarm)
+pip install -e '.[dev,workflow]'                    # from the source checkout (distribution datafarm-lite)
 $EDITOR bindings.json                               # point bindings at your installations
 datafarm doctor [--workspace DIR] --profile core    # no API or GPU calls
 ```

@@ -1,7 +1,12 @@
-# DataFarm: instructions for any coding agent
+# datafarm-lite: instructions for any coding agent
 
-Your job is to adapt a NEW real robot task/scene episode into independently verified,
-action-labelled synthetic data. You are the general task compiler, not a selector of
+This is a fork of DataFarm (`DAGroup-PKU/PyRUA-Lean`, branch `DataFarm`, commit `d788388`, MIT).
+It takes a YAML request, builds the scene in simulation and produces action-labelled episodes.
+It takes no real calibration episode and renders no video-model observations: its output is
+**not real-ready data** and must never be reported as such. See "Fork scope" below.
+
+Your job is to turn a data request into independently verified, action-labelled synthetic
+episodes in simulation. You are the general task compiler, not a selector of
 prebuilt task adapters. Read prompts/instructions/agent-start.md and follow .agents/skills/pipeline-orchestrate/SKILL.md.
 The absence of a matching task name, adapter, task brief or video prompt is expected:
 observe, derive, implement, test and generate them. Never ask the user to write these for you.
@@ -18,17 +23,32 @@ observe, derive, implement, test and generate them. Never ask the user to write 
    is available. Infer and validate technical choices yourself. Unknown OOD versus sim2real intent
    must be resolved before rendering; it does not block grounding or local implementation.
 
+## Fork scope
+
+Kept from upstream: the task-expert harness (`xh` broker, OS sandbox, AST audit, round resume,
+budgets), the frozen judge and hidden holdout, the run ledger, admission checks, the agent
+runtime and the IR validators in `core/`.
+
+Replaced by this fork: grounding (the input is the request YAML, not a real episode), the
+simulator adapter (Isaac Sim), the renderer (Isaac RTX / Replicator from recorded states, no
+video model) and the dataset export (HDF5).
+
+Still upstream-only and not to be followed as-is: `render/h3/`, `render/seedance/`,
+`vendor/videox_fun/`, `vendor/trainer/`, `training/`, and the real-episode skills
+`sim-grounding` and `build-observed-object`.
+
 ## Invariants
 
 - General rules/skills/roles are first-layer source. A task's adapter, brief, judge spec, scene,
   camera fit, prompts, run configs and reports are second-layer OUTPUTS. Outputs of other tasks are
   not prerequisites, global rules or authorization for a new task.
 - Use full episodes as the unit; splitting for video transport does not change action semantics.
-- Both render modes require real-world image conditioning and photographic output. Extract real
-  references from the input episode yourself. Source frames/continuity pictures do not replace them.
+- Rendering reproduces the simulated episode: cameras, materials and lights come from the render
+  spec, and the recorded state trace is the only source of motion and contact. There is no
+  real-world image conditioning in this fork; do not claim photographic realism or real-ready data.
 - The producer must not self-certify success. Separate task-contract review, expert development,
-  simulator/judge evaluation, and video review. Independent means a separate review execution with
-  evidence; a different string in a JSON field is not proof of isolation.
+  simulator/judge evaluation, and render admission review. Independent means a separate review
+  execution with evidence; a different string in a JSON field is not proof of isolation.
 - Keep all attempts, failures, provider IDs, seeds, budgets, code/prompt/input hashes and replacements.
   Resume existing IDs before submitting again. Confirm background persistence twice with progress.
 - Do not change raw actions/images/metrics to pass a gate. Replanning requires matched recapture.

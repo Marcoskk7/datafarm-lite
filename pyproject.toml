@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyrua-datafarm"
+name = "datafarm-lite"
 dynamic = ["version"]
-description = "PyRUA-DataFarm: LLM Agent as a Cost-Efficient Teleoperator for Real-Ready Robot Data"
+description = "datafarm-lite: a simulation-native fork of PyRUA-DataFarm (not real-ready data)"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "The DataFarm authors"}]

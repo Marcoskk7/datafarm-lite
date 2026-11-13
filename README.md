@@ -14,6 +14,12 @@ Yuxuan Chen<sup>1</sup>, Hao Chen<sup>1</sup>, Yichen Liu<sup>1</sup>, Yintianru
 
 </div>
 
+> **datafarm-lite** — fork of [PyRUA-DataFarm](https://github.com/DAGroup-PKU/PyRUA-Lean) at
+> commit `d788388` (MIT). This fork takes a YAML request instead of a real calibration episode,
+> builds the scene in Isaac Sim and renders with Isaac RTX. It produces HDF5 episodes and is
+> **not real-ready data**. The upstream documentation below is kept for reference; where it
+> describes real-episode grounding, video-model rendering or pi0.5 export, it no longer applies.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/paper/teaser-dark.png">
