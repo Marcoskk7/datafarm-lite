@@ -29,6 +29,8 @@ Actor: inspect relevant failing actions if essential evidence is missing, then
 propose an executable program. Respect all motion, operation and call budgets.
 Distiller: extract a reusable failure-to-repair rule, with applicability and
 limits; do not memorize task coordinates or reproduce the whole winning program.
+The skill.requires array contains ONLY exact keys from task.api, never prose
+prerequisites. Put prerequisites in when_to_apply and limitations instead.
 Verifier: apply the proposed skill as written using only this fresh context.
 If you must repair the skill, proposal_applied_as_written must be false.
 Return only the requested structured JSON. Do not use filesystem, shell, MCP,
@@ -38,12 +40,13 @@ The host executes candidates; you cannot self-certify success or change gates.
 '''
 
 
-def response_schema(role):
+def response_schema(role, api=None):
     text = {'type': 'string'}
     if role == 'distiller':
         skill = dict(type='object', additionalProperties=False,
                      properties={**{k: text for k in ('name', 'failure_signature', 'when_to_apply', 'repair', 'limitations')},
-                                 'requires': {'type': 'array', 'items': text}},
+                                 'requires': {'type': 'array', 'minItems': 1,
+                                              'items': {'type':'string','enum':list(api or {})}}},
                      required=['name','failure_signature','when_to_apply','repair','limitations','requires'])
         return dict(type='object', additionalProperties=False, properties={'skill': {'anyOf': [skill, {'type':'null'}]}}, required=['skill'])
     props = dict(action={'type':'string','enum':['propose','inspect']},
@@ -129,7 +132,7 @@ class CodexProvider:
         request = public_request(request)
         if len(json.dumps(request, ensure_ascii=False)) > 256000:
             raise ValueError('Provider context exceeds 256000 characters; inspect smaller state evidence')
-        schema = response_schema(request['role'])
+        schema = response_schema(request['role'], request.get('task',{}).get('api'))
         identity = digest({'request':request, 'schema':schema, 'system':SYSTEM,
                            'config':self.config, 'provider_source':digest(Path(__file__).read_text(encoding='utf-8'))})
         folder = self.root / identity

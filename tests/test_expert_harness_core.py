@@ -156,7 +156,7 @@ class BriefTests(unittest.TestCase):
         text = render_brief(adapter)
         report = lint_brief(text, adapter, holdout_seeds=[123456, 234567])
         self.assertTrue(report.ok, report.errors)
-        for needle in ("<minutes>", "xh flag-for-human", "$60", "80 counted development rollouts"):
+        for needle in ("<minutes>", "xh flag-for-human", "$60", "80 次计入的开发 rollout"):
             self.assertIn(needle, text)
 
     def test_each_missing_section_is_an_error(self) -> None:

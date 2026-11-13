@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from datafarm.cap.codex_provider import build_provider, public_request
+from datafarm.cap.codex_provider import build_provider, public_request, response_schema
 from datafarm.cap.io import read_json, write_json
 from datafarm.cap.search import SearchConfig, SearchRunner
 from datafarm.cap.library import SkillLibrary
@@ -113,6 +113,8 @@ class CodexProviderTests(unittest.TestCase):
         with self.assertRaises(ValueError): feedback([{'before':[0,0],'after':[1,0]}])
         with self.assertRaises(ValueError): feedback([])
         self.assertEqual(feedback([],True)['availability'],'unavailable')
+        schema=response_schema('distiller',TASK['api'])
+        self.assertEqual(schema['properties']['skill']['anyOf'][0]['properties']['requires']['items']['enum'],['move'])
 
     def test_missing_state_is_not_silently_vision_or_legacy(self):
         runner=SearchRunner(Actor(),Engine(),SkillLibrary(self.root/'skills'),
@@ -135,7 +137,7 @@ class CodexProviderTests(unittest.TestCase):
         self.assertEqual(SkillLibrary(self.root/'skills').entries(),[])
 
     def test_timeout_preserves_identity(self):
-        (self.root/'sleep.py').write_text('import time; time.sleep(30)')
+        (self.root/'sleep.py').write_text('import time; time.sleep(1)')
         def sleep_cli(argv,**kwargs):
             if argv[0]=='taskkill': return self.popen(argv,**kwargs)
             return self.popen([sys.executable,str(self.root/'sleep.py')],**kwargs)
@@ -145,6 +147,31 @@ class CodexProviderTests(unittest.TestCase):
                 provider.decide(self.request())
         with self.assertRaisesRegex(RuntimeError,'pending/failed'):
             provider.decide(self.request())
+
+    def test_fyp_uses_loopback_key_and_exec_flags(self):
+        class Transport:
+            base='http://127.0.0.1:12345/v1'
+            client_key='temporary-loopback-only'
+            calls=1
+            upstream_model='gpt-6.1-sol'
+            request_shape={'tools':[]}
+            def __init__(self,*args):pass
+            def close(self):pass
+        def launch(argv,**kwargs):
+            self.assertNotIn('personal-token',str(argv))
+            self.assertNotIn('personal-token',str(kwargs['env']))
+            self.assertEqual(kwargs['env']['OPENAI_API_KEY'],'temporary-loopback-only')
+            self.assertGreater(argv.index('--ignore-user-config'),argv.index('exec'))
+            self.assertEqual(argv.count('--model'),1)
+            return self.launch(argv,**kwargs)
+        provider=build_provider({'work_root':str(self.root/'fyp'),
+                                 'fyp_env_file':'unused.env','model':'gpt-6.1-sol'})
+        with patch('datafarm.cap.fyp_transport.LocalTransport',Transport), \
+             patch('datafarm.cap.fyp_transport.load_fyp',return_value=('https://authorized.invalid','personal-token')), \
+             patch('datafarm.cap.codex_provider.subprocess.Popen',launch):
+            provider.decide(self.request())
+        receipt=read_json(next((self.root/'fyp').glob('*/receipt.json')))
+        self.assertEqual(receipt['transport']['upstream_requests'],1)
 
 
 if __name__=='__main__': unittest.main()
