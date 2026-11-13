@@ -26,6 +26,8 @@ python tools/cap_search.py \
 
 普通模式使用部署已有的 Codex 登录与模型配置；模型也可在 provider config 中显式指定。FYP 模式在 config 中增加 `fyp_env_file`（指向用户授权且留在本机的原始 env 文件）和 `model: gpt-6.1-sol`。个人 token 只在父进程内存中，CLI 得到临时回环凭据；不复制到服务器、不写入 argv 或运行产物。
 
+FYP 模式可从 `configs/cap/codex-fyp.template.json` 复制配置，填写原始 env 路径后作为 `--provider-config` 传入；模板不包含密钥。当前 ChatGPT 登录方式不支持本机默认配置中的 `gpt-6.1-sol`，本轮实际验证采用的是该 FYP Responses 路线。
+
 FYP 桥复用 `aspire-agent/tools/aspire_codex_provider.py` 的 LocalTransport：仅转发无状态内联 Responses，移除缓存/保留扩展，一次 decision 最多一次上游请求，关闭 CLI 自动重试、shell、web、plugins 和 agent 委派。token 不进入 CLI 子进程。标准非 FYP 模式使用 read-only sandbox；同用户目录间的读取隔离不由 cwd 或 prompt 保证，严格部署仍须由 broker/OS 分隔保护数据。
 
 CLI 命令通过本机 0.141.0 help 以及[官方 iterative repair 示例](https://developers.openai.com/cookbook/examples/codex/build_iterative_repair_loops_with_codex)核对，使用 stdin、JSONL、output-schema 和 output-last-message。
