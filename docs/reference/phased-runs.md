@@ -1,6 +1,6 @@
 # Phased runs
 
-`tools/pipeline_phases.py` (`src/datafarm/agent/phases.py`) creates a task one phase at a time. Each phase is one fresh agent session on a brief from [`prompts/phases/`](../../prompts/phases/), with a USD cap that the host enforces. Producers and independent reviewers never share a session, and capture attempts run with no model. A short handoff file carries the work from phase to phase, so no session has to hold the whole task.
+`tools/pipeline_phases.py` (`src/datafarm/orchestration/phases.py`) creates a task one phase at a time. Each phase is one fresh agent session on a brief from [`prompts/phases/`](../../prompts/phases/), with a USD cap that the host enforces. Producers and independent reviewers never share a session, and capture attempts run with no model. A short handoff file carries the work from phase to phase, so no session has to hold the whole task.
 
 Unlike [`supervise`](agent-runtime.md), this flow does not decide what runs next. The host chooses each phase from the previous result. The host can be you or a coding agent following this note. The flow ends at the white delivery; rendering and training are separate stages.
 

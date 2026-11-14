@@ -102,7 +102,7 @@ python tools/check_sim_binding.py /data/task/simqual/certificate.json \
 - **`verify_certificate` is not an independent review.** It compares selection and pass
   flags on the results it is given. It does not re-extract metrics from raw run files or re-hash the
   variant files.
-- **Admission does not require a certificate.** Neither `task/contract.py::verify_delivery` nor
+- **Admission does not require a certificate.** Neither `render/delivery.py::verify_delivery` nor
   `white_delivery.py::verify_white_delivery` checks a qualification certificate or a run binding;
   producing all episodes on the certified simulator holds only if the producer
   runs `check_sim_binding.py` and a reviewer checks it.

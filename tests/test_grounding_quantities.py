@@ -5,10 +5,11 @@ import json
 import pytest
 
 from helpers import NOW, payload_for
-from datafarm.core.grounding import GroundingError, validate_grounding, validate_quantities
-from datafarm.core.model import ArtifactDocument, IRKind
-from datafarm.core.schema import SchemaError, validate_artifact
-from datafarm.task.contract import verify_delivery
+from datafarm.grounding.quantities import (GroundingError, validate_grounding, validate_grounding_artifact,
+                                           validate_quantities)
+from datafarm.kernel.artifacts import ArtifactDocument, IRKind
+from datafarm.kernel.schema import SchemaError
+from datafarm.render.delivery import verify_delivery
 from test_white_delivery import fixture
 
 EVIDENCE = {'path': 'calibration/scale.json', 'sha256': '0' * 64}
@@ -75,13 +76,13 @@ def grounding_ir(identification):
 def test_grounding_ir_payload_requires_a_typed_ledger():
     ir_evidence = {'kind': 'camera-fit', 'sha256': '0' * 64, 'media_type': 'application/json'}
     ledger = [{**entry, 'evidence': [ir_evidence]} if entry.get('evidence') else entry for entry in LEDGER]
-    validate_artifact(grounding_ir({'physical_quantities': ledger}))
+    validate_grounding_artifact(grounding_ir({'physical_quantities': ledger}))
     with pytest.raises(SchemaError, match='must contain exactly'):
-        validate_artifact(grounding_ir({'physical_quantities': [{**LEDGER[1], 'evidence': [{'sha256': '0' * 64}]}]}))
+        validate_grounding_artifact(grounding_ir({'physical_quantities': [{**LEDGER[1], 'evidence': [{'sha256': '0' * 64}]}]}))
     with pytest.raises(SchemaError, match='physical_quantities'):
-        validate_artifact(grounding_ir({}))
+        validate_grounding_artifact(grounding_ir({}))
     with pytest.raises(SchemaError, match='randomization'):
-        validate_artifact(grounding_ir({'physical_quantities': [
+        validate_grounding_artifact(grounding_ir({'physical_quantities': [
             {'name': 'mass', 'label': 'assumed', 'unit': 'kg', 'value': 0.2}]}))
 
 
@@ -99,3 +100,14 @@ def test_delivery_verifies_the_bound_grounding_record(tmp_path, mutation):
     put('delivery.json', d)
     with pytest.raises(ValueError):
         verify_delivery(tmp_path)
+
+
+def test_cli_validate_checks_the_grounding_ledger(tmp_path, capsys):
+    from datafarm.entry.cli import main
+    path = tmp_path / 'grounding.json'
+    path.write_text(json.dumps(grounding_ir({'physical_quantities': [
+        {'name': 'mass', 'label': 'assumed', 'unit': 'kg', 'value': 0.2}]}).to_dict()))
+    with pytest.raises(SchemaError, match='randomization'):
+        main(['validate', str(path)])
+    path.write_text(json.dumps(grounding_ir({'physical_quantities': []}).to_dict()))
+    assert main(['validate', str(path)]) == 0

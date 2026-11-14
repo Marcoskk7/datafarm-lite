@@ -17,7 +17,7 @@
   },
   "steps": [
     {
-      "tool": "src/datafarm/render/h3/h3_sam2_table_masks.py",
+      "tool": "src/datafarm/adapters/render/h3/h3_sam2_table_masks.py",
       "per_panel": [
         "head",
         "left_wrist",
@@ -30,7 +30,7 @@
       "binding": "H3_SAM2"
     },
     {
-      "tool": "src/datafarm/render/h3/h3_ood_restyle.py",
+      "tool": "src/datafarm/adapters/render/h3/h3_ood_restyle.py",
       "args": {
         "masks": "<run>/ood-masks/<task>",
         "material_bgr": "<B,G,R of the authorized material, e.g. 104,98,92 for slate-grey laminate>",

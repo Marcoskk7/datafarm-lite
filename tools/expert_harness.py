@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT / "src"), os.environ.get("PYTHONPATH")]))
 sys.path.insert(0, str(ROOT / "src"))
 
-from datafarm.expert.cli import main  # noqa: E402
+from datafarm.entry.expert_cli import main  # noqa: E402
 
 if __name__ == "__main__":
     raise SystemExit(main())

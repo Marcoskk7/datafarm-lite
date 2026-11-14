@@ -1,4 +1,4 @@
-"""CPU-only checks of the vendored H3 control-hybrid backend (src/datafarm/render/h3).
+"""CPU-only checks of the vendored H3 control-hybrid backend (src/datafarm/adapters/render/h3).
 
 No GPU, model, provider or network: modules compile/import, CLIs answer --help without torch or bindings,
 deployment paths fail closed, the default recipes are valid for the vendored builder, the builder's CPU part
@@ -20,7 +20,7 @@ from render_policy_fixtures import policy_fixture
 
 MACHINE_PATH = re.compile(r'/home/|/mnt/|ssh -o ')
 ROOT = Path(__file__).resolve().parents[1]
-HYBRID = ROOT / 'src/datafarm/render/h3'
+HYBRID = ROOT / 'src/datafarm/adapters/render/h3'
 EVAL = ROOT / 'evaluations/render-h3'
 CONFIGS = ROOT / 'configs/render'
 PY_FILES = sorted(p.relative_to(HYBRID).as_posix() for p in HYBRID.rglob('*.py'))
@@ -167,7 +167,7 @@ def test_bindings_resolve_from_env_prefix_and_explicit_file(no_bindings, tmp_pat
 
 
 def test_runtime_defaults_cover_every_config_and_asset_binding(tmp_path):
-    from datafarm.runtime import defaults, expand
+    from datafarm.config import defaults, expand
     known = defaults(tmp_path)
     for key in PATHS.BINDING_KEYS:
         assert key in known, key

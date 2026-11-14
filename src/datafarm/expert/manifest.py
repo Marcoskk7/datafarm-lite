@@ -16,7 +16,8 @@ from typing import Any, Iterable, Mapping
 
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.state import EventLog, RoundState
-from datafarm.expert.util import HarnessError, atomic_write_json, read_json, sha256_file, sha256_json, tree_digest, utc_now
+from datafarm.expert.util import HarnessError, atomic_write_json, tree_digest
+from datafarm.kernel.io import read_json, sha256_file, sha256_json, utc_now
 
 MANIFEST_SCHEMA = "datafarm.expert-harness.manifest/1"
 

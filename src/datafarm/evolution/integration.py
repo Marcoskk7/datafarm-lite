@@ -1,7 +1,7 @@
 """把 task session 绑定到 source/experience 版本，并记录可见的反馈。"""
 from __future__ import annotations
 
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 import json
 from pathlib import Path
 
@@ -62,8 +62,3 @@ def feedback(work, event):
     if not value:
         raise ValueError('this work has no capability binding; bind it explicitly before importing feedback')
     return record(Store(value['store']), {'scope': value['scope'], 'version': value['version'], **event})
-
-
-def experience_text(value):
-    return ('\nREPOSITORY EXPERIENCE (scoped; lessons are advisory, not new authority):\n'
-            + json.dumps(value, ensure_ascii=False)) if value else ''

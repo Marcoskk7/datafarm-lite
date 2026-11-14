@@ -33,7 +33,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from datafarm.verify.reviewer_calibration import (  # noqa: E402
+from datafarm.render.verify.reviewer_calibration import (  # noqa: E402
     REPORT_SCHEMA,
     CalibrationMapping,
     apply_id_map,

@@ -10,13 +10,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from datafarm.agent.call_log import read_calls
+from datafarm.adapters.agent_harness.call_log import read_calls
 
 from datafarm.expert.adapter import TaskAdapter
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.rollout import FakeRolloutBackend
 from datafarm.expert.round import EXIT_PAUSED, RoundRunner, load_round_adapter, prepare_round, round_status
-from datafarm.expert.session import make_agent_backend
+from datafarm.adapters.agent_harness.backends import make_agent_backend
 from datafarm.expert.state import RoundState
 from xh_helpers import FakeClock
 from datafarm.expert.util import HarnessError, read_jsonl

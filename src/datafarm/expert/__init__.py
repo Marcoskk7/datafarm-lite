@@ -6,6 +6,6 @@
 针对 judge 与 holdout seed 的篡改清单、仅由工具链执行的 holdout 评估（附分数-成本曲线）、
 自动交接包、经过验证的 expert 库，以及多任务评估套件。
 
-入口：``tools/expert_harness.py``（``python -m datafarm.expert.cli``）。
+入口：``tools/expert_harness.py``（``python -m datafarm.entry.expert_cli``）。
 设计与运维指南：``docs/reference/expert-harness.md``。
 """

@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from datafarm.core.model import ArtifactDocument, IRKind
-from datafarm.core.store import ArtifactIntegrityError, ArtifactStore
+from datafarm.kernel.artifacts import ArtifactDocument, IRKind
+from datafarm.kernel.store import ArtifactIntegrityError, ArtifactStore
 
 from tests.helpers import NOW, payload_for
 

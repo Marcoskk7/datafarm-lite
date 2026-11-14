@@ -18,7 +18,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
-from datafarm.task.lerobot_episode import EpisodeImportError, import_episode  # noqa: E402
+from datafarm.adapters.inputs.lerobot_episode import EpisodeImportError, import_episode  # noqa: E402
 
 
 def main(argv=None):

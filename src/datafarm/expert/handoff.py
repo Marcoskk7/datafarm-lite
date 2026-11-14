@@ -23,8 +23,8 @@ from datafarm.expert.brief import lint_brief, render_brief
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.state import ACTIVE, RoundState
 from datafarm.expert.util import (Clock, HarnessError, UnsafePathError, atomic_write_bytes, atomic_write_json,
-                   atomic_write_text, read_json, read_jsonl, read_regular_nofollow, sha256_bytes,
-                   sha256_file, utc_now)
+                   atomic_write_text, read_jsonl, read_regular_nofollow)
+from datafarm.kernel.io import read_json, sha256_bytes, sha256_file, utc_now
 
 BUNDLE_SCHEMA = "datafarm.expert-harness.handoff/1"
 DEFAULT_COPY = ("REPORT.md", "NOTES.md")
@@ -32,7 +32,7 @@ DEFAULT_COPY = ("REPORT.md", "NOTES.md")
 
 def _calls_summary(paths: RoundPaths) -> dict[str, Any]:
     try:
-        from datafarm.agent.call_log import read_calls, summarize
+        from datafarm.adapters.agent_harness.call_log import read_calls, summarize
     except ImportError:  # pragma: no cover - the shared ledger module ships with the repo
         return {}
     return summarize(read_calls(paths.agent_calls))

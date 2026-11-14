@@ -10,7 +10,16 @@ from pathlib import Path
 from typing import Any, Callable
 from unittest import mock
 
-from datafarm.batch.supervisor import (
+from datafarm.batch_protocol import (
+    BatchPolicy,
+    BatchTask,
+    LaunchDeferred,
+    LaunchNotStarted,
+    Poll,
+    ProviderDown,
+    Verdict,
+)
+from datafarm.orchestration.batch import (
     ADMITTED,
     COMPLETE,
     COMPLETE_WITH_GAPS,
@@ -31,17 +40,10 @@ from datafarm.batch.supervisor import (
     STOPPED_ZERO_PROGRESS,
     UNKNOWN,
     BatchError,
-    BatchPolicy,
     BatchSupervisor,
-    BatchTask,
     DenominatorMismatch,
-    LaunchDeferred,
-    LaunchNotStarted,
     LedgerHook,
-    Poll,
-    ProviderDown,
     SupervisorBusy,
-    Verdict,
     default_seed,
     launch_key,
     read_events,
@@ -874,7 +876,7 @@ class LedgerTests(BatchTestCase):
 
 class CrashBurstTests(unittest.TestCase):
     def test_burst_rule_counts_distinct_items_and_escalates(self) -> None:
-        from datafarm.batch.supervisor import advance_burst, new_burst_state
+        from datafarm.orchestration.batch import advance_burst, new_burst_state
 
         policy = BatchPolicy(crash_burst_items=3, crash_burst_window_s=600, burst_backoff_s=60,
                              burst_backoff_cap_s=100)

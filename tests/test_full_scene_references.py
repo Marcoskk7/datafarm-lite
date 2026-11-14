@@ -8,9 +8,9 @@ from pathlib import Path
 
 from PIL import Image
 
-from datafarm.render.seedance.client import create_once, payload
-from datafarm.render.seedance.common import sha
-from datafarm.render.seedance.references import contract, images
+from datafarm.adapters.render.seedance.client import create_once, payload
+from datafarm.adapters.render.seedance.common import sha
+from datafarm.adapters.render.seedance.references import contract, images
 from datafarm.render.policy import check_seedance_payload, compile_prompt
 
 ROOT = Path(__file__).resolve().parents[1]

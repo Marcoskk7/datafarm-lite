@@ -54,7 +54,7 @@ python tools/build_usd_asset.py run --work /data/task/objects/cabinet/build-001 
 3. In the task-bound form, the build lock is held across job registration, budget reservation, execution and status writes. An enforced task budget is refused before launch.
 4. An export is bound only if the tool reported `<mode>_ready` from `codex-cli`, the model file lies inside the canonical record (a relative `model_path` resolves against the checkout), the URDF has links, every mesh is a relative path inside the materialization, and the export closure has no external symlinks. The result status is `exported-unqualified`, never task complete. `build_usd_asset.py run` exits 0 only with that status.
 
-Code: `src/datafarm/simulation/usdcraft.py`, `tools/build_usd_asset.py`.
+Code: `src/datafarm/adapters/sim/usdcraft.py`, `tools/build_usd_asset.py`.
 
 ## Data model
 

@@ -17,7 +17,8 @@ import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from datafarm.expert.util import ConfigError, deep_merge, expand, expand_all, human_duration, sha256_file, sha256_json
+from datafarm.expert.util import ConfigError, deep_merge, expand, expand_all, human_duration
+from datafarm.kernel.io import sha256_file, sha256_json
 from datafarm.expert.task_ir import PROFILE as STAGE_GRAPH_PROFILE, validate_stage_graph
 
 ADAPTER_SCHEMA = "datafarm.expert-harness.adapter/1"
@@ -202,7 +203,7 @@ class TaskAdapter:
             raise ConfigError(f"cannot read adapter {target}: {exc}") from exc
         if overrides:
             raw = deep_merge(raw, overrides)
-        from datafarm.runtime import expand as expand_runtime, load_bindings
+        from datafarm.config import expand as expand_runtime, load_bindings
         raw = expand_runtime(raw, load_bindings())
         return cls(raw, target)
 

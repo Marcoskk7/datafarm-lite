@@ -4,9 +4,9 @@ import json
 import pytest
 from render_policy_fixtures import policy_fixture
 
-from datafarm.render.seedance import batch
-from datafarm.render.seedance import client
-from datafarm.render.seedance.common import sha, write
+from datafarm.adapters.render.seedance import batch
+from datafarm.adapters.render.seedance import client
+from datafarm.adapters.render.seedance.common import sha, write
 
 CONFIG = {'clock': {'transport_fps': 24, 'canonical_fps': 30, 'max_transport_frames': 697}}
 

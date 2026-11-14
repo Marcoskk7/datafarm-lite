@@ -10,24 +10,24 @@ not into this repository.
 
 ```text
 episode + request
-  │  tools/pipeline_agent.py prepare     pin source, input and cost policy (datafarm.agent)
-  │  tools/pipeline_agent.py supervise   run agent sessions until delivery or a stop (datafarm.agent)
+  │  tools/pipeline_agent.py prepare     pin source, input and cost policy (datafarm.orchestration)
+  │  tools/pipeline_agent.py supervise   run agent sessions until delivery or a stop (datafarm.orchestration)
   ▼
-grounding              scene, cameras, references, labelled physical quantities (datafarm.core.grounding)
+grounding              scene, cameras, references, labelled physical quantities (datafarm.grounding)
   ▼
 simulator qualification  a variant certified for the task's skills (datafarm.simulation)
   ▼
 task contract, expert  frozen judge, sandboxed author, held-out seeds (datafarm.task.contract, datafarm.expert)
   ▼
 rendering              render contract and provider payload checks (datafarm.render.policy),
-  │                    H3 control hybrid or Seedance (datafarm.render)
+  │                    H3 control hybrid or Seedance (datafarm.adapters.render)
   ▼
-verification, review   render verifier and independent review (datafarm.verify, datafarm.task.contract)
-  │                    bounded per-item batches around all of the above (datafarm.batch)
+verification, review   render verifier and independent review (datafarm.render.verify, datafarm.task.contract)
+  │                    bounded per-item batches around all of the above (datafarm.orchestration.batch)
   ▼
-delivery, admission    tools/pipeline_agent.py verify; admission certificate (datafarm.core.admission)
+delivery, admission    tools/pipeline_agent.py verify; admission certificate (datafarm.training.admission)
   ▼
-training (on request)  certificate-gated pi0.5 launch (datafarm.training)
+training (on request)  certificate-gated pi0.5 launch (datafarm.adapters.trainer.openpi, datafarm.training)
 
 the run ledger (datafarm.ledger) records requests, items, workers and verdicts throughout
 ```
@@ -55,7 +55,7 @@ same user.
 
 ## Artifacts and admission
 
-`datafarm.core` defines typed documents (`ArtifactDocument`, `GateReceipt`) stored by content address
+`datafarm.kernel` defines typed documents (`ArtifactDocument`, `GateReceipt`) stored by content address
 in an `ArtifactStore`. Documents cannot contain absolute host paths, credential fields or mutable signed
 URLs. `datafarm validate <file>` checks one document or receipt.
 
@@ -70,25 +70,46 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 
 | Package | Job |
 |---|---|
-| `core` | Artifact documents, receipts, schema checks, content-addressed store, file binding, source locks, grounding ledger, admission certificates |
-| `agent` | Compile role context, run and resume agent sessions, meter usage, keep the cost ledger and call log |
-| `task` | Task contract and delivery check, white delivery |
+| `kernel` | Shared kernel: standard-library I/O helpers, artifact documents and receipts, schema checks, content-addressed store, file binding and source locks |
+| `grounding` | Grounding ledger: labelled physical quantities and their validated record |
+| `task` | Task contract checks, review-independence proof (`task/review_identity.py`), white delivery |
 | `expert` | Expert harness: sandboxed author sessions, rollout broker, frozen judge, held-out evaluation, expert library |
-| `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans, USDCraft adapter |
-| `render` | Render contract (`render/policy.py`) and renderers: the H3 control hybrid (`render/h3`) and the Seedance client (`render/seedance`) |
-| `verify` | Spec-driven render verifier, counterfactual calibration, reviewer calibration |
-| `batch` | Batch supervisor: bounded per-item launch, poll, verify and retry |
+| `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans |
+| `render` | Render contract (`render/policy.py`), rendered-delivery check (`render/delivery.py`), spec-driven render verifier with counterfactual and reviewer calibration (`render/verify`); the renderers live in `adapters/render` |
 | `ledger` | Run ledger: fixed item denominator, derived run status, launch sentinel |
-| `training` | Certificate-gated pi0.5 launch, dataset and action-mode contracts, cohort auditors |
+| `training` | Admission certificates (`training/admission.py`), launch, dataset and action-mode contracts, cohort auditors, PI0.5 dataset builder (`training/pi05_build.py`) |
 | `evolution` | Feedback store and controller that evaluates and activates capability-layer changes |
-| `runtime.py`, `doctor.py`, `cli.py`, `common.py` | Runtime bindings, prerequisite checks, the `datafarm` command, shared helpers |
+| `orchestration` | Prepare and drive task workspaces (`orchestration/driver.py`), run and resume agent sessions, phases, progress, the task cost ledger, and the batch supervisor (`orchestration/batch.py`: bounded per-item launch, poll, verify and retry) |
+| `entry` | Composition roots: the `datafarm` command (`entry/cli.py`), prerequisite checks (`entry/doctor.py`), expert-harness command and dry run (`entry/expert_cli.py`, `entry/expert_dryrun.py`), run-ledger command (`entry/runs_cli.py`) |
+| `cap` | CaP skill search and library (B-line) |
+| `adapters` | Outer technology: agent CLIs split by vendor (`agent_harness`: vendor-neutral `session`, `claude_code`, `codex/` with the exec backend, native runner and metered gateway, `fake`), credentials and call log; OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
+| `instructions.py`, `config.py` | Role context compiler; environment/runtime path bindings |
+| `batch_protocol.py` | Contract shared by the batch supervisor and its task implementations: policy, poll and verdict results, `BatchTask`, launch exceptions |
+
+## Dependency rules
+
+Imports point downward only. `make lint` enforces this with [import-linter](https://import-linter.readthedocs.io/);
+the contracts are `[tool.importlinter]` in [`pyproject.toml`](../pyproject.toml).
+
+1. Layers, top to bottom: `entry` > `orchestration` > `adapters` > (`training`, `expert`, `evolution`, `simulation`,
+   `ledger`, `cap`) > `render` > `task` > `grounding` > (`instructions`, `config`, `batch_protocol`) > `kernel`.
+   A module may import its own layer or any layer below it.
+2. `adapters` never import `orchestration` or `entry`.
+3. Business packages (`grounding`, `task`, `render`, `training`, `expert`, `evolution`, `simulation`, `ledger`, `cap`)
+   never import `orchestration` or `entry`.
+4. One-way business chain `training` -> `render` -> `task` -> `grounding`: `task` does not import `render`,
+   `training` or `expert`; `render` does not import `training`; `grounding` does not import `task`, `render` or
+   `training`. `kernel` imports nothing else in `datafarm`.
+
+Known debt, listed in `ignore_imports` with exact module pairs: the expert harness (`expert/round.py`,
+`expert/handoff.py`, `expert/rollout.py`) still imports the agent-session and sandbox adapters directly.
 
 ## Top-level directories
 
 | Directory | Job |
 |---|---|
 | `src/` | The `datafarm` package |
-| `tools/` | Command-line entry points: `pipeline_agent.py`, `pipeline_phases.py`, `expert_harness.py`, `supervise_batch.py`, `verify_render.py`, `launch_pi05_training.py`, ... |
+| `tools/` | Thin command-line entry points (bootstrap + `main`; logic lives in `src/datafarm`): `pipeline_agent.py`, `pipeline_phases.py`, `expert_harness.py`, `supervise_batch.py`, `verify_render.py`, `launch_pi05_training.py`, ... |
 | `.agents/skills/` | Stage skills the agents load |
 | `prompts/` | Role instructions, runtime instructions, expert session messages, render prompt templates |
 | `configs/` | General policy files, render recipes, one template per task-artifact kind |

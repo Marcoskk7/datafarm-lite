@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from datafarm.expert.adapter import TaskAdapter
-from datafarm.expert.util import HarnessError, get_dotted, sha256_text
+from datafarm.expert.util import HarnessError, get_dotted
+from datafarm.kernel.io import sha256_text
 
 TOOL = "xh"
 

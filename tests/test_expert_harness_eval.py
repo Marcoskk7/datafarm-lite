@@ -14,8 +14,9 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from datafarm.expert.adapter import TaskAdapter
-from datafarm.expert.cli import main as cli_main
+from datafarm.entry.expert_cli import main as cli_main
 from datafarm.expert.evalsuite import pass_at_k, pass_hat_k, run_suite
+from datafarm.entry.expert_dryrun import fake_suite_cells
 from datafarm.expert.handoff import build_handoff, load_bundle
 from datafarm.expert.holdout import draw_holdout_seeds, evaluate_holdout, select_targets
 from datafarm.expert.layout import RoundPaths
@@ -191,7 +192,7 @@ class SuiteTests(unittest.TestCase):
                                {"task_id": "later", "adapter": None,
                                 "unavailable": {"missing_interfaces": ["plugin loader"]}}]}
             (tmp / "suite.json").write_text(json.dumps(suite))
-            report = run_suite(tmp / "suite.json", tmp / "out", clock=FakeClock(), fake=True, isolation="none")
+            report = run_suite(tmp / "suite.json", tmp / "out", clock=FakeClock(), fake=fake_suite_cells(), isolation="none")
             row = report["rows"][0]
             self.assertEqual((row["rounds"], row["evaluated"], row["verified"]), (2, 2, 2))
             self.assertEqual((row["pass@1"], row["pass^2"]), (1.0, 1.0))
@@ -233,7 +234,7 @@ class CliAndDryRunTests(unittest.TestCase):
             self.assertIn("approve-gpu", refused["message"])
 
     def test_smoke_rollout_cli(self) -> None:
-        from datafarm.expert.dryrun import EXPERT_TEMPLATE, build_world, make_dry_run_adapter
+        from datafarm.entry.expert_dryrun import EXPERT_TEMPLATE, build_world, make_dry_run_adapter
 
         base = Path(tempfile.mkdtemp(prefix="xh-smoke-", dir="/var/tmp" if os.access("/var/tmp", os.W_OK) else None))
         try:
@@ -253,7 +254,7 @@ class CliAndDryRunTests(unittest.TestCase):
             shutil.rmtree(base, ignore_errors=True)
 
     def test_dry_run_end_to_end(self) -> None:
-        from datafarm.expert.dryrun import run_dry_run
+        from datafarm.entry.expert_dryrun import run_dry_run
 
         base = Path(tempfile.mkdtemp(prefix="xh-dry-", dir="/var/tmp" if os.access("/var/tmp", os.W_OK) else None))
         try:

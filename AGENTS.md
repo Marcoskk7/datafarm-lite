@@ -33,8 +33,8 @@ Replaced by this fork: grounding (the input is the request YAML, not a real epis
 simulator adapter (Isaac Sim), the renderer (Isaac RTX / Replicator from recorded states, no
 video model) and the dataset export (HDF5).
 
-Still upstream-only and not to be followed as-is: `render/h3/`, `render/seedance/`,
-`vendor/videox_fun/`, `vendor/trainer/`, `training/`, and the real-episode skills
+Still upstream-only and not to be followed as-is: `adapters/render/h3/`, `adapters/render/seedance/`,
+`vendor/videox_fun/`, `vendor/trainer/`, `training/`, `adapters/trainer/`, and the real-episode skills
 `sim-grounding` and `build-observed-object`.
 
 ## Invariants

@@ -213,7 +213,7 @@ Judge 在专家搜索前冻结，任何判据、阈值或场景物理配置改�
 
 ### 6.1 与现有 IR 兼容
 
-复用 `core/model.py` 的 `ArtifactDocument(kind=EPISODE)`，其 payload 保留现有必需键：`setup`、`actions`、`state_trace`、`contacts`、`events`、`frame_map`、`replay`。新增契约通过版本化的嵌套记录和引用承载；不改写现有 schema 的含义。以下字段结构是设计要求，完整校验器尚待实现。
+复用 `kernel/artifacts.py` 的 `ArtifactDocument(kind=EPISODE)`，其 payload 保留现有必需键：`setup`、`actions`、`state_trace`、`contacts`、`events`、`frame_map`、`replay`。新增契约通过版本化的嵌套记录和引用承载；不改写现有 schema 的含义。以下字段结构是设计要求，完整校验器尚待实现。
 
 | payload 项 | 数据 |
 |---|---|
@@ -340,7 +340,7 @@ J 是观测关节数，U 是实际控制通道数；分别存 joint_names、join
 
 | 当前代码 | 复用方式 | 尚待实现 |
 |---|---|---|
-| `core/model.py`、`core/schema.py` | ArtifactRef、Episode 外壳、现有 payload 必需项 | 新嵌套契约校验、引用装配和 schema 版本策略 |
+| `kernel/artifacts.py`、`kernel/schema.py` | ArtifactRef、Episode 外壳、现有 payload 必需项 | 新嵌套契约校验、引用装配和 schema 版本策略 |
 | `cap/search.py` | 搜索、开发/选择/技能复验分区、预算 | 本任务的公共说明、原语绑定和状态反馈 |
 | `cap/xh.py` | 现有 rollout/inspect/submit broker 客户端 | Isaac Lab adapter、公开 primitive trace、Windows 执行边界 |
 | 工作区 `IsaacLab-3.0/robot_profiles.py` | `make_simulation_cfg`、机器人配置和已验收增益 | 场景绑定、TCP 控制、接触能力、记录器 |

@@ -17,10 +17,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from datafarm.verify.episode import frame_events, gripper_events, load_state  # noqa: E402
-from datafarm.verify.report import write_report  # noqa: E402
-from datafarm.verify.spec import load_spec  # noqa: E402
-from datafarm.verify.verifier import verify_paths  # noqa: E402
+from datafarm.render.verify.episode import frame_events, gripper_events, load_state  # noqa: E402
+from datafarm.render.verify.report import write_report  # noqa: E402
+from datafarm.render.verify.spec import load_spec  # noqa: E402
+from datafarm.render.verify.verifier import verify_paths  # noqa: E402
 from dataclasses import replace  # noqa: E402
 
 

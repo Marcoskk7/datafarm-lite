@@ -5,8 +5,8 @@
 
 from __future__ import annotations
 
-from datafarm import common
-from datafarm.common import read_json, sha256_bytes, sha256_file, sha256_json, sha256_text, utc_now  # noqa: F401
+from datafarm.kernel.io import atomic_write_bytes as _atomic_write_bytes
+from datafarm.kernel.io import sha256_file, sha256_text
 import json
 import os
 import re
@@ -96,7 +96,7 @@ def tree_digest(root: str | Path, *, exclude_names: Iterable[str] = ("__pycache_
 
 
 def atomic_write_bytes(path: str | Path, data: bytes, mode: int = 0o644) -> None:
-    common.atomic_write_bytes(path, data, mode=mode)
+    _atomic_write_bytes(path, data, mode=mode)
 
 
 def atomic_write_text(path: str | Path, text: str, mode: int = 0o644) -> None:

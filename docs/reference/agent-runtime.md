@@ -62,7 +62,7 @@ Related: [capability layer](capability-layer.md) (context compiler and source pi
 15. **Published progress counts only verified deliveries.** `completed_episodes` is non-zero only
     when the last result is `valid` and `complete`; heartbeats do not change `last_substantive_at`.
 
-Code: `tools/pipeline_agent.py`, `src/datafarm/agent/runtime.py`, `src/datafarm/agent/native_codex.py`, `src/datafarm/agent/task_wait.py`, `src/datafarm/agent/progress.py`, `src/datafarm/task/contract.py`.
+Code: `tools/pipeline_agent.py`, `src/datafarm/orchestration/driver.py`, `src/datafarm/orchestration/runtime.py`, `src/datafarm/adapters/agent_harness/codex/native.py`, `src/datafarm/orchestration/task_wait.py`, `src/datafarm/orchestration/progress.py`, `src/datafarm/task/review_identity.py`, `src/datafarm/render/delivery.py`.
 
 ## Data model
 
@@ -97,7 +97,7 @@ in-flight group; refresh external jobs; wait on jobs in bounded slices; for `com
 call `drive` once and finish; else reserve a session and call `drive(max_sessions=1)`;
 transient failures back off `min(backoff_max_seconds, backoff_seconds * 2^(n-1))`.
 
-Native Codex (`native_codex.py::run`): argv `codex exec [resume <id>] --json
+Native Codex (`adapters/agent_harness/codex/native.py::run`): argv `codex exec [resume <id>] --json
 --skip-git-repo-check [--model M] -c sandbox_mode=... [-c model_reasoning_effort=...] [-c k=v] -`;
 the thread ID from `thread.started` is saved to the namespace state file at once, so a crash after
 the first event is resumable by explicit ID. `messages` input is joined into one prompt.
@@ -132,11 +132,11 @@ Configurations are JSON, with no shell interpolation and no embedded credentials
 
 | Key / flag | Default | Source |
 |---|---|---|
-| runtime `schema` | `datafarm.agent-runtime/1` (required) | `agent/runtime.py::load_config` |
+| runtime `schema` | `datafarm.agent-runtime/1` (required) | `orchestration/runtime.py::load_config` |
 | `max_sessions`, `timeout`, `poll_seconds`, `heartbeat_seconds` | 16, 1800 s, 5 s, 10 s | `load_config` |
 | `max_retries`, `backoff_seconds`, `backoff_max_seconds` | 3, 5 s, 120 s | `load_config` |
 | `driver` (required), `working_directory`, `log_directory`, `status_output{path, task_id}` | none | `load_config`, `drive`, `supervise` |
-| driver `type: codex` options | `executable` codex, `sandbox` workspace-write (or read-only, danger-full-access), `model`, `reasoning_effort`, `settings` (`features.*`/`model_*`/`service_tier*`, scalars) | `native_codex.py::command` |
+| driver `type: codex` options | `executable` codex, `sandbox` workspace-write (or read-only, danger-full-access), `model`, `reasoning_effort`, `settings` (`features.*`/`model_*`/`service_tier*`, scalars) | `codex/native.py::command` |
 | driver `input` | `messages` (or `text`) | `drive` |
 | driver `cost_control` | required when enforced: `protocol`, `includes_descendants: true`, `max_session_usd > 0` | `drive` |
 | `drive --max-sessions`, `--timeout` | 1, 1800 s | `pipeline_agent.py::main` |

@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import multiprocessing
 import sys
@@ -7,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from datafarm.agent.cost_budget import TaskBudget, micros, budget_for_work
-from datafarm.agent.task_wait import wait_for_task, model_wait_status
+from datafarm.orchestration.cost_budget import TaskBudget, micros, budget_for_work
+from datafarm.orchestration.task_wait import wait_for_task, model_wait_status
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -106,8 +105,7 @@ def test_concurrent_drivers_cannot_double_allocate(tmp_path):
 
 
 def driver_module(monkeypatch, work):
-    spec = importlib.util.spec_from_file_location('budget_pipeline_cli', ROOT / 'tools/pipeline_agent.py')
-    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    import datafarm.orchestration.driver as module
     monkeypatch.setattr(module, 'verify_input', lambda _: {})
     monkeypatch.setattr(module, 'source_for', lambda *_: ROOT)
     monkeypatch.setattr(module, 'context_for', lambda _: {})
@@ -218,7 +216,7 @@ def test_drive_missing_receipt_blocks_restart_even_if_claims_complete(tmp_path, 
 
 
 def test_wait_ignores_heartbeat_and_returns_on_job_completion(tmp_path, monkeypatch):
-    import datafarm.agent.task_wait as module
+    import datafarm.orchestration.task_wait as module
     p = tmp_path / 'state.json'
     state = {'status': 'working', 'phase': 'expert', 'external_jobs': [{'id': 'one', 'status': 'running'}]}
     p.write_text(json.dumps(state)); ticks = []

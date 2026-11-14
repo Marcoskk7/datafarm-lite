@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from datafarm.agent.context import build_context
+from datafarm.instructions import build_context
 
 
 

@@ -15,8 +15,9 @@ import time
 import unittest
 from pathlib import Path
 
-from datafarm.batch.supervisor import BatchPolicy, BatchSupervisor, LaunchDeferred, read_events
-from datafarm.batch.subprocess_task import (
+from datafarm.batch_protocol import BatchPolicy, LaunchDeferred
+from datafarm.orchestration.batch import BatchSupervisor, read_events
+from datafarm.adapters.process.subprocess_task import (
     SubprocessTask,
     TaskConfigError,
     load_task_config,

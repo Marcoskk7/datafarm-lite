@@ -35,7 +35,7 @@ is done by the agent following `.agents/skills/sim-grounding/SKILL.md`.
 11. Camera-pose and grasp randomization plans are deterministic per seed, content-addressed and
     episode-constant; per-frame camera jitter is rejected.
 
-Code: `src/datafarm/core/grounding.py`, `src/datafarm/core/schema.py`, `src/datafarm/task/contract.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/render/policy.py`, `src/datafarm/simulation/randomization.py`.
+Code: `src/datafarm/grounding/quantities.py`, `src/datafarm/kernel/schema.py`, `src/datafarm/task/contract.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/render/delivery.py`, `src/datafarm/render/policy.py`, `src/datafarm/simulation/randomization.py`.
 
 ## Data model
 
@@ -45,9 +45,12 @@ Code: `src/datafarm/core/grounding.py`, `src/datafarm/core/schema.py`, `src/data
   workspace-relative), `randomization` (`{low, high}` or `{choices: [...]}`), `not_randomized_reason`
   (str). `validate_quantities` returns the count per label; both verifiers report it as
   `physical_quantities` in their verification result.
-- **Grounding IR** (`IRKind.GROUNDING`, `src/datafarm/core/schema.py::REQUIRED_PAYLOAD_KEYS`):
+- **Grounding IR** (`IRKind.GROUNDING`, `src/datafarm/kernel/schema.py::REQUIRED_PAYLOAD_KEYS`):
   payload sections `source`, `transfer_scope`, `camera_clock`, `reference_roles`,
   `system_identification`, `rights`; ledger evidence entries are `{kind, sha256, media_type}`.
+  `kernel.schema.validate_artifact` checks only the generic envelope; the ledger inside
+  `system_identification` is checked by `grounding/quantities.py::validate_grounding_artifact`
+  (used by `datafarm validate`).
 - **Real reference** (`intent.real_references[]` in a render intent, `datafarm.render-intent/1`):
   `path`, `sha256`, `provenance {kind, source {path, sha256}, frame?, description}`,
   `scope` (`full-view` | `local-detail`), `views`, `view_regions {view: [x, y, w, h]}`,

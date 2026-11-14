@@ -37,7 +37,7 @@ from datafarm.training.cohort_auditors import (  # noqa: E402
     build_claim,
     detect_auditor,
 )
-from datafarm.core.admission import (  # noqa: E402
+from datafarm.training.admission import (  # noqa: E402
     ALLOWLIST_ROLE,
     FILES_ROLE,
     PROVENANCE_ROLE,
@@ -46,7 +46,7 @@ from datafarm.core.admission import (  # noqa: E402
     compute_file_manifest,
     issue_certificate,
 )
-from datafarm.core.store import ArtifactStore  # noqa: E402
+from datafarm.kernel.store import ArtifactStore  # noqa: E402
 
 
 def _json(raw: bytes) -> dict[str, Any]:

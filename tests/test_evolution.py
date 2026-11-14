@@ -169,7 +169,8 @@ def test_scope_protects_normative_files_and_escape_paths(tmp_path):
 
 
 @pytest.mark.parametrize('path', ['tools/issue_admission_certificate.py',
-                                  'src/datafarm/expert/holdout.py', 'evaluations/x/check.py',
+                                  'src/datafarm/expert/holdout.py', 'src/datafarm/adapters/sandbox/isolation.py',
+                                  'evaluations/x/check.py',
                                   'src/datafarm/evolution/experiments.py', 'src/json.py', 'src/numpy/__init__.py',
                                   'src/sitecustomize.py', 'src/datafarm_x/usercustomize.py', 'src/datafarm_x/hook.pth'])
 def test_scope_protects_evaluation_roots_even_when_parent_prefix_allowed(tmp_path, path):

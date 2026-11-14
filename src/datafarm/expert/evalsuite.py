@@ -22,13 +22,13 @@ import collections
 import math
 import statistics
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from datafarm.expert.adapter import TaskAdapter
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.state import RoundState
-from datafarm.expert.util import (Clock, ConfigError, HarnessError, atomic_write_json, atomic_write_text, read_json,
-                   sha256_json, utc_now)
+from datafarm.expert.util import (Clock, ConfigError, HarnessError, atomic_write_json, atomic_write_text)
+from datafarm.kernel.io import read_json, sha256_json, utc_now
 
 SUITE_SCHEMA = "datafarm.expert-harness.suite/1"
 PLAN_SCHEMA = "datafarm.expert-harness.suite-plan/1"
@@ -217,9 +217,12 @@ def report_markdown(report: Mapping[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def run_suite(suite_path: str | Path, out_dir: str | Path, *, clock: Clock, fake: bool = False,
+def run_suite(suite_path: str | Path, out_dir: str | Path, *, clock: Clock,
+              fake: Callable[[TaskAdapter, dict[str, Any], Path, str | None], tuple[TaskAdapter, str]] | None = None,
               approve_agent_spend: bool = False, approve_gpu: bool = False, only: Sequence[str] = (),
               isolation: str | None = None, fast: bool = False) -> dict[str, Any]:
+    """``fake``（由入口层提供，例如 ``entry.expert_dryrun.fake_suite_cells()``）把每个 cell 换成
+    fake agent + fake simulator：``fake(adapter, cell, out, isolation) -> (adapter, holdout_file)``。"""
     from datafarm.expert.holdout import evaluate_holdout
     from datafarm.expert.round import RoundRunner, harness_code_sha256, manifest_entries, prepare_round, rollout_masks
     from datafarm.expert.rollout import make_backend
@@ -230,7 +233,6 @@ def run_suite(suite_path: str | Path, out_dir: str | Path, *, clock: Clock, fake
     plan = read_json(out / "plan.json") if (out / "plan.json").exists() else plan_suite(suite, out, now=clock.now())
     if plan["suite_sha256"] != suite["_sha256"]:
         raise HarnessError("the suite file changed since it was planned; plan into a new directory")
-    world = None
     for cell in plan["cells"]:
         if cell["status"] != "planned" or (only and cell["cell_id"] not in only):
             continue
@@ -241,17 +243,7 @@ def run_suite(suite_path: str | Path, out_dir: str | Path, *, clock: Clock, fake
             adapter = TaskAdapter.load(cell["adapter"], overrides=overrides)
             holdout_file = cell.get("holdout_seeds")
             if fake:
-                import json as _json
-
-                from datafarm.expert.dryrun import build_world, default_plan, make_dry_run_adapter
-
-                world = world or build_world(out / "fake-world")
-                plan_path = world["root"] / "plan" / f"{cell['cell_id']}.json"
-                plan_path.parent.mkdir(exist_ok=True)
-                plan_path.write_text(_json.dumps(default_plan(world, Path(cell["round_dir"]), adversarial=False)))
-                adapter = make_dry_run_adapter(adapter, world, isolation=isolation or "none",
-                                               model=cell["model"], plan_path=plan_path, name=cell["cell_id"])
-                holdout_file = str(world["holdout"])
+                adapter, holdout_file = fake(adapter, cell, out, isolation)
             paths = RoundPaths(Path(cell["round_dir"]))
             prepare_round(adapter, paths.root, clock=runtime, holdout_seeds_path=holdout_file,
                           round_id=f"XS-{cell['cell_id']}"[:120], overrides=None if fake else overrides)

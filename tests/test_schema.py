@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from datafarm.core.model import ArtifactDocument, IRKind
-from datafarm.core.schema import SchemaError, validate_artifact
+from datafarm.kernel.artifacts import ArtifactDocument, IRKind
+from datafarm.kernel.schema import SchemaError, validate_artifact
 
 from tests.helpers import NOW, payload_for
 

@@ -47,7 +47,7 @@ Related: [capability evolution](capability-evolution.md) (how K changes and is a
     and reason) are reported but pass; stale known entries are reported.
 14. **The instruction audit fails when a universal instruction carries machine-local authority.**
 
-Code: `src/datafarm/agent/context.py`, `src/datafarm/evolution/integration.py`, `src/datafarm/evolution/versions.py`, `src/datafarm/evolution/events.py`, `tools/pipeline_agent.py`, `tools/lint_standing_rules.py`, `tools/audit_instruction_layers.py`.
+Code: `src/datafarm/instructions.py`, `src/datafarm/evolution/integration.py`, `src/datafarm/evolution/versions.py`, `src/datafarm/evolution/events.py`, `tools/pipeline_agent.py`, `src/datafarm/orchestration/driver.py`, `tools/lint_standing_rules.py`, `tools/audit_instruction_layers.py`.
 
 ## Data model
 
@@ -84,7 +84,7 @@ Context compilation (`build_context`):
 4. Append the universal standing rules (filtered fields) and hash the rules file.
 5. Prepend a fixed preamble (repository-owned instructions, role limits duties, task inputs are
    evidence, repository path).
-6. User message: the caller's text (for task sessions, `pipeline_agent.py::user_context`: request,
+6. User message: the caller's text (for task sessions, `datafarm.orchestration.driver.user_context`: request,
    input manifest, current state, cost status) plus the scoped experience block.
 7. Hash the messages; `write_context` writes `messages.json`, `context.md`, `receipt.json`.
 

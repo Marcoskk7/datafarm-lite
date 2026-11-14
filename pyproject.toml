@@ -25,11 +25,11 @@ requires-python = ">=3.11"
 dependencies = ["Pillow>=10,<13"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10", "pytest-subtests>=0.14,<1"]
+dev = ["pytest>=8,<10", "pytest-subtests>=0.14,<1", "import-linter>=2.1,<3"]
 workflow = ["requests>=2.31,<3", "numpy>=1.26,<3", "opencv-python-headless>=4.8,<5", "h5py>=3.10,<4", "pyarrow>=17,<22", "scipy>=1.11,<2", "av>=12,<17"]
 
 [project.scripts]
-datafarm = "datafarm.cli:main"
+datafarm = "datafarm.entry.cli:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "datafarm.__version__"}
@@ -39,3 +39,84 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Package dependency rules (docs/architecture.md "Dependency rules"); run with `lint-imports` (part of `make lint`).
+[tool.importlinter]
+root_package = "datafarm"
+
+[[tool.importlinter.contracts]]
+id = "layers"
+name = "Layers: entry > orchestration > adapters > business > shared support > kernel"
+type = "layers"
+containers = ["datafarm"]
+layers = [
+    "entry",
+    "orchestration",
+    "adapters",
+    "training : expert : evolution : simulation : ledger : cap",
+    "render",
+    "task",
+    "grounding",
+    "instructions : config : batch_protocol",
+    "kernel",
+]
+ignore_imports = [
+    # Known debt: the expert harness still calls agent-session and sandbox adapters
+    # directly; these become ports (injected by entry/) in a later step.
+    "datafarm.expert.handoff -> datafarm.adapters.agent_harness.call_log",
+    "datafarm.expert.round -> datafarm.adapters.agent_harness.backends",
+    "datafarm.expert.round -> datafarm.adapters.agent_harness.session",
+    "datafarm.expert.round -> datafarm.adapters.agent_harness.call_log",
+    "datafarm.expert.round -> datafarm.adapters.sandbox.isolation",
+    "datafarm.expert.rollout -> datafarm.adapters.sandbox.isolation",
+]
+
+[[tool.importlinter.contracts]]
+id = "adapters-not-upward"
+name = "Adapters do not import orchestration or entry"
+type = "forbidden"
+source_modules = ["datafarm.adapters"]
+forbidden_modules = ["datafarm.orchestration", "datafarm.entry"]
+
+[[tool.importlinter.contracts]]
+id = "business-not-upward"
+name = "Business packages do not import orchestration or entry"
+type = "forbidden"
+source_modules = [
+    "datafarm.grounding", "datafarm.task", "datafarm.render", "datafarm.training",
+    "datafarm.expert", "datafarm.evolution", "datafarm.simulation", "datafarm.ledger", "datafarm.cap",
+]
+forbidden_modules = ["datafarm.orchestration", "datafarm.entry"]
+
+[[tool.importlinter.contracts]]
+id = "task-one-way"
+name = "task does not import render, training or expert"
+type = "forbidden"
+source_modules = ["datafarm.task"]
+forbidden_modules = ["datafarm.render", "datafarm.training", "datafarm.expert"]
+
+[[tool.importlinter.contracts]]
+id = "render-one-way"
+name = "render does not import training"
+type = "forbidden"
+source_modules = ["datafarm.render"]
+forbidden_modules = ["datafarm.training"]
+
+[[tool.importlinter.contracts]]
+id = "grounding-one-way"
+name = "grounding does not import task, render or training"
+type = "forbidden"
+source_modules = ["datafarm.grounding"]
+forbidden_modules = ["datafarm.task", "datafarm.render", "datafarm.training"]
+
+[[tool.importlinter.contracts]]
+id = "kernel-leaf"
+name = "kernel imports nothing else in datafarm"
+type = "forbidden"
+source_modules = ["datafarm.kernel"]
+forbidden_modules = [
+    "datafarm.adapters", "datafarm.batch_protocol", "datafarm.cap", "datafarm.config", "datafarm.entry",
+    "datafarm.evolution", "datafarm.expert", "datafarm.grounding", "datafarm.instructions",
+    "datafarm.ledger", "datafarm.orchestration", "datafarm.render", "datafarm.simulation",
+    "datafarm.task", "datafarm.training",
+]

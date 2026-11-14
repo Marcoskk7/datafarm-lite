@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from datafarm.common import read_json, sha256_file
+from datafarm.kernel.io import read_json, sha256_file
 from concurrent.futures import Executor
 from dataclasses import dataclass
 import importlib.util

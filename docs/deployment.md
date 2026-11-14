@@ -6,9 +6,9 @@ be overridden in `bindings.json` in the checkout (or the file named by `DATAFARM
 the environment variable `DATAFARM_<KEY>`. Values are paths, never secrets. Tools that need a
 binding fail closed with a message naming it. They do not fall back to a guess.
 
-Implementation: `src/datafarm/runtime.py::defaults`, `::load_bindings`, `::expand`
+Implementation: `src/datafarm/config.py::defaults`, `::load_bindings`, `::expand`
 (configs use `${KEY}` placeholders). The H3 control hybrid uses its own fail-closed resolver,
-`src/datafarm/render/h3/h3_paths.py`, which reads only explicit environment variables or
+`src/datafarm/adapters/render/h3/h3_paths.py`, which reads only explicit environment variables or
 `bindings.json` entries: apart from `H3_PYTHON` its keys have no workspace default.
 
 ```bash
@@ -57,8 +57,8 @@ These have no default on purpose. A missing value stops the tool before any call
 
 | Setting | Where | Meaning |
 |---|---|---|
-| `DATAFARM_SEEDANCE_UPLOAD_HOST` env, or `upload_host` in a Seedance batch config | `src/datafarm/render/seedance/client.py::upload_host` | HTTPS base URL of a file host that serves the carrier video to Seedance. **Opting in publishes real-scene media at a URL until it expires.** |
-| `agent.model` and, for `codex-metered`, `agent.pricing` | expert-harness adapter; `src/datafarm/expert/session.py` | The coding model, and its price table: `{"model", "source", "usd_per_million_tokens": {"input", "cached_input", "cache_write", "output"}, "long_context"?}`. |
+| `DATAFARM_SEEDANCE_UPLOAD_HOST` env, or `upload_host` in a Seedance batch config | `src/datafarm/adapters/render/seedance/client.py::upload_host` | HTTPS base URL of a file host that serves the carrier video to Seedance. **Opting in publishes real-scene media at a URL until it expires.** |
+| `agent.model` and, for `codex-metered`, `agent.pricing` | expert-harness adapter; `src/datafarm/adapters/agent_harness/backends.py`, `src/datafarm/adapters/agent_harness/codex/exec_backend.py` | The coding model, and its price table: `{"model", "source", "usd_per_million_tokens": {"input", "cached_input", "cache_write", "output"}, "long_context"?}`. |
 | `--pricing` / `DATAFARM_METERED_PRICING` | `examples/runtime/metered_codex_driver.py` | Same price-table format, for the example metered driver. |
 | `H3_EVAL_DINO` / `DATAFARM_H3_EVAL_DINO` | `evaluations/render-h3/h3eval.py` | DINOv2 directory for `realpool`/`score`. |
 
@@ -78,7 +78,7 @@ Budget policies are in `examples/runtime/` and described in
 
 The release ships no GPU scheduler. The deployment supplies an executable with `submit` and `leases` subcommands, and tools receive its path through the `GPU_SCHEDULER` binding (default `<ws>/external/gpu-scheduler`). A thin wrapper around Slurm, Kubernetes or an SSH lease script is enough. A single-node setup can avoid it: the expert harness also has a `local` rollout backend.
 
-Three things call the scheduler: `tools/launch_pi05_training.py` (training jobs), the expert harness `command` rollout backend through the adapter's `rollout.submit.argv` (`src/datafarm/expert/rollout.py`), and the H3 workers (`src/datafarm/render/h3/launch_control_worker.sh`, `h3_pool.py`, `h3_requeue_orphans.py`). `h3_pool.py` reads the `id` line of `submit` and matches it against column 1 of `leases`, treats exit 2 as "no GPU free", and launches nothing while `leases` fails.
+Three things call the scheduler: `tools/launch_pi05_training.py` (training jobs), the expert harness `command` rollout backend through the adapter's `rollout.submit.argv` (`src/datafarm/expert/rollout.py`), and the H3 workers (`src/datafarm/adapters/render/h3/launch_control_worker.sh`, `h3_pool.py`, `h3_requeue_orphans.py`). `h3_pool.py` reads the `id` line of `submit` and matches it against column 1 of `leases`, treats exit 2 as "no GPU free", and launches nothing while `leases` fails.
 
 ### `submit`
 

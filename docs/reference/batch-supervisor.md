@@ -6,7 +6,7 @@ and does not judge whether real references were used; see the
 pauses new submissions, and a target must not be met by unlimited retries or by shrinking the
 denominator.
 
-`src/datafarm/batch/supervisor.py` is the single loop controller for any batch that must
+`src/datafarm/orchestration/batch.py` is the single loop controller for any batch that must
 bring a fixed set of items (samples, episodes, shards) to an admitted result by launching
 attempts, polling them, and verifying each result. Task differences (how to launch, poll and verify one attempt) are
 injected; the controller owns attempts, seeds, budgets, liveness semantics, durable state and the
@@ -160,8 +160,8 @@ recorded as events and never stop the batch.
 
 ## 8. Generic CLI: a supervisor becomes a config
 
-`tools/supervise_batch.py` drives the controller with `src/datafarm/batch/subprocess_task.py`.
-Each attempt is one command run through `batch_exec.py` in its own session and directory
+`tools/supervise_batch.py` drives the controller with `src/datafarm/adapters/process/subprocess_task.py`.
+Each attempt is one command run through `adapters/process/batch_exec.py` in its own session and directory
 `<work_dir>/attempts/<launch_id>/` (`attempt.json`, `handle.json`, `started.json`, `exit.json`,
 `log.txt`), so a restarted supervisor can tell finished, crashed and running apart without being
 the attempt's parent. Commands:
@@ -233,4 +233,4 @@ before using `resolve`; a local process exit alone is insufficient.
 - Liveness of subprocess attempts is probed on the supervisor's host only; after a move to
   another host they are `unknown` until their exit record appears.
 
-Code: `src/datafarm/batch/`, `tools/supervise_batch.py`.
+Code: `src/datafarm/orchestration/batch.py`, `src/datafarm/batch_protocol.py`, `tools/supervise_batch.py`.

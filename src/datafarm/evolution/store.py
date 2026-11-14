@@ -10,8 +10,8 @@ import fcntl
 import hashlib
 import json
 import os
-from datafarm.common import atomic_write_bytes
-from datafarm.common import read_json as read
+from datafarm.kernel.io import atomic_write_bytes
+from datafarm.kernel.io import read_json as read
 from pathlib import Path
 import re
 import tempfile

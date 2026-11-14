@@ -92,7 +92,7 @@ hides the rest of the report.
 - `launch` runs the worker under a sentinel that records the exit code, and records the first persistence check.
 - `finalize` needs an existing verification file and no gaps, unless `--allow-gaps`.
 
-Code: `src/datafarm/ledger/`, `tools/datafarm_runs.py`.
+Code: `src/datafarm/ledger/`, `src/datafarm/entry/runs_cli.py`, `tools/datafarm_runs.py`.
 
 ## Known limits
 

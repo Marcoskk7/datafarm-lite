@@ -20,7 +20,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from datafarm.agent.call_report import (  # noqa: E402
+from datafarm.adapters.agent_harness.call_report import (  # noqa: E402
     GROUP_FIELDS,
     build_report,
     expand_paths,

@@ -1,0 +1,138 @@
+# SceneGraph — `datafarm.scene-graph/1`
+
+后端无关的场景描述：放哪些资产、各自位姿、关节初值、相机、机器人，以及场景检查结果。Isaac Lab 3.0 从这里生成自己的场景（`SceneBinding`），不从 USD 层级或数组顺序推断语义。
+
+## 字段
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `schema` | 是 | 固定 `datafarm.scene-graph/1` |
+| `scene_id` | 是 | 如 `scene.kitchen_plate_drawer` |
+| `units` | 是 | 固定 `"m"` |
+| `frame` | 是 | 固定 `"world"`，Z-up 右手系 |
+| `asset_bundle` | 是 | ArtifactRef，整个场景的完整依赖集（所有 USD 及其引用） |
+| `assets` | 是 | `[{asset_id, record: ArtifactRef}]`，指向 AssetRecord 文档 |
+| `nodes` | 是 | 场景实例数组，见下 |
+| `frames` | 是 | 命名坐标系 `[{frame_id, parent_frame_id, pose}]`；无环、无悬空 parent |
+| `cameras` | 是 | 相机数组，见下 |
+| `robot` | 是 | 机器人挂载、可控关节和可达性，见下 |
+| `collision_groups` | 是 | `{group_id: {entities: [...], contact_with: [...], forbidden_with: [...]}}`；判定器据此区分允许接触与违规接触 |
+| `physics_parameter_ledger` | 是 | ArtifactRef，本次场景实例化实际使用的物理量（含随机化采样结果） |
+| `runtime_profile` | 是 | ArtifactRef，控制器、求解器、dt、驱动与接触配置的不可变快照 |
+| `backend` | 是 | `{name: "isaaclab", version: "3.0.0", physics: "newton_mjwarp"}` |
+| `checks` | 是 | 场景检查结果，见下 |
+| `randomization` | 否 | `{seed, sampled: {quantity: value}}` |
+
+`nodes[i]`：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `node_id` | 是 | 场景内唯一，如 `object.plate` |
+| `asset_id` | 是 | 对应 `assets` 的 asset_id |
+| `parent` | 否 | 挂到另一个 node（如抽屉里的盘子）；null 表示直接挂 world |
+| `pose` | 是 | Pose，相对 parent |
+| `joint_state` | 否 | `{关节名: 值}`，铰接资产初值；预先拉开的抽屉写 `{"joint.drawer.slide": 0.42}` |
+| `semantic_tag` | 是 | `table` / `drawer` / `plate` / `background` / `robot`；判定器和渲染按此查找，不按名字前缀 |
+| `randomization` | 否 | `{position_jitter_m, yaw_range_deg}`；yaw 用度，`[-180, 180]` |
+
+`cameras[i]`：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `camera_id` | 是 | `camera.head` / `camera.left_wrist` / `camera.right_wrist` |
+| `kind` | 是 | `physical`（绑在机器人 link 上）或 `virtual`（渲染时自由加） |
+| `mount` | 是 | 挂载的 node 或 frame id |
+| `offset` | 是 | 相对 mount 的 Pose（`frame_id` 填 mount） |
+| `intrinsics` | 是 | `{fx, fy, cx, cy, width, height}`，像素 |
+| `optical_frame` | 是 | 光学坐标约定及其到 `mount` 的变换，如 `{convention: "opengl", pose: …}` |
+| `distortion` | 是 | `{model: "none" / "radtan", coefficients: [...]}`；MVP 用 `none` |
+| `fps` | 是 | 采样帧率，MVP 10；必须整除控制频率 120 |
+
+`robot`：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `asset_id` | 是 | 机器人 AssetRecord |
+| `base_pose` | 是 | Pose |
+| `arms` | 是 | MVP 只有 `["left"]`（单臂 AIRBOT + G2）；字段保持数组，以后加 `"right"` 不升版本 |
+| `gripper` | 是 | `"g2"` |
+| `controlled_joints` | 是 | B 下发的关节名；mimic 从关节只观测 |
+| `tcp` | 是 | `{frame_id, link, T_link_tcp: Pose}`；禁止用 link 原点临时顶替 |
+| `reachability` | 是 | `{checked, ok, notes}`；任务物体和抽屉内腔都必须可达 |
+
+MVP 复用已验收资产 `assets/robot_assets_isaaclab3_validated_20261113/validated_usd/airbot_single`，URDF 是关节限位、运动链和夹爪几何的权威来源，SceneGraph 不重复手抄。
+
+`checks`：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `settle` | 是 | `{ran, steps, max_drift_m, stable}`；加载场景后空跑若干控制步，刚体位移不超过阈值 |
+| `penetration` | 是 | `{ran, max_depth_m, ok}` |
+| `reachability` | 是 | 与 `robot.reachability` 同构 |
+
+可达性判断只能证明"某些目标位姿可达"，单次局部 IK 不收敛不能证明全局不可达，结论要写进 `notes`。
+
+## 示例（节选）
+
+```json
+{
+  "schema": "datafarm.scene-graph/1",
+  "scene_id": "scene.kitchen_plate_drawer",
+  "units": "m",
+  "frame": "world",
+  "asset_bundle": {"kind": "scene.bundle", "sha256": "…", "media_type": "application/json"},
+  "assets": [
+    {"asset_id": "object.plate_raised_rim",
+     "record": {"kind": "ir.asset-record", "sha256": "…", "media_type": "application/json"}},
+    {"asset_id": "object.cabinet_drawer",
+     "record": {"kind": "ir.asset-record", "sha256": "…", "media_type": "application/json"}}
+  ],
+  "nodes": [
+    {"node_id": "object.table", "asset_id": "object.table_simple", "semantic_tag": "table",
+     "pose": {"frame_id": "world", "position_m": [0, 0, 0], "quaternion_xyzw": [0, 0, 0, 1]}},
+    {"node_id": "object.cabinet", "asset_id": "object.cabinet_drawer", "semantic_tag": "drawer",
+     "pose": {"frame_id": "world", "position_m": [0.45, 0, 0], "quaternion_xyzw": [0, 0, 0, 1]},
+     "joint_state": {"joint.drawer.slide": 0.42}},
+    {"node_id": "object.plate", "asset_id": "object.plate_raised_rim", "semantic_tag": "plate",
+     "pose": {"frame_id": "world", "position_m": [0.0, -0.25, 0.78], "quaternion_xyzw": [0, 0, 0, 1]},
+     "randomization": {"position_jitter_m": 0.05, "yaw_range_deg": [-180, 180]}}
+  ],
+  "frames": [
+    {"frame_id": "world", "parent_frame_id": null,
+     "pose": {"frame_id": "world", "position_m": [0, 0, 0], "quaternion_xyzw": [0, 0, 0, 1]}}
+  ],
+  "cameras": [
+    {"camera_id": "camera.head", "kind": "physical", "mount": "robot.airbot",
+     "offset": {"frame_id": "robot.airbot", "position_m": [0.0, 0.0, 0.65], "quaternion_xyzw": [0, 0, 0, 1]},
+     "intrinsics": {"fx": 320.0, "fy": 320.0, "cx": 320.0, "cy": 240.0, "width": 640, "height": 480},
+     "optical_frame": {"convention": "opengl"},
+     "distortion": {"model": "none", "coefficients": []},
+     "fps": 10}
+  ],
+  "robot": {
+    "asset_id": "robot.airbot", "arms": ["left"], "gripper": "g2",
+    "base_pose": {"frame_id": "world", "position_m": [0, 0, 0.78], "quaternion_xyzw": [0, 0, 0, 1]},
+    "controlled_joints": ["left_joint1", "left_joint6", "left_g2_joint"],
+    "tcp": {"frame_id": "tcp.left", "link": "left_link6",
+            "T_link_tcp": {"frame_id": "left_link6", "position_m": [0, 0, 0.1266], "quaternion_xyzw": [0, 0, 0, 1]}},
+    "reachability": {"checked": true, "ok": true, "notes": "targets within 647 mm; local IK only"}
+  },
+  "collision_groups": {
+    "robot_self": {"entities": ["robot.airbot"], "contact_with": [], "forbidden_with": ["robot.airbot"]},
+    "task_contact": {"entities": ["object.plate"], "contact_with": ["robot.airbot", "object.cabinet", "object.table"],
+                     "forbidden_with": []}
+  },
+  "physics_parameter_ledger": {"kind": "ir.physics-ledger", "sha256": "…", "media_type": "application/json"},
+  "runtime_profile": {"kind": "sim.runtime-profile", "sha256": "…", "media_type": "application/json"},
+  "backend": {"name": "isaaclab", "version": "3.0.0", "physics": "newton_mjwarp"},
+  "checks": {
+    "settle": {"ran": true, "steps": 240, "max_drift_m": 0.0005, "stable": true},
+    "penetration": {"ran": true, "max_depth_m": 0.0, "ok": true},
+    "reachability": {"checked": true, "ok": true, "notes": ""}
+  }
+}
+```
+
+## 后端
+
+固定 Isaac Lab 3.0（Isaac Sim 6.2）+ `newton_mjwarp`。没有后端选择、没有能力矩阵、没有探针证书，也没有 SAPIEN 回退路径。渲染用 Isaac RTX / Replicator 6.2 的 API。

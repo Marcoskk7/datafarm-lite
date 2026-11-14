@@ -14,7 +14,7 @@ import json
 import math
 import random
 from typing import Mapping, Sequence
-from datafarm.common import sha256_text
+from datafarm.kernel.io import sha256_text
 
 
 Vector3 = tuple[float, float, float]

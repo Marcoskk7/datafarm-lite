@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from datafarm.render.policy import compile_prompt
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 
 ROOT = Path(__file__).resolve().parents[1]
 

@@ -21,10 +21,12 @@ from datafarm.expert.rollout import (AttemptSpec, FakeRolloutBackend, LocalRollo
 from datafarm.expert.state import EventLog, RoundState
 from datafarm.expert.toolbox import REQUEST_SCHEMA, Broker
 from xh_helpers import FakeClock
-from datafarm.expert.util import read_jsonl, sha256_bytes
+from datafarm.expert.util import read_jsonl
+from datafarm.kernel.io import sha256_bytes
 from xh_helpers import HOLDOUT, expert, write_adapter
 
 PKG = Path(__file__).resolve().parents[1] / "src" / "datafarm" / "expert"
+FAKES = Path(__file__).resolve().parents[1] / "src" / "datafarm" / "adapters" / "fakes"
 
 
 class BrokerFixture(unittest.TestCase):
@@ -275,7 +277,7 @@ class JobScriptTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="xh-job-"))
         self.addCleanup(shutil.rmtree, self.tmp, True)
-        fakes = PKG / "fakes"
+        fakes = FAKES
         self.adapter = write_adapter(self.tmp / "task", {
             "vars": {"py": sys.executable, "fakes": str(fakes)},
             "rollout": {
@@ -314,7 +316,7 @@ class JobScriptTests(unittest.TestCase):
         self.adapter.raw["isolation"]["rollout"].update(
             mode="bwrap", base="allowlist", readable=["{fakes}"])
         text = build_job_script(self.adapter, self.spec(3), masked=["/secret"])
-        self.assertIn('ro "' + str(PKG / "fakes") + '"', text)
+        self.assertIn('ro "' + str(FAKES) + '"', text)
 
     def run_local(self, seed: int, source: str, name: str = "A-0001") -> tuple[str, Outcome]:
         backend = LocalRolloutBackend(self.adapter, masked=[])

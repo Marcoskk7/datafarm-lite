@@ -2,8 +2,8 @@
 import json
 from pathlib import Path
 
-from datafarm.common import sha256_file
-from datafarm.core.file_binding import bound_file, require
+from datafarm.kernel.binding import bound_file, require
+from datafarm.kernel.io import sha256_file
 from datafarm.task.contract import _is_visual_evidence, verify_grounding, verify_review_independence
 
 

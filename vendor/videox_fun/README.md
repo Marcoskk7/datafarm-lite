@@ -1,6 +1,6 @@
 # VideoX-Fun for the H3 control hybrid
 
-The control-hybrid worker (`src/datafarm/render/h3/h3_control_worker.py`) imports VideoX-Fun's
+The control-hybrid worker (`src/datafarm/adapters/render/h3/h3_control_worker.py`) imports VideoX-Fun's
 `MiniMaxH3ControlPipeline` with local changes (Ref2VA + ControlNet-Union hybrid, xfuser fixes, soft-HED control
 tool). Reproduce that checkout and point the `H3_VIDEOX_FUN` binding at it:
 

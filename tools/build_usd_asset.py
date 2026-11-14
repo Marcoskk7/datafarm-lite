@@ -7,7 +7,8 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from datafarm.simulation.usdcraft import plan, run, run_for_task
+from datafarm.orchestration.cost_budget import budget_for_work
+from datafarm.adapters.sim.usdcraft import plan, run, run_for_task
 
 
 def main():
@@ -24,7 +25,8 @@ def main():
     result = (
         plan(args.config, args.observation, args.output)
         if args.command == "plan"
-        else (run_for_task(args.work, args.task_work) if args.task_work else run(args.work))
+        else (run_for_task(args.work, args.task_work, budget_for_work=budget_for_work)
+              if args.task_work else run(args.work))
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return int(args.command == "run" and result["status"] != "exported-unqualified")

@@ -29,7 +29,7 @@ def test_ledger_tool_has_no_site_scheduler_defaults():
 def test_no_installed_alias_for_a_checkout_bound_tool():
     scripts = tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['scripts']
     assert 'datafarm-expert' not in scripts
-    from datafarm.cli import make_parser
+    from datafarm.entry.cli import make_parser
     assert 'runs' not in make_parser()._subparsers._group_actions[0].choices
 
 

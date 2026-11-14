@@ -15,7 +15,7 @@ The rules agents follow are in [`prompts/instructions/task-cost.md`](../../promp
 7. **A budgeted task does not launch an unbudgeted post-run evolution driver.** This applies in advisory and enforced mode; only `disabled` allows it.
 8. **A crash keeps the reservation.** On restart, a reservation from a session that never settled is settled from its receipt or marked unknown. It is never refunded by timeout.
 
-Code: `src/datafarm/agent/cost_budget.py`, `tools/pipeline_agent.py`.
+Code: `src/datafarm/orchestration/cost_budget.py`, `src/datafarm/orchestration/driver.py`, `tools/pipeline_agent.py`.
 
 ## Data model
 
@@ -95,7 +95,7 @@ Before every provider request the driver reserves the worst-case amount for the 
 
 `cost_basis` may also be `provider`. Even if the session exits non-zero, the cost already incurred must be reported. A missing or invalid receipt blocks resume and retains the whole reserved amount; this does not mean the amount was paid. A reservation left by a crash also blocks the next session. A receipt above the reservation is recorded as an overrun and later calls stop.
 
-[`examples/runtime/metered_codex_driver.py`](../../examples/runtime/metered_codex_driver.py) is an example of such a driver: it runs `codex exec` through a local metered OpenAI-compatible gateway (`src/datafarm/agent/metered_provider.py`). The model, endpoint and price table must be configured explicitly with `--pricing` or `DATAFARM_METERED_PRICING`; there is no default gateway.
+[`examples/runtime/metered_codex_driver.py`](../../examples/runtime/metered_codex_driver.py) is an example of such a driver: it runs `codex exec` through a local metered OpenAI-compatible gateway (`src/datafarm/adapters/agent_harness/codex/metered_gateway.py`). The model, endpoint and price table must be configured explicitly with `--pricing` or `DATAFARM_METERED_PRICING`; there is no default gateway.
 
 ## Failure behaviour
 

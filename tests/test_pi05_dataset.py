@@ -217,7 +217,7 @@ class DatasetAuditTest(unittest.TestCase):
 
 class TrainingStateModeTest(unittest.TestCase):
     def load_tool(self):
-        from datafarm.training import launch
+        from datafarm.adapters.trainer.openpi import launch
         return launch
 
     @unittest.skipIf(np is None, "numpy is required")

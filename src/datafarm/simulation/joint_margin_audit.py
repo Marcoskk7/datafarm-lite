@@ -2,7 +2,7 @@
 
 import json
 import numpy as np
-from datafarm.common import sha256_bytes
+from datafarm.kernel.io import sha256_bytes
 
 
 def audit(path):

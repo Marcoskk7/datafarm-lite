@@ -13,7 +13,7 @@ simulated actions, with provenance and independent review records. Training is a
 - `prompts/roles/`: the responsibilities of each role.
 - `prompts/render/`: the real-reference, action-fidelity and style requirements that a task cannot override.
 - `prompts/instructions/`: authority, evidence and the handoffs between stages.
-- `src/datafarm/agent/context.py` and `src/datafarm/task/contract.py`: load these instructions explicitly and verify task outputs.
+- `src/datafarm/instructions.py`, `src/datafarm/task/contract.py` and `src/datafarm/render/delivery.py`: load these instructions explicitly and verify task outputs.
 - The expert harness, run ledger, batch supervisor, providers and admission: execution tools.
 
 A new task with no adapter in the repository is not a capability gap: the agent generates a new adapter, brief, judge

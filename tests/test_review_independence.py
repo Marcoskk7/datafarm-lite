@@ -9,7 +9,7 @@ import json
 import pytest
 
 import datafarm.task.contract as task_contract
-from datafarm.task.contract import verify_delivery
+from datafarm.render.delivery import verify_delivery
 from test_white_delivery import fixture
 
 

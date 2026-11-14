@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 import math
 from typing import Any
 
-from datafarm.common import is_sha256
+from datafarm.kernel.io import is_sha256
 
 
 PLAN_SCHEMA = "datafarm-distribution-plan/1.0.0"

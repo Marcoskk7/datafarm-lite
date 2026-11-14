@@ -1,0 +1,1385 @@
+"""通用批量 supervisor：一个带边界、可恢复的循环控制器，用于逐项 try。
+
+它替代什么
+-----------
+朴素的 per-task supervisor 会对着"缺失或被拒绝"的项循环 ``while True``。若没有轮次、
+成本或零进度边界，它可能在对空操作上无限自旋，会把 provider/upload 崩溃记到某个样本的
+seed 预算上，也可能把失败的 lease 查询当成"所有 lease 都丢失了"。
+本模块是该循环唯一的、经过测试的版本。task 特有逻辑（如何发起、轮询并验证一次 try）以
+callable 注入；控制器负责 try、seed、预算、存活语义、持久状态与终态。
+
+模型
+-----
+* **固定分母。** item id 一开始就给定，存入 ``state.json`` 且永不改变。
+  每一份报告都针对全部 item 计数。
+* **try = 一个 seed。** *已完成* 的 try 立即被验证（流式验证），
+  并消耗该 item try 预算的一个单位，无论结论如何（pass、reject、
+  abstain）。
+* **崩溃 = 未带结果结束。** 它会用 *相同的* try 序号和 seed 重试，并计入单独的
+  per-item 崩溃预算，因此崩溃绝不消耗 seed。短时间内多个不同 item 的崩溃会形成
+  *burst*，触发可自恢复的指数退避。
+* **unknown 不等于丢失。** 无法确定存活性的 try 保持 in flight，绝不重新发起。
+  只有当轮询没有存活的正面证据 *且* lease 探针在连续 ``lost_confirmations`` 次轮询中
+  报告其已死亡时，才判定为崩溃。连续 unknown 过多会以 ``paused_unknown_liveness``
+  暂停批量。
+* **Provider 宕机** 暂停所有发起。暂停时间从 wall 预算中扣除；总暂停时长有界
+  （``paused_provider_down``）。
+* **轮次是 try 的代。** 当所有未结束的 item 都越过 try *g* 后，轮次 *g* 关闭。
+  连续 ``zero_progress_rounds`` 个已关闭轮次都没有新准入的 item 时，批量停止。
+* **系统性失败。** 在最近若干不同 item 的最新 verdict 上，若单个 gate 以较大比例失败，
+  则停止新的发起（``stopped_systematic_failure``）并给出报告。
+* **持久性。** ``state.json`` 原子写入（临时文件、fsync、重命名）。``events.jsonl``
+  只追加。发起 *intent* 在调用 ``launch`` 之前持久化，因此中途死亡的 supervisor
+  重启后会进行核对，而不是重复发起。
+
+本模块仅使用标准库，不包含任何 task、provider 或路径知识。
+"""
+
+from __future__ import annotations
+
+from datafarm.batch_protocol import (BatchPolicy, BatchTask, LaunchDeferred, LaunchNotStarted,
+                                     LaunchOutcomeUnknown, Poll, ProviderDown, Verdict, coerce_lease)
+from datafarm.kernel import io
+from datafarm.kernel.io import utc_now as iso
+import contextlib
+import fcntl
+import hashlib
+import inspect
+import json
+import math
+import os
+import re
+import time
+from collections import Counter
+from pathlib import Path
+from typing import Any, Callable, Iterable, Mapping, Sequence
+from datafarm.kernel.io import sha256_text
+
+STATE_SCHEMA = "datafarm.batch-supervisor-state/1.0.0"
+REPORT_SCHEMA = "datafarm.batch-supervisor-report/1.0.0"
+
+# -- item 状态 ---------------------------------------------------------------------------------
+PENDING = "pending"  # 从未发起
+LAUNCHING = "launching"  # intent 已持久化，发起结果尚不可知
+RUNNING = "running"  # handle 已持久化，try 处于 in flight
+UNKNOWN = "unknown"  # in flight，无法确定存活性；绝不重新发起
+CRASHED_RETRYABLE = "crashed_retryable"  # 将用相同的 try 和 seed 重新发起
+REJECTED_RETRYABLE = "rejected_retryable"  # 将发起下一次 try（新 seed）
+ADMITTED = "admitted"  # 终态：验证器通过
+REJECTED_FINAL = "rejected_final"  # 终态：最终拒绝或永久错误
+EXHAUSTED = "exhausted"  # 终态：try 预算、崩溃预算或最大轮次用尽
+
+ITEM_STATES = (PENDING, LAUNCHING, RUNNING, UNKNOWN, CRASHED_RETRYABLE, REJECTED_RETRYABLE,
+               ADMITTED, REJECTED_FINAL, EXHAUSTED)
+IN_FLIGHT = frozenset({LAUNCHING, RUNNING, UNKNOWN})
+ELIGIBLE = frozenset({PENDING, CRASHED_RETRYABLE, REJECTED_RETRYABLE})
+TERMINAL_ITEM_STATES = frozenset({ADMITTED, REJECTED_FINAL, EXHAUSTED})
+
+# -- 批量状态 ----------------------------------------------------------------------------------
+RUNNING_STATUS = "running"
+STOPPING = "stopping"  # 已请求停止；in-flight 的 try 被排空，不再发起新 try
+COMPLETE = "complete"
+COMPLETE_WITH_GAPS = "complete_with_gaps"
+STOPPED_ZERO_PROGRESS = "stopped_zero_progress"
+STOPPED_SYSTEMATIC_FAILURE = "stopped_systematic_failure"
+STOPPED_COST_CAP = "stopped_cost_cap"
+STOPPED_WALL_BUDGET = "stopped_wall_budget"
+STOPPED_OPERATOR = "stopped_operator"
+PAUSED_PROVIDER_DOWN = "paused_provider_down"
+PAUSED_UNKNOWN_LIVENESS = "paused_unknown_liveness"
+PAUSED_COST_UNKNOWN = "paused_cost_unknown"
+
+TERMINAL_STATUSES = frozenset({
+    COMPLETE, COMPLETE_WITH_GAPS, STOPPED_ZERO_PROGRESS, STOPPED_SYSTEMATIC_FAILURE,
+    STOPPED_COST_CAP, STOPPED_WALL_BUDGET, STOPPED_OPERATOR, PAUSED_PROVIDER_DOWN,
+    PAUSED_UNKNOWN_LIVENESS, PAUSED_COST_UNKNOWN,
+})
+PAUSED_STATUSES = frozenset({PAUSED_PROVIDER_DOWN, PAUSED_UNKNOWN_LIVENESS,
+                            PAUSED_COST_UNKNOWN})
+
+# 每种 item 状态对应的 pipeline run ledger 单元格状态（见 ledger.CELL_STATES）。
+LEDGER_CELL_STATUS = {
+    PENDING: "pending", LAUNCHING: "running", RUNNING: "running", UNKNOWN: "running",
+    CRASHED_RETRYABLE: "running", REJECTED_RETRYABLE: "rejected", ADMITTED: "passed",
+    REJECTED_FINAL: "failed", EXHAUSTED: "failed",
+}
+
+
+class BatchError(RuntimeError):
+    pass
+
+
+class DenominatorMismatch(BatchError):
+    """一次 resume 试图更改固定的 item 分母。"""
+
+
+class SupervisorBusy(BatchError):
+    """另一个存活的 supervisor 持有状态目录锁。"""
+
+
+def read_events(state_dir: str | Path) -> list[dict[str, Any]]:
+    path = Path(state_dir) / "events.jsonl"
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+
+def default_seed(base: int, item: str, attempt: int, modulus: int = 2_147_483_647) -> int:
+    """在 ``[0, modulus)`` 内的确定性、重启稳定的 seed；每个 item 和 try 各不相同。
+
+    默认 modulus 是某些 provider 强制执行的 int32 最大值：曾经一个无界的线性 seed
+    公式在足够多轮重试后开始永久失败。
+    """
+
+    digest = hashlib.sha256(f"{int(base)}\0{item}\0{int(attempt)}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") % int(modulus)
+
+
+def launch_key(item: str, attempt: int, tries: int) -> str:
+    """一次发起的确定性 id：``<item>.aNN.tNN``（崩溃重试会获得新的 ``tNN``）。"""
+
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(item))[:80] or "item"
+    if safe != item:  # 净化改动过 item id 时保持 id 唯一
+        safe = f"{safe[:60]}-{sha256_text(str(item))[:8]}"
+    return f"{safe}.a{int(attempt):02d}.t{int(tries):02d}"
+
+
+def _jsonable(value: Any) -> Any:
+    try:
+        return json.loads(json.dumps(value))
+    except (TypeError, ValueError) as exc:
+        raise TypeError(f"launch handles must be JSON-serializable: {exc}") from exc
+
+
+def _short(value: Any, limit: int = 300) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+def _backoff(base: float, level: int, cap: float) -> float:
+    """``base * 2**(level-1)`` 并封顶；指数有界，因此长时间的崩溃循环不会让
+    float 溢出（一次重放的 cohort 中，某个 item 连续崩溃重试了 1113 次）。"""
+
+    return min(float(base) * 2.0 ** min(max(int(level) - 1, 0), 60), float(cap))
+
+
+def _accepts_keyword(function: Callable[..., Any], name: str) -> bool:
+    try:
+        parameters = inspect.signature(function).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.kind is inspect.Parameter.VAR_KEYWORD or
+               (p.name == name and p.kind in (inspect.Parameter.KEYWORD_ONLY,
+                                               inspect.Parameter.POSITIONAL_OR_KEYWORD))
+               for p in parameters)
+
+
+# -- 可选的 ledger 镜像 ------------------------------------------------------------------------
+class LedgerHook:
+    """通过 pipeline run ledger 的公共 API 把 item 状态镜像进去。
+
+    上报永远不会停止批量：ledger 错误会返回给调用方，由调用方将其记录为事件。
+    """
+
+    def __init__(self, ledger: Any, worker: str, column: str,
+                 item_map: Callable[[str], str] | None = None) -> None:
+        self.ledger = ledger
+        self.worker = worker
+        self.column = column
+        self.item_map = item_map or (lambda item: item)
+
+    @classmethod
+    def from_env(cls, column: str | None,
+                 item_map: Callable[[str], str] | None = None) -> "LedgerHook | None":
+        from datafarm.ledger import ledger as ledger_module
+
+        attached = ledger_module.attach_from_env()
+        if attached is None or not column:
+            return None
+        ledger, worker = attached
+        return cls(ledger, worker, column, item_map)
+
+    def update_cells(self, rows: Sequence[Mapping[str, Any]]) -> int:
+        from datafarm.ledger.ledger import CellUpdate
+
+        updates = [
+            CellUpdate(self.item_map(row["item"]), self.column, row["status"],
+                       attempt=row.get("attempt"), failure=row.get("failure"),
+                       artifact=row.get("artifact"), note=row.get("note"))
+            for row in rows
+        ]
+        return self.ledger.set_cells(updates, source=f"batch-supervisor:{self.worker}")
+
+    def declare_blocked(self, reason: str) -> None:
+        self.ledger.mirror_declaration("blocked", reason=reason,
+                                       source=f"batch-supervisor:{self.worker}")
+
+
+# -- 控制器 ------------------------------------------------------------------------------------
+class BatchSupervisor:
+    """在显式的 :class:`BatchPolicy` 下把一组固定 item 驱动至准入。"""
+
+    def __init__(
+        self,
+        state_dir: str | Path,
+        items: Sequence[str],
+        task: BatchTask,
+        policy: BatchPolicy | None = None,
+        *,
+        batch_id: str | None = None,
+        clock: Callable[[], float] | None = None,
+        sleep: Callable[[float], None] | None = None,
+        ledger: LedgerHook | str | None = None,
+        ledger_column: str | None = None,
+        lock: bool = True,
+        fsync: bool = True,
+        heartbeat_s: float = 60.0,
+        stop_check: Callable[[], str | None] | None = None,
+    ) -> None:
+        self.state_dir = Path(state_dir)
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.task = task
+        self.policy = policy or BatchPolicy()
+        self._clock = clock or time.time
+        self._sleep = sleep or time.sleep
+        self._fsync = fsync
+        self._heartbeat_s = float(heartbeat_s)
+        self._stop_check = stop_check
+        self._state_path = self.state_dir / "state.json"
+        self._events_path = self.state_dir / "events.jsonl"
+        self._report_path = self.state_dir / "report.json"
+        self._lock_handle = self._acquire_lock() if lock else None
+        self._launch_takes_id = _accepts_keyword(task.launch, "launch_id")
+        self._dirty = True
+        self._last_save = -float("inf")
+        self._ledger_dirty: set[str] = set()
+        self._ledger_errors: set[str] = set()
+        items = [self._check_item(item) for item in items]
+        if not items:
+            raise BatchError("a batch needs a fixed, non-empty item denominator")
+        if len(set(items)) != len(items):
+            raise BatchError("duplicate item ids in the denominator")
+        self._items = items
+        self._order = {item: index for index, item in enumerate(items)}
+        try:
+            if self._state_path.is_file():
+                self._state = self._load_existing(items, batch_id)
+            else:
+                self._state = self._fresh_state(items, batch_id)
+                self._event("created", items=len(items), policy_sha256=self.policy.sha256())
+            self._ledger = self._resolve_ledger(ledger, ledger_column)
+            self._ledger_dirty = set(items)
+            self._save(force=True)
+        except BaseException:
+            self.close()
+            raise
+
+    # -- 构造 -------------------------------------------------------------------------------
+    @staticmethod
+    def _check_item(item: Any) -> str:
+        if not isinstance(item, str) or not item.strip():
+            raise BatchError(f"item ids must be non-empty strings, got {item!r}")
+        return item
+
+    def _acquire_lock(self) -> Any:
+        handle = open(self.state_dir / "supervisor.lock", "a+", encoding="utf-8")
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            handle.close()
+            raise SupervisorBusy(f"another supervisor owns {self.state_dir}") from exc
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"{os.getpid()}\n")
+        handle.flush()
+        return handle
+
+    def close(self) -> None:
+        handle, self._lock_handle = getattr(self, "_lock_handle", None), None
+        if handle is not None:
+            with contextlib.suppress(OSError):
+                fcntl.flock(handle, fcntl.LOCK_UN)
+            handle.close()
+
+    def __enter__(self) -> "BatchSupervisor":
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        self.close()
+
+    def _resolve_ledger(self, ledger: LedgerHook | str | None,
+                        column: str | None) -> LedgerHook | None:
+        if ledger is None:
+            return None
+        if isinstance(ledger, LedgerHook):
+            return ledger
+        if ledger != "env":
+            raise BatchError("ledger must be None, 'env' or a LedgerHook")
+        try:
+            hook = LedgerHook.from_env(column)
+        except Exception as exc:  # noqa: BLE001 - a broken ledger must not stop the batch
+            self._event("ledger_error", error=_short(f"{type(exc).__name__}: {exc}"))
+            return None
+        if hook is None and os.environ.get("DATAFARM_LEDGER_RUN_DIR"):
+            self._event("ledger_not_mirrored",
+                        reason="running under a ledger run but no ledger column was configured")
+        return hook
+
+    def _new_item(self, item: str) -> dict[str, Any]:
+        return {
+            "state": PENDING, "attempt": 1, "seed": self._seed_for(item, 1), "attempts_used": 0,
+            "crash_retries": 0, "provider_crashes": 0, "tries": 0, "max_launched_attempt": 0,
+            "launch_id": None, "handle": None, "intent_at": None, "launched_at": None,
+            "retry_not_before": None, "unknown_streak": 0, "dead_streak": 0, "verify_errors": 0,
+            "cost_recorded": False, "attempt_limit": None, "attempts": [], "crash_log": [],
+            "terminal_reason": None, "admitted_attempt": None, "evidence": None, "last": None,
+        }
+
+    def _fresh_state(self, items: list[str], batch_id: str | None) -> dict[str, Any]:
+        now = self._now()
+        return {
+            "schema": STATE_SCHEMA,
+            "batch_id": batch_id,
+            "items": list(items),
+            "created_at": iso(now),
+            "updated_at": iso(now),
+            "status": RUNNING_STATUS,
+            "stop_request": None,
+            "terminal": None,
+            "policy": self.policy.to_dict(),
+            "policy_sha256": self.policy.sha256(),
+            "counters": {"launch_attempts": 0, "launches": 0, "finished": 0, "crashes": 0,
+                         "provider_crashes": 0, "verified": 0, "cost": 0.0, "active_seconds": 0.0,
+                         "provider_paused_seconds": 0.0, "ticks": 0, "resumes": 0},
+            "rounds": {"closed": 0, "admitted_by_round": {}, "zero_progress_streak": 0,
+                       "history": []},
+            "burst": new_burst_state(),
+            "provider": {"down": False, "since": None, "next_probe": None, "half_open": False,
+                         "probe_item": None, "outages": 0, "pause_baseline": 0.0},
+            "recent_verdicts": [],
+            "last_tick_at": None,
+            "item_state": {item: self._new_item(item) for item in items},
+        }
+
+    def _load_existing(self, items: list[str], batch_id: str | None) -> dict[str, Any]:
+        state = json.loads(self._state_path.read_text(encoding="utf-8"))
+        if state.get("schema") != STATE_SCHEMA:
+            raise BatchError(f"unsupported state schema {state.get('schema')!r}")
+        if list(state["items"]) != list(items):
+            stored, given = set(state["items"]), set(items)
+            raise DenominatorMismatch(
+                "the item denominator is fixed for the life of a batch; "
+                f"missing={sorted(stored - given)[:10]} extra={sorted(given - stored)[:10]} "
+                f"(order changes are rejected too)")
+        if batch_id is not None and state.get("batch_id") not in (None, batch_id):
+            raise BatchError(f"state belongs to batch {state.get('batch_id')!r}, not {batch_id!r}")
+        if state.get("policy_sha256") != self.policy.sha256():
+            self._event("policy_changed", old=state.get("policy_sha256"),
+                        new=self.policy.sha256(), old_policy=state.get("policy"),
+                        new_policy=self.policy.to_dict())
+            state["policy"] = self.policy.to_dict()
+            state["policy_sha256"] = self.policy.sha256()
+        state["counters"]["resumes"] += 1
+        state["last_tick_at"] = None  # supervisor 停机时间不计入任何预算
+        in_flight = {item: rec["state"] for item, rec in state["item_state"].items()
+                     if rec["state"] in IN_FLIGHT}
+        self._event("resumed", status=state["status"], in_flight=in_flight)
+        return state
+
+    # -- 持久化 -----------------------------------------------------------------------------
+    def _now(self) -> float:
+        return float(self._clock())
+
+    def _event(self, event: str, /, **data: Any) -> None:
+        now = self._now()
+        record = {key: value for key, value in data.items() if value is not None}
+        record.update({"at": iso(now), "t": round(now, 3), "kind": event})
+        io.append_jsonl(self._events_path, record, lock=False, fsync=self._fsync, allow_nan=True, default=str)
+
+    def _save(self, *, force: bool = False) -> None:
+        now = self._now()
+        if not force and not self._dirty and now - self._last_save < self._heartbeat_s:
+            return
+        self._state["updated_at"] = iso(now)
+        io.atomic_write_json(self._state_path, self._state, fsync=self._fsync, fsync_dir=self._fsync)
+        self._dirty = False
+        self._last_save = now
+
+    def _touch(self, item: str | None = None) -> None:
+        self._dirty = True
+        if item is not None:
+            self._ledger_dirty.add(item)
+
+    # -- 公共访问器 -------------------------------------------------------------------------
+    @property
+    def status(self) -> str:
+        return str(self._state["status"])
+
+    @property
+    def items(self) -> list[str]:
+        return list(self._items)
+
+    def item(self, item: str) -> dict[str, Any]:
+        return json.loads(json.dumps(self._state["item_state"][item]))
+
+    def state(self) -> dict[str, Any]:
+        return json.loads(json.dumps(self._state))
+
+    def summary(self) -> dict[str, Any]:
+        return summarize_state(self._state)
+
+    @classmethod
+    def read_summary(cls, state_dir: str | Path) -> dict[str, Any]:
+        """在不加锁的情况下汇总一个批量（只读状态）。"""
+
+        state = json.loads((Path(state_dir) / "state.json").read_text(encoding="utf-8"))
+        return summarize_state(state)
+
+    def request_stop(self, reason: str, status: str = STOPPED_OPERATOR,
+                     report: Mapping[str, Any] | None = None) -> None:
+        if status not in TERMINAL_STATUSES - {COMPLETE, COMPLETE_WITH_GAPS}:
+            raise BatchError(f"cannot request stop status {status!r}")
+        existing = self._state["stop_request"]
+        if self._state["status"] in TERMINAL_STATUSES:
+            return
+        escalates = status in PAUSED_STATUSES and existing is not None and \
+            existing["status"] not in PAUSED_STATUSES
+        if existing and not escalates:
+            return  # 首次停止生效，但暂停（不排空任何东西）优先于排空
+        self._state["stop_request"] = {"status": status, "reason": reason, "at": iso(self._now()),
+                                       "report": dict(report or {})}
+        self._event("stop_requested", status=status, reason=reason, report=report)
+        self._touch()
+
+    def acknowledge(self, reason: str) -> str:
+        """在操作员查看之后清除 stopped/paused 状态；返回旧状态。
+
+        连击（零进度、unknown 存活性）和系统性失败窗口从零重新开始，暂停的 provider 获得
+        新的暂停额度。预算不会重置；为此请使用 :meth:`reopen`。
+        """
+
+        state = self._state
+        previous = state["status"]
+        if previous == COMPLETE:
+            raise BatchError("the batch is complete; nothing to acknowledge")
+        if previous not in TERMINAL_STATUSES and not state["stop_request"]:
+            return previous
+        state["status"] = RUNNING_STATUS
+        state["stop_request"] = None
+        state["terminal"] = None
+        state["rounds"]["zero_progress_streak"] = 0
+        state["recent_verdicts"] = []
+        state["provider"]["pause_baseline"] = state["counters"]["provider_paused_seconds"]
+        for rec in state["item_state"].values():
+            rec["unknown_streak"] = 0
+        self._event("acknowledged", previous=previous, reason=reason)
+        self._touch()
+        self._save(force=True)
+        return previous
+
+    def reopen(self, items: Iterable[str], *, reason: str, extra_attempts: int = 1) -> list[str]:
+        """给 exhausted / 最终被拒绝的 item 另一次机会（操作员的显式决定）。
+
+        因 *崩溃* 预算而 exhausted 的 item 会获得新的崩溃预算，并重新发起相同的
+        try 和 seed。任何其他 item 都移动到下一次 try（新 seed），并获得
+        ``extra_attempts`` 个额外 seed；``max_rounds`` 仍然生效。
+        """
+
+        if extra_attempts < 1:
+            raise BatchError("extra_attempts must be >= 1")
+        items = list(items)
+        for item in items:
+            rec = self._rec(item)
+            if rec["state"] not in (EXHAUSTED, REJECTED_FINAL):
+                raise BatchError(f"{item} is {rec['state']}; only exhausted or rejected_final "
+                                 "items can be reopened")
+            if rec["terminal_reason"] != "crash_budget" and \
+                    rec["attempt"] + 1 > self.policy.max_rounds:
+                raise BatchError(f"{item} would exceed max_rounds={self.policy.max_rounds}; "
+                                 "raise it in the policy first")
+        now = self._now()
+        reopened = []
+        for item in items:
+            rec = self._rec(item)
+            rec["crash_retries"] = 0
+            if rec["terminal_reason"] == "crash_budget":
+                rec["state"] = CRASHED_RETRYABLE  # 相同的 try 和 seed
+            else:
+                rec["attempt"] += 1
+                rec["seed"] = self._seed_for(item, rec["attempt"])
+                rec["tries"] = 0
+                rec["state"] = REJECTED_RETRYABLE
+                rec["attempt_limit"] = rec["attempts_used"] + extra_attempts
+            rec["retry_not_before"] = now
+            rec["terminal_reason"] = None
+            rec["last"] = {"kind": "reopened", "reason": reason}
+            reopened.append(item)
+            self._touch(item)
+        if reopened:
+            if self._state["status"] in TERMINAL_STATUSES:
+                self._state["status"] = RUNNING_STATUS
+                self._state["terminal"] = None
+                self._state["stop_request"] = None
+            self._event("reopened", items=reopened, reason=reason, extra_attempts=extra_attempts)
+            self._save(force=True)
+        return reopened
+
+    def revoke_admission(self, item: str, *, reason: str, gate: str = "cohort_audit") -> None:
+        """之后（例如 cohort 级）的验证器撤回了准入：视为拒绝。"""
+
+        rec = self._rec(item)
+        if rec["state"] != ADMITTED:
+            raise BatchError(f"{item} is {rec['state']}, not admitted")
+        now = self._now()
+        if rec["attempts"]:
+            rec["attempts"][-1]["revoked"] = {"reason": reason, "gate": gate}
+        rec["evidence"] = None
+        rec["admitted_attempt"] = None
+        rec["terminal_reason"] = None
+        self._event("admission_revoked", item=item, attempt=rec["attempt"], reason=reason,
+                    gate=gate)
+        self._after_consumed(item, rec, now, gate=gate, reason=reason, final=False)
+        self._note_verdict(item, gate)
+        if self._state["status"] in (COMPLETE, COMPLETE_WITH_GAPS):
+            self._state["status"] = RUNNING_STATUS
+            self._state["terminal"] = None
+        self._touch(item)
+        self._save(force=True)
+
+    def resolve_unknown(self, item: str, *, outcome: str, reason: str) -> None:
+        """操作员对存活性无法确定的 try 的裁决。
+
+        ``not_launched``：没有东西在运行；用相同的 try 和 seed 重新发起。
+        ``crashed``：按崩溃计数（崩溃预算，相同 seed）。
+        """
+
+        rec = self._rec(item)
+        if rec["state"] not in IN_FLIGHT:
+            raise BatchError(f"{item} is {rec['state']}, not in flight")
+        if outcome not in ("not_launched", "crashed"):
+            raise BatchError("outcome must be 'not_launched' or 'crashed'")
+        now = self._now()
+        self._event("resolved_unknown", item=item, outcome=outcome, reason=reason,
+                    launch_id=rec["launch_id"])
+        if outcome == "not_launched":
+            previous = rec.get("pre_launch_state") or self._idle_state(rec)
+            self._clear_attempt(rec)
+            rec["state"] = previous
+            rec["retry_not_before"] = now
+        else:
+            self._crash(item, rec, now, Poll("crashed", detail=f"operator: {reason}"))
+        self._touch(item)
+        self._save(force=True)
+
+    @staticmethod
+    def _idle_state(rec: Mapping[str, Any]) -> str:
+        """当 item 的发起未发生时，它返回的 eligible 状态。"""
+
+        if rec["attempt"] > 1:
+            return REJECTED_RETRYABLE
+        return CRASHED_RETRYABLE if rec["crash_retries"] else PENDING
+
+    # -- 循环 -------------------------------------------------------------------------------
+    def run(self, *, max_ticks: int | None = None) -> str:
+        """持续 tick 直到终态（或 ``max_ticks``）；返回该状态。"""
+
+        ticks = 0
+        while True:
+            status = self.step()
+            if status in TERMINAL_STATUSES:
+                return status
+            ticks += 1
+            if max_ticks is not None and ticks >= max_ticks:
+                return self._state["status"]
+            self._sleep(self._next_delay())
+
+    def step(self) -> str | None:
+        """一个控制 tick。到达终态后返回该状态，否则返回 ``None``。"""
+
+        state = self._state
+        if state["status"] in TERMINAL_STATUSES:
+            return state["status"]
+        now = self._now()
+        self._advance_clock(now)
+        state["counters"]["ticks"] += 1
+        if self._stop_check is not None:
+            reason = self._stop_check()
+            if reason:
+                self.request_stop(f"operator: {reason}", STOPPED_OPERATOR)
+        self._check_provider(now)
+        for item in self._items:
+            rec = state["item_state"][item]
+            if rec["state"] == LAUNCHING:
+                self._resolve_intent(item, rec, now)
+            elif rec["state"] in (RUNNING, UNKNOWN):
+                self._poll_item(item, rec, now)
+        self._check_unknown()
+        self._close_rounds(now)
+        self._check_guards()
+        status = self._maybe_terminal(now)
+        if status is None:
+            self._dispatch(now)
+            self._save()
+        self._flush_ledger()
+        return status
+
+    def _next_delay(self) -> float:
+        """睡到下一次轮询，或在退避/探针/重试时间到期时提前醒来。
+
+        只有 *未来* 的截止时间才算数：某个 item 已到期但被阻塞（容量、退避、
+        provider 宕机）时，不能把循环变成对所有 in-flight try 的忙轮询。
+        """
+
+        now = self._now()
+        state = self._state
+        deadlines = [state["burst"]["until"]]
+        if state["provider"]["down"]:
+            deadlines.append(state["provider"]["next_probe"])
+        deadlines += [rec["retry_not_before"] for rec in state["item_state"].values()
+                      if rec["state"] in ELIGIBLE]
+        candidates = [self.policy.poll_interval_s]
+        candidates += [deadline - now for deadline in deadlines
+                       if deadline is not None and deadline > now]
+        return max(min(1.0, self.policy.poll_interval_s), min(candidates))
+
+    # -- 时间核算 ---------------------------------------------------------------------------
+    def _advance_clock(self, now: float) -> None:
+        state = self._state
+        last = state["last_tick_at"]
+        if last is not None and now > last:
+            delta = min(now - last, self.policy.max_tick_gap_s)
+            key = "provider_paused_seconds" if state["provider"]["down"] else "active_seconds"
+            state["counters"][key] += delta
+        state["last_tick_at"] = now
+
+    # -- 逐项处理 ---------------------------------------------------------------------------
+    def _rec(self, item: str) -> dict[str, Any]:
+        try:
+            return self._state["item_state"][item]
+        except KeyError as exc:
+            raise BatchError(f"{item!r} is outside the batch denominator") from exc
+
+    def _seed_for(self, item: str, attempt: int) -> int:
+        if self.task.seed_for is not None:
+            seed = self.task.seed_for(item, attempt)
+            if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+                raise BatchError(f"seed_for must return a non-negative int, got {seed!r}")
+            return seed
+        return default_seed(self.policy.seed_base, item, attempt, self.policy.seed_modulus)
+
+    @staticmethod
+    def _clear_attempt(rec: dict[str, Any]) -> None:
+        rec.update(handle=None, launched_at=None, intent_at=None, unknown_streak=0,
+                   dead_streak=0, verify_errors=0, cost_recorded=False)
+        rec.pop("pre_launch_state", None)
+
+    def _set_terminal(self, item: str, rec: dict[str, Any], state: str, reason: str) -> None:
+        rec["state"] = state
+        rec["terminal_reason"] = reason
+        rec["retry_not_before"] = None
+        self._event("item_terminal", item=item, state=state, reason=reason,
+                    attempts_used=rec["attempts_used"], crash_retries=rec["crash_retries"])
+
+    def _resolve_intent(self, item: str, rec: dict[str, Any], now: float,
+                        launch_error: str | None = None) -> None:
+        """存在没有 handle 的发起 intent（supervisor 在发起中途死亡，或发起过程抛出了异常）。
+        ``reconcile`` 做决定；没有它时该 try 保持 unknown，绝不重新发起。"""
+
+        if self.task.reconcile is None:
+            self._mark_unknown(item, rec, launch_error or "launch intent persisted but no handle; "
+                                                          "no reconcile callable to look it up")
+            return
+        try:
+            found = self.task.reconcile(item, rec["attempt"], rec["seed"], rec["launch_id"])
+        except Exception as exc:  # noqa: BLE001 - reconcile failure means unknown, never lost
+            found = "unknown"
+            self._event("reconcile_error", item=item, error=_short(f"{type(exc).__name__}: {exc}"))
+        if found is None or found == "not_launched":
+            self._event("reconcile_not_launched", item=item, launch_id=rec["launch_id"])
+            if launch_error is not None:
+                # 发起本身失败了：这是一次崩溃（消耗预算），否则一个抛异常的 launcher
+                # 会在每个 tick 上永远被重试。
+                self._crash(item, rec, now, Poll("crashed", detail=launch_error), launched=False)
+                return
+            previous = rec.get("pre_launch_state") or self._idle_state(rec)
+            self._clear_attempt(rec)
+            rec["state"] = previous
+            rec["retry_not_before"] = now
+        elif found == "unknown":
+            self._mark_unknown(item, rec, "reconcile could not establish the launch outcome")
+        else:
+            rec["handle"] = _jsonable(found)
+            rec["state"] = RUNNING
+            rec["launched_at"] = now
+            rec["unknown_streak"] = 0
+            rec.pop("pre_launch_state", None)
+            self._state["counters"]["launches"] += 1
+            self._event("reconcile_found", item=item, launch_id=rec["launch_id"],
+                        handle=rec["handle"])
+        self._touch(item)
+
+    def _mark_unknown(self, item: str, rec: dict[str, Any], detail: str) -> None:
+        rec["unknown_streak"] += 1
+        if rec["state"] == RUNNING:
+            rec["state"] = UNKNOWN
+        if rec["unknown_streak"] == 1:
+            self._event("unknown", item=item, attempt=rec["attempt"], launch_id=rec["launch_id"],
+                        detail=_short(detail))
+        rec["last"] = {"kind": "unknown", "detail": _short(detail)}
+        self._touch(item)
+
+    def _poll_item(self, item: str, rec: dict[str, Any], now: float) -> None:
+        handle = rec["handle"]
+        try:
+            poll = Poll.coerce(self.task.poll(handle))
+        except Exception as exc:  # noqa: BLE001 - a failed status query is "unknown", not "lost"
+            poll = Poll("unknown", detail=f"poll raised {type(exc).__name__}: {exc}")
+        if poll.status == "finished":
+            self._finished(item, rec, now, poll)
+            return
+        if poll.status == "crashed":
+            self._crash(item, rec, now, poll)
+            return
+        if poll.status == "running":
+            # 存活的正面证据；甚至不查询 lease（进程仍在不可达主机上运行时，
+            # lease 可能消失）。
+            self._alive(item, rec)
+            return
+        lease = "unknown"
+        if self.task.lease_probe is not None:
+            try:
+                lease = coerce_lease(self.task.lease_probe(handle))
+            except Exception as exc:  # noqa: BLE001 - lease query failure is unknown, not dead
+                lease = "unknown"
+                if rec["unknown_streak"] == 0:
+                    self._event("lease_probe_error", item=item,
+                                error=_short(f"{type(exc).__name__}: {exc}"))
+        if lease == "alive":
+            self._alive(item, rec)
+            return
+        if lease == "dead":
+            rec["dead_streak"] += 1
+            if rec["dead_streak"] >= self.policy.lost_confirmations:
+                self._event("lost", item=item, launch_id=rec["launch_id"],
+                            confirmations=rec["dead_streak"], detail=_short(poll.detail))
+                self._crash(item, rec, now, Poll(
+                    "crashed", detail=f"lost: poll {poll.status} and lease dead on "
+                                      f"{rec['dead_streak']} consecutive probes; "
+                                      f"{poll.detail or ''}".strip()))
+                return
+        else:
+            rec["dead_streak"] = 0
+        self._mark_unknown(item, rec, poll.detail or f"poll unknown, lease {lease}")
+
+    def _alive(self, item: str, rec: dict[str, Any]) -> None:
+        if rec["state"] == UNKNOWN:
+            self._event("liveness_restored", item=item, after_unknown_polls=rec["unknown_streak"])
+            self._touch(item)
+        rec["state"] = RUNNING
+        rec["unknown_streak"] = 0
+        rec["dead_streak"] = 0
+
+    def _finished(self, item: str, rec: dict[str, Any], now: float, poll: Poll) -> None:
+        state = self._state
+        result = poll.result if poll.result is not None else rec["handle"]
+        if not rec["cost_recorded"]:
+            cost = poll.cost
+            cost_error = None
+            if cost is None and self.task.cost is not None:
+                try:
+                    cost = self.task.cost(result)
+                except Exception as exc:  # noqa: BLE001
+                    cost_error = _short(f"{type(exc).__name__}: {exc}")
+            cost_required = self.task.cost is not None or self.policy.max_total_cost is not None
+            if cost is None and cost_required:
+                cost_error = cost_error or "finished attempt has no cost evidence"
+            elif cost is not None and (isinstance(cost, bool) or
+                                       not isinstance(cost, (int, float)) or
+                                       not math.isfinite(cost) or cost < 0):
+                cost_error = f"invalid cost {cost!r}; expected a finite non-negative number"
+            if cost_error is not None:
+                self._event("cost_error", item=item, error=_short(cost_error))
+                rec["last"] = {"kind": "cost_unknown", "detail": _short(cost_error)}
+                self.request_stop(
+                    f"cost for finished attempt {item} is unknown: {cost_error}",
+                    PAUSED_COST_UNKNOWN,
+                    {"item": item, "launch_id": rec["launch_id"], "error": _short(cost_error)})
+                self._touch(item)
+                return  # 保留结果和 try；resume 时在验证前重新读取 cost
+            amount = float(cost) if cost is not None else 0.0
+            state["counters"]["cost"] += amount
+            rec["attempt_cost"] = amount
+            rec["cost_recorded"] = True
+            state["counters"]["finished"] += 1
+            self._provider_evidence_up(item, now)
+        try:
+            verdict = Verdict.coerce(self.task.verify(item, result))
+        except Exception as exc:  # noqa: BLE001 - verifier failure is not the render's failure
+            rec["verify_errors"] += 1
+            self._event("verify_error", item=item, attempt=rec["attempt"],
+                        errors=rec["verify_errors"], error=_short(f"{type(exc).__name__}: {exc}"))
+            self._touch(item)
+            if rec["verify_errors"] < self.policy.max_verify_errors:
+                return  # 保留该 try；验证会在下一个 tick 重试
+            verdict = Verdict.abstained(f"verifier failed {rec['verify_errors']} times: "
+                                        f"{type(exc).__name__}: {exc}", gate="verifier_error")
+        self._apply_verdict(item, rec, now, verdict)
+
+    def _apply_verdict(self, item: str, rec: dict[str, Any], now: float, verdict: Verdict) -> None:
+        state = self._state
+        state["counters"]["verified"] += 1
+        entry = {"attempt": rec["attempt"], "seed": rec["seed"], "tries": rec["tries"],
+                 "launch_id": rec["launch_id"], "decision": verdict.decision, "gate": verdict.gate,
+                 "reason": _short(verdict.reason), "at": iso(now),
+                 "cost": rec.get("attempt_cost", 0.0)}
+        rec["attempts"].append(entry)
+        rec["last"] = {"kind": "verdict", "decision": verdict.decision, "gate": verdict.gate,
+                       "reason": _short(verdict.reason)}
+        self._event("verdict", item=item, attempt=rec["attempt"], seed=rec["seed"],
+                    decision=verdict.decision, gate=verdict.gate, reason=_short(verdict.reason),
+                    final=verdict.final or None)
+        self._clear_attempt(rec)
+        if verdict.decision == "pass":
+            rec["attempts_used"] += 1
+            rec["state"] = ADMITTED
+            rec["admitted_attempt"] = rec["attempt"]
+            rec["terminal_reason"] = "admitted"
+            rec["retry_not_before"] = None
+            try:
+                rec["evidence"] = _jsonable(verdict.evidence)
+            except TypeError:
+                rec["evidence"] = _short(verdict.evidence)
+            rounds = state["rounds"]["admitted_by_round"]
+            key = str(rec["attempt"])
+            rounds[key] = rounds.get(key, 0) + 1
+            self._note_verdict(item, None)
+        else:
+            gate = verdict.gate or ("abstain" if verdict.decision == "abstain" else "unspecified")
+            self._note_verdict(item, gate)
+            rec["attempts_used"] += 1
+            self._after_consumed(item, rec, now, gate=gate, reason=verdict.reason,
+                                 final=verdict.final)
+        self._touch(item)
+
+    def _after_consumed(self, item: str, rec: dict[str, Any], now: float, *, gate: str | None,
+                        reason: str | None, final: bool) -> None:
+        """一次 try 在未准入的情况下被用尽：在重试和终态之间做决定。
+
+        调用方已在 ``attempts_used`` 中计入了该 try。
+        """
+
+        limit = rec["attempt_limit"] or self.policy.max_attempts_per_item
+        if final:
+            self._set_terminal(item, rec, REJECTED_FINAL, f"final reject by {gate}: {reason}")
+        elif rec["attempts_used"] >= limit:
+            self._set_terminal(item, rec, EXHAUSTED, "attempt_budget")
+        elif rec["attempt"] + 1 > self.policy.max_rounds:
+            self._set_terminal(item, rec, EXHAUSTED, "max_rounds")
+        else:
+            rec["attempt"] += 1
+            rec["seed"] = self._seed_for(item, rec["attempt"])
+            rec["tries"] = 0
+            rec["state"] = REJECTED_RETRYABLE
+            rec["retry_not_before"] = now
+        self._touch(item)
+
+    def _crash(self, item: str, rec: dict[str, Any], now: float, poll: Poll,
+               *, launched: bool = True) -> None:
+        state = self._state
+        detail = poll.detail or "crashed without a result"
+        if poll.kind == "capacity":
+            state["counters"]["capacity_waits"] = state["counters"].get("capacity_waits", 0) + 1
+        else:
+            state["counters"]["crashes"] += 1
+        if poll.cost:
+            state["counters"]["cost"] += float(poll.cost)
+        rec["crash_log"] = (rec["crash_log"] + [{
+            "attempt": rec["attempt"], "try": rec["tries"], "kind": poll.kind,
+            "detail": _short(detail), "at": iso(now), "launched": launched,
+        }])[-5:]
+        rec["last"] = {"kind": "crash", "crash_kind": poll.kind, "detail": _short(detail)}
+        launch_id = rec["launch_id"]
+        self._clear_attempt(rec)
+        probe_item = state["provider"]["probe_item"] == item
+        if poll.kind == "capacity":
+            rec["state"] = CRASHED_RETRYABLE
+            rec["retry_not_before"] = now + self.policy.provider_probe_interval_s
+            rec["last"] = {"kind": "capacity_wait", "detail": _short(detail)}
+            self._event("capacity_wait", item=item, launch_id=launch_id,
+                        detail=_short(detail), seed_kept=rec["seed"])
+            if probe_item:
+                self._provider_up(now, "allocator responds; capacity wait is not a provider outage")
+        elif poll.kind == "permanent":
+            self._event("crashed", item=item, attempt=rec["attempt"], launch_id=launch_id,
+                        crash_kind=poll.kind, detail=_short(detail))
+            self._note_verdict(item, "permanent_error")
+            self._set_terminal(item, rec, REJECTED_FINAL, f"permanent error: {_short(detail)}")
+            if probe_item:
+                self._provider_up(now, "half-open probe reached the provider")
+        elif poll.kind == "provider_down":
+            state["counters"]["provider_crashes"] += 1
+            rec["provider_crashes"] += 1
+            rec["state"] = CRASHED_RETRYABLE
+            rec["retry_not_before"] = now
+            self._event("crashed", item=item, attempt=rec["attempt"], launch_id=launch_id,
+                        crash_kind=poll.kind, detail=_short(detail))
+            self._provider_down(now, detail)
+        else:
+            rec["crash_retries"] += 1
+            self._event("crashed", item=item, attempt=rec["attempt"], launch_id=launch_id,
+                        crash_kind=poll.kind, detail=_short(detail),
+                        crash_retries=rec["crash_retries"], seed_kept=rec["seed"])
+            if probe_item:
+                self._provider_up(now, "half-open probe crashed for a non-provider reason")
+            self._note_crash(item, now)
+            if rec["crash_retries"] > self.policy.max_crash_retries_per_item:
+                self._set_terminal(item, rec, EXHAUSTED, "crash_budget")
+            else:
+                delay = _backoff(self.policy.crash_retry_delay_s, rec["crash_retries"],
+                                 self.policy.crash_retry_delay_cap_s)
+                rec["state"] = CRASHED_RETRYABLE
+                rec["retry_not_before"] = now + delay
+        self._touch(item)
+
+    # -- 崩溃 burst -------------------------------------------------------------------------
+    def _note_crash(self, item: str, now: float) -> None:
+        trigger = advance_burst(self._state["burst"], now, item, self.policy)
+        if trigger is not None:
+            self._event("crash_burst_backoff", **trigger)
+
+    # -- provider 可用性 --------------------------------------------------------------------
+    def _provider_down(self, now: float, detail: str) -> None:
+        provider = self._state["provider"]
+        if not provider["down"]:
+            provider.update(down=True, since=now, half_open=False, probe_item=None,
+                            next_probe=now + self.policy.provider_probe_interval_s)
+            provider["outages"] += 1
+            self._event("provider_down", detail=_short(detail))
+        else:
+            provider.update(half_open=False, probe_item=None,
+                            next_probe=now + self.policy.provider_probe_interval_s)
+        self._touch()
+
+    def _provider_up(self, now: float, why: str) -> None:
+        provider = self._state["provider"]
+        if not provider["down"]:
+            return
+        outage = now - provider["since"] if provider["since"] is not None else None
+        provider.update(down=False, since=None, half_open=False, probe_item=None, next_probe=None)
+        self._event("provider_up", why=why, outage_s=None if outage is None else round(outage, 1))
+        self._touch()
+
+    def _provider_evidence_up(self, item: str, now: float) -> None:
+        if self._state["provider"]["down"]:
+            self._provider_up(now, f"attempt {item} finished")
+
+    def _check_provider(self, now: float) -> None:
+        state = self._state
+        provider = state["provider"]
+        if not provider["down"]:
+            return
+        paused = state["counters"]["provider_paused_seconds"] - provider["pause_baseline"]
+        if paused >= self.policy.max_provider_pause_s:
+            self.request_stop(
+                f"provider unavailable for {paused:.0f}s of pause (bound "
+                f"{self.policy.max_provider_pause_s:.0f}s)", PAUSED_PROVIDER_DOWN,
+                {"outages": provider["outages"], "paused_seconds": round(paused, 1)})
+            return
+        if provider["probe_item"] is not None or now < (provider["next_probe"] or 0):
+            return
+        if self.task.provider_probe is not None:
+            try:
+                answer = self.task.provider_probe()
+            except Exception as exc:  # noqa: BLE001
+                answer = "unknown"
+                self._event("provider_probe_error", error=_short(f"{type(exc).__name__}: {exc}"))
+            if answer == "up":
+                self._provider_up(now, "provider probe")
+            else:
+                provider["next_probe"] = now + self.policy.provider_probe_interval_s
+        else:
+            provider["half_open"] = True  # 让恰好一次发起去探测 provider
+        self._touch()
+
+    # -- 验证窗口 ---------------------------------------------------------------------------
+    def _note_verdict(self, item: str, gate: str | None) -> None:
+        window = [entry for entry in self._state["recent_verdicts"] if entry[0] != item]
+        window.append([item, gate])
+        self._state["recent_verdicts"] = window[-max(4 * self.policy.systematic_window, 50):]
+
+    # -- 守卫 -------------------------------------------------------------------------------
+    def _check_unknown(self) -> None:
+        stuck = {item: rec["unknown_streak"] for item, rec in self._state["item_state"].items()
+                 if rec["state"] in IN_FLIGHT
+                 and rec["unknown_streak"] >= self.policy.max_consecutive_unknown}
+        if stuck:
+            self.request_stop(
+                f"liveness of {len(stuck)} attempt(s) unknown for >= "
+                f"{self.policy.max_consecutive_unknown} consecutive polls; nothing was relaunched",
+                PAUSED_UNKNOWN_LIVENESS,
+                {"items": {item: {"streak": streak,
+                                  "launch_id": self._state["item_state"][item]["launch_id"],
+                                  "last": self._state["item_state"][item]["last"]}
+                           for item, streak in sorted(stuck.items())}})
+
+    def _close_rounds(self, now: float) -> None:
+        state = self._state
+        rounds = state["rounds"]
+        recs = state["item_state"].values()
+        open_attempts = [rec["attempt"] for rec in recs if rec["state"] not in TERMINAL_ITEM_STATES]
+        if open_attempts:
+            closable = min(open_attempts) - 1
+        else:
+            closable = max((rec["max_launched_attempt"] for rec in recs), default=0)
+        while rounds["closed"] < closable:
+            number = rounds["closed"] + 1
+            admitted = int(rounds["admitted_by_round"].get(str(number), 0))
+            rounds["closed"] = number
+            rounds["zero_progress_streak"] = 0 if admitted else rounds["zero_progress_streak"] + 1
+            rounds["history"].append({"round": number, "admitted": admitted, "closed_at": iso(now)})
+            self._event("round_closed", round=number, admitted=admitted,
+                        zero_progress_streak=rounds["zero_progress_streak"])
+            self._touch()
+            limit = self.policy.zero_progress_rounds
+            work_left = any(rec["state"] not in TERMINAL_ITEM_STATES for rec in recs)
+            if limit and rounds["zero_progress_streak"] >= limit and work_left:
+                self.request_stop(
+                    f"{rounds['zero_progress_streak']} consecutive closed rounds without a newly "
+                    f"admitted item (rounds "
+                    f"{number - rounds['zero_progress_streak'] + 1}-{number})",
+                    STOPPED_ZERO_PROGRESS,
+                    {"rounds": rounds["history"][-rounds["zero_progress_streak"]:],
+                     "open_items": sorted(item for item, rec in state["item_state"].items()
+                                          if rec["state"] not in TERMINAL_ITEM_STATES)})
+
+    def _check_guards(self) -> None:
+        state = self._state
+        if state["stop_request"]:
+            return
+        policy = self.policy
+        if policy.systematic_min_items:
+            window = state["recent_verdicts"][-policy.systematic_window:]
+            if len(window) >= policy.systematic_min_items:
+                counts = Counter(gate for _, gate in window if gate is not None)
+                if counts:
+                    gate, failures = min(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+                    share = failures / len(window)
+                    if share >= policy.systematic_share:
+                        failing = [item for item, g in window if g == gate]
+                        self.request_stop(
+                            f"gate {gate!r} rejected {failures}/{len(window)} of the most recent "
+                            f"distinct items (share {share:.2f} >= {policy.systematic_share})",
+                            STOPPED_SYSTEMATIC_FAILURE,
+                            {"gate": gate, "failures": failures, "window": len(window),
+                             "share": round(share, 3), "threshold": policy.systematic_share,
+                             "items": [{"item": item,
+                                        "reason": (state["item_state"][item]["last"] or {})
+                                        .get("reason") or (state["item_state"][item]["last"] or {})
+                                        .get("detail")} for item in failing]})
+                        return
+        counters = state["counters"]
+        if policy.max_total_cost is not None and counters["cost"] >= policy.max_total_cost:
+            self.request_stop(f"cost {counters['cost']:.3f} reached the cap "
+                              f"{policy.max_total_cost}", STOPPED_COST_CAP,
+                              {"cost": counters["cost"]})
+            return
+        if policy.max_wall_seconds is not None and \
+                counters["active_seconds"] >= policy.max_wall_seconds:
+            self.request_stop(f"active wall time {counters['active_seconds']:.0f}s reached "
+                              f"{policy.max_wall_seconds}s (provider pauses excluded)",
+                              STOPPED_WALL_BUDGET,
+                              {"active_seconds": round(counters["active_seconds"], 1),
+                               "provider_paused_seconds":
+                                   round(counters["provider_paused_seconds"], 1)})
+
+    def _maybe_terminal(self, now: float) -> str | None:
+        state = self._state
+        in_flight = [item for item, rec in state["item_state"].items() if rec["state"] in IN_FLIGHT]
+        stop = state["stop_request"]
+        if stop:
+            if stop["status"] in PAUSED_STATUSES or not self.policy.drain_on_stop or not in_flight:
+                return self._finish(stop["status"], stop["reason"], stop.get("report"))
+            if state["status"] != STOPPING:
+                state["status"] = STOPPING
+                self._event("draining", status=stop["status"], in_flight=sorted(in_flight))
+                self._touch()
+            return None
+        eligible = any(rec["state"] in ELIGIBLE for rec in state["item_state"].values())
+        if in_flight or eligible:
+            return None
+        if all(rec["state"] == ADMITTED for rec in state["item_state"].values()):
+            return self._finish(COMPLETE, "every item admitted", None)
+        gaps = {item: rec["terminal_reason"] for item, rec in state["item_state"].items()
+                if rec["state"] != ADMITTED}
+        return self._finish(COMPLETE_WITH_GAPS, f"{len(gaps)} item(s) not admitted: budgets "
+                            "exhausted or final rejects", {"gaps": gaps})
+
+    def _finish(self, status: str, reason: str | None,
+                report: Mapping[str, Any] | None) -> str:
+        state = self._state
+        now = self._now()
+        state["status"] = status
+        state["stop_request"] = None
+        state["terminal"] = {"status": status, "reason": reason, "at": iso(now),
+                             "report": dict(report or {})}
+        self._event("terminal", status=status, reason=reason)
+        self._touch()
+        self._save(force=True)
+        io.atomic_write_json(self._report_path, self.summary(), fsync=self._fsync, fsync_dir=self._fsync)
+        self._ledger_dirty.update(self._items)
+        self._flush_ledger()
+        if self._ledger is not None and (status.startswith("stopped_") or
+                                         status.startswith("paused_")):
+            try:
+                self._ledger.declare_blocked(f"{status}: {reason}")
+            except Exception as exc:  # noqa: BLE001
+                self._ledger_error(exc)
+        return status
+
+    # -- 调度 -------------------------------------------------------------------------------
+    def _dispatch(self, now: float) -> None:
+        state = self._state
+        if state["stop_request"]:
+            return
+        burst_until = state["burst"]["until"]
+        if burst_until is not None and now < burst_until:
+            return
+        provider = state["provider"]
+        if provider["down"] and not provider["half_open"]:
+            return
+        recs = state["item_state"]
+        in_flight = sum(rec["state"] in IN_FLIGHT for rec in recs.values())
+        capacity = self.policy.max_concurrency - in_flight
+        if capacity <= 0:
+            return
+        ready = sorted(
+            (item for item, rec in recs.items() if rec["state"] in ELIGIBLE
+             and (rec["retry_not_before"] is None or rec["retry_not_before"] <= now)),
+            key=lambda item: (recs[item]["attempt"], self._order[item]))
+        for item in ready:
+            if in_flight >= self.policy.max_concurrency:
+                break
+            if not self._cost_allows(in_flight):
+                break
+            self._launch(item, recs[item], now, half_open=provider["down"])
+            in_flight = sum(rec["state"] in IN_FLIGHT for rec in recs.values())
+            if state["provider"]["down"] and recs[item]["state"] in IN_FLIGHT:
+                break  # provider 已宕机，或唯一的 half-open 探针已用掉
+            if state["provider"]["down"] and not state["provider"]["half_open"]:
+                break
+            if state["burst"]["until"] is not None and now < state["burst"]["until"]:
+                break
+
+    def _cost_allows(self, in_flight: int) -> bool:
+        policy = self.policy
+        if policy.max_total_cost is None or policy.launch_cost_estimate <= 0:
+            return True
+        projected = self._state["counters"]["cost"] + (in_flight + 1) * policy.launch_cost_estimate
+        if projected <= policy.max_total_cost:
+            return True
+        if in_flight == 0:
+            self.request_stop(
+                f"the next attempt (estimate {policy.launch_cost_estimate}) would exceed the cost "
+                f"cap {policy.max_total_cost}", STOPPED_COST_CAP,
+                {"cost": self._state["counters"]["cost"]})
+        return False
+
+    def _call_launch(self, item: str, rec: dict[str, Any]) -> Any:
+        if self._launch_takes_id:
+            return self.task.launch(item, rec["attempt"], rec["seed"], launch_id=rec["launch_id"])
+        return self.task.launch(item, rec["attempt"], rec["seed"])
+
+    def _launch(self, item: str, rec: dict[str, Any], now: float, *, half_open: bool) -> None:
+        state = self._state
+        rec["pre_launch_state"] = rec["state"]
+        rec["tries"] += 1
+        rec["launch_id"] = launch_key(item, rec["attempt"], rec["tries"])
+        rec["state"] = LAUNCHING
+        rec["intent_at"] = now
+        rec["max_launched_attempt"] = max(rec["max_launched_attempt"], rec["attempt"])
+        state["counters"]["launch_attempts"] += 1
+        self._event("launch_intent", item=item, attempt=rec["attempt"], seed=rec["seed"],
+                    tries=rec["tries"], launch_id=rec["launch_id"], half_open=half_open or None)
+        self._touch(item)
+        self._save(force=True)  # intent 在任何东西可能启动之前就已持久化
+        try:
+            handle = self._call_launch(item, rec)
+        except LaunchDeferred as exc:
+            rec["state"] = rec.pop("pre_launch_state")
+            rec["tries"] -= 1
+            rec["retry_not_before"] = now + self.policy.poll_interval_s
+            self._event("launch_deferred", item=item, reason=_short(str(exc)))
+        except ProviderDown as exc:
+            rec["state"] = rec.pop("pre_launch_state")
+            rec["tries"] -= 1
+            rec["retry_not_before"] = now
+            self._event("launch_provider_down", item=item, reason=_short(str(exc)))
+            self._provider_down(now, str(exc))
+        except LaunchNotStarted as exc:
+            self._crash(item, rec, now, Poll("crashed", detail=f"launch failed: {exc}"),
+                        launched=False)
+        except LaunchOutcomeUnknown as exc:
+            detail = f"launch outcome unknown: {exc}"
+            self._event("launch_unknown", item=item, launch_id=rec["launch_id"],
+                        reason=_short(detail))
+            self._resolve_intent(item, rec, now, launch_error=detail)
+        except Exception as exc:  # noqa: BLE001
+            detail = f"launch raised {type(exc).__name__}: {exc}"
+            if self.task.reconcile is not None:
+                self._event("launch_unknown", item=item, launch_id=rec["launch_id"],
+                            reason=_short(detail))
+                self._resolve_intent(item, rec, now, launch_error=detail)
+            else:
+                # 没有 reconcile 时，假定抛出异常的 launcher 没有启动任何东西
+                # （可能部分启动的 adapter 必须提供 reconcile）。
+                self._crash(item, rec, now, Poll("crashed", detail=detail), launched=False)
+        else:
+            try:
+                rec["handle"] = _jsonable(handle)
+            except TypeError:
+                self._mark_unknown(item, rec, "launch returned a handle that cannot be persisted")
+                self._save(force=True)
+                raise
+            rec["state"] = RUNNING
+            rec["launched_at"] = now
+            rec.pop("pre_launch_state", None)
+            state["counters"]["launches"] += 1
+            if half_open:
+                state["provider"]["half_open"] = False
+                state["provider"]["probe_item"] = item
+            self._event("launched", item=item, launch_id=rec["launch_id"], handle=rec["handle"])
+        self._touch(item)
+        self._save(force=True)
+
+    # -- ledger -----------------------------------------------------------------------------
+    def _ledger_error(self, exc: BaseException) -> None:
+        message = _short(f"{type(exc).__name__}: {exc}")
+        if message not in self._ledger_errors:
+            self._ledger_errors.add(message)
+            self._event("ledger_error", error=message)
+
+    def _flush_ledger(self) -> None:
+        if self._ledger is None or not self._ledger_dirty:
+            self._ledger_dirty.clear()
+            return
+        rows = []
+        for item in sorted(self._ledger_dirty, key=self._order.get):
+            rec = self._state["item_state"][item]
+            last = rec["last"] or {}
+            failure = None
+            if rec["state"] in (REJECTED_RETRYABLE, REJECTED_FINAL, EXHAUSTED):
+                failure = rec["terminal_reason"] if rec["state"] == EXHAUSTED else None
+                failure = ":".join(str(part) for part in (failure, last.get("gate"),
+                                                          last.get("reason") or last.get("detail"))
+                                   if part) or rec["state"]
+            rows.append({
+                "item": item, "status": LEDGER_CELL_STATUS[rec["state"]],
+                "attempt": rec["attempt"], "failure": _short(failure, 200),
+                "artifact": rec["evidence"] if isinstance(rec["evidence"], str) else None,
+                "note": f"batch:{rec['state']}",
+            })
+        self._ledger_dirty.clear()
+        try:
+            self._ledger.update_cells(rows)
+        except Exception as exc:  # noqa: BLE001 - the ledger observes; it never steers
+            self._ledger_error(exc)
+
+
+# -- 崩溃 burst 规则（纯函数，与离线分析共享）---------------------------------------------------
+def new_burst_state() -> dict[str, Any]:
+    return {"recent": [], "level": 0, "until": None, "last_end": None, "count": 0}
+
+
+def advance_burst(burst: dict[str, Any], now: float, item: str,
+                  policy: BatchPolicy) -> dict[str, Any] | None:
+    """在 ``burst`` 中记录一次临时崩溃（原地修改）；返回退避触发器或 ``None``。
+
+    burst 指 ``crash_burst_items`` 个 *不同* item 在 ``crash_burst_window_s`` 内崩溃：单个
+    item 反复崩溃是 item 问题（由它自己的崩溃预算和重试延迟处理），许多 item 同时崩溃
+    则是 provider/uploader 问题。在窗口内相继出现的 burst 会把退避翻倍，直至
+    ``burst_backoff_cap_s``。
+    """
+
+    if policy.crash_burst_items <= 0:
+        return None
+    recent = [entry for entry in burst["recent"] if now - entry[0] <= policy.crash_burst_window_s]
+    recent.append([now, item])
+    burst["recent"] = recent
+    distinct = {entry[1] for entry in recent}
+    in_backoff = burst["until"] is not None and now < burst["until"]
+    if len(distinct) < policy.crash_burst_items or in_backoff:
+        return None
+    repeated = burst["last_end"] is not None and now - burst["last_end"] <= \
+        policy.crash_burst_window_s
+    burst["level"] = burst["level"] + 1 if repeated else 1
+    delay = _backoff(policy.burst_backoff_s, burst["level"], policy.burst_backoff_cap_s)
+    burst["until"] = now + delay
+    burst["last_end"] = burst["until"]
+    burst["count"] += 1
+    burst["recent"] = []
+    return {"level": burst["level"], "backoff_s": delay, "distinct_items": len(distinct),
+            "window_s": policy.crash_burst_window_s, "items": sorted(distinct)[:20]}
+
+
+# -- 报告 --------------------------------------------------------------------------------------
+def summarize_state(state: Mapping[str, Any]) -> dict[str, Any]:
+    items = state["item_state"]
+    counts = Counter(rec["state"] for rec in items.values())
+    admitted = [item for item in state["items"] if items[item]["state"] == ADMITTED]
+    gaps = [
+        {"item": item, "state": rec["state"], "reason": rec["terminal_reason"],
+         "attempts_used": rec["attempts_used"], "crash_retries": rec["crash_retries"],
+         "last": rec["last"]}
+        for item, rec in ((item, items[item]) for item in state["items"])
+        if rec["state"] in (REJECTED_FINAL, EXHAUSTED)
+    ]
+    in_flight = [
+        {"item": item, "state": rec["state"], "attempt": rec["attempt"],
+         "launch_id": rec["launch_id"], "unknown_streak": rec["unknown_streak"]}
+        for item, rec in ((item, items[item]) for item in state["items"])
+        if rec["state"] in IN_FLIGHT
+    ]
+    counters = state["counters"]
+    return {
+        "schema": REPORT_SCHEMA,
+        "batch_id": state.get("batch_id"),
+        "status": state["status"],
+        "terminal": state.get("terminal"),
+        "stop_request": state.get("stop_request"),
+        "denominator": len(state["items"]),
+        "admitted": len(admitted),
+        "counts": {name: counts.get(name, 0) for name in ITEM_STATES},
+        "admitted_items": admitted,
+        "gaps": gaps,
+        "in_flight": in_flight,
+        "rounds": {"closed": state["rounds"]["closed"],
+                   "admitted_by_round": state["rounds"]["admitted_by_round"],
+                   "zero_progress_streak": state["rounds"]["zero_progress_streak"]},
+        "counters": dict(counters),
+        "crash_bursts": state["burst"]["count"],
+        "provider_outages": state["provider"]["outages"],
+        "provider_down": state["provider"]["down"],
+        "policy_sha256": state["policy_sha256"],
+        "policy": state["policy"],
+        "created_at": state["created_at"],
+        "updated_at": state["updated_at"],
+        "items": {item: {"state": items[item]["state"], "attempt": items[item]["attempt"],
+                         "attempts_used": items[item]["attempts_used"],
+                         "crash_retries": items[item]["crash_retries"],
+                         "admitted_attempt": items[item]["admitted_attempt"],
+                         "terminal_reason": items[item]["terminal_reason"]}
+                  for item in state["items"]},
+    }
+
+
+__all__ = [
+    "ADMITTED", "BatchError", "BatchSupervisor", "COMPLETE", "COMPLETE_WITH_GAPS",
+    "CRASHED_RETRYABLE", "DenominatorMismatch", "EXHAUSTED", "IN_FLIGHT", "ITEM_STATES",
+    "LAUNCHING", "LedgerHook", "PAUSED_COST_UNKNOWN", "PAUSED_PROVIDER_DOWN",
+    "PAUSED_UNKNOWN_LIVENESS", "PENDING", "REJECTED_FINAL", "REJECTED_RETRYABLE", "RUNNING",
+    "STOPPED_COST_CAP", "STOPPED_OPERATOR", "STOPPED_SYSTEMATIC_FAILURE", "STOPPED_WALL_BUDGET",
+    "STOPPED_ZERO_PROGRESS", "SupervisorBusy", "TERMINAL_STATUSES", "UNKNOWN", "advance_burst",
+    "default_seed", "launch_key", "new_burst_state", "read_events", "summarize_state",
+]
