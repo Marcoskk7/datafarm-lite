@@ -7,16 +7,18 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from datafarm.simulation.robot_binding import BindingError, bind_robot, discover_urdf
+from datafarm.simulation.robot_semantics import file_mesh_resolver
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('urdf', type=Path)
     parser.add_argument('--profile', type=Path)
+    parser.add_argument('--asset-root', type=Path, help='Allowed mesh root; default is the URDF directory')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     try:
-        descriptor = discover_urdf(args.urdf.read_bytes())
+        descriptor = discover_urdf(args.urdf.read_bytes(), file_mesh_resolver(args.urdf, args.asset_root))
         profile = json.loads(args.profile.read_text(encoding='utf-8-sig')) if args.profile else None
         report = bind_robot(descriptor, profile)
         content = json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + '\n'

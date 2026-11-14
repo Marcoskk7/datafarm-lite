@@ -1,8 +1,8 @@
 # B 线接口设计：Isaac Lab 3.0 控制、判定与 Episode
 
-版本：`b-control/0.1.0-draft`。日期：2026-11-14（Asia/Shanghai）。状态：可评审的设计稿，新增接口尚未实现或完成机器人任务验收。
+版本：`b-control/0.1.0-draft`。日期：2026-11-14（Asia/Shanghai）。状态：可评审的设计稿；A/B 交接字段保持原有定义，补充当前实现说明。
 
-实现进展：结构发现、profile 合并、Isaac Lab 运行实例绑定、关节状态读取与目标暂存已实现，见 [自动绑定说明](robot-auto-binding.md)。本文其余完整运行时、原语、Judge、Episode 与导出契约仍为设计稿。
+实现进展：URDF 结构/运动链、模型 TCP 与夹爪几何映射、profile 覆盖、Isaac Lab 实例绑定、状态读取与位置目标暂存已实现，见 [自动绑定说明](robot-auto-binding.md)。场景碰撞判定与 TCP IK/规划执行仍待接入；其他模块的设计不因本文更新而自动视为通过验收。
 
 本文落实用户确定的路线：以 `translate-view` 为基线，仿真框架固定 Isaac Lab 3.0，复用已有 Newton + MJWarp 配置；取消独立后端选择探针、10 次抓放前置门槛和 SAPIEN 回退路径。设计不新增付费调用、远程运行或训练任务。
 
@@ -79,6 +79,21 @@ SceneGraph 是场景权威；SceneBinding 是 B 对已加载场景的名称映�
 
 `reset(seed)` 的随机化轴来自 TaskContract；实际抽样结果全部记录。seed 相同不等于保证 GPU 逐位确定性，跨环境版本也不能仅靠 seed 重建场景。
 
+### 3.1 沿用已有接口提供碰撞信息
+
+| 信息 | 权威来源 | B 的处理 |
+|---|---|---|
+| link、可动 joint、运动链、origin/axis、mimic | URDF | 解析并按名字绑定运行时，不以固定关节编号或手写连杆长度替代 |
+| 机器人位置/速度/effort 硬限位 | URDF；运行时须核对 | 场景限制不能扩大机器人允许范围；当前目标入口实施位置限位，速度/effort 的轨迹级约束仍由执行器实现 |
+| 机器人自身碰撞几何 | URDF `<collision>` 和依赖网格 | 交给碰撞检测器；URDF 不包含完整的自碰撞禁用矩阵，额外例外需有来源引用，不默认忽略相邻或其他 link 对 |
+| 障碍物与物体铰接限位 | A 的现有 scene_ref / asset_bundle_ref、entities / frames | 资产提供碰撞形状与缩放，场景提供初始位姿/铰接状态，执行时从同一仿真读取最新状态 |
+| 碰撞关系与允许接触 | A 的现有 collision_groups，任务的现有 constraints | B 根据实体身份和任务阶段检测；不能把所有接触都当作失败 |
+| 机器人几何不可达 / 当前场景不可达 | B 的 IK / 规划与碰撞检测计算 | 前者依据 URDF 运动链/限位；后者再结合 A 的场景状态/约束；单次局部 IK 不收敛不能证明全局不可达 |
+
+这些已有字段能够承载 A 线物品导致的碰撞约束，无需新增限位 payload、交接字段或接口版本。机器人运动链、关节硬限位、模型 TCP/夹爪定义由 B 从来源绑定的 URDF/网格解析，A 无需重复手抄。
+
+接口足够不等于实际资产已完整：B 加载时必须确认引用可解析、碰撞几何存在且已启用、单位/缩放一致、物品位姿与当前铰接状态正确。只有 visual mesh 而无 collision shape 时，按已有资产交付约定修正资产内容；不把 collision_groups 或包围盒当作完整几何。场景物品造成的限制依赖整机姿态和物品状态，由 B 的碰撞检测/规划动态判断，不要求 A 预先转换成独立关节区间。当前该检测/规划尚未接入，不宣称完成场景避障验收。
+
 ## 4. Robot API
 
 ### 4.1 宿主接口：不向专家程序暴露
@@ -106,6 +121,8 @@ class RobotRuntime:
 
 `ControlCommand` 初版仅支持 `joint_position_target`；命名关节和目标值长度相等。臂与夹爪主关节属于可控集合，mimic 从关节只观测、不独立下发目标。记录 `requested`、`applied` 与限幅原因；目标限幅不能被误报成精确到达。
 
+默认控制模式固定为 `position`，由 B 下发关节位置目标；底层位置驱动的 stiffness/damping/effort 由运行 profile 提供并保存。默认位置模式不授权 B 猜测增益；没有有效位置驱动时关闭对应动作能力。当前明确拒绝 velocity/effort 模式。
+
 `Observation` 必须包含步号、命名关节 q/dq、TCP Pose、任务物体 Pose/速度、铰接状态、夹爪开度、有效性标记。力矩字段区分驱动目标、仿真实际值和估计值；拿不到实际值时标记 unavailable。
 
 ### 4.2 专家接口：受限、同步、有限步数
@@ -124,7 +141,7 @@ class RobotPrimitives:
 - `completion` 明确 `max_control_steps`、位置/姿态或开度误差、连续满足的 `settle_steps`。阈值由控制配置限定，策略只能在允许范围内选值。
 - `move_tcp` 的目标 frame 必须已注册；宿主把目标在动作开始时变换到世界系并冻结，动态追踪目标需将来增加显式模式。
 - `motion_limits` 包含 TCP 平移/角速度与命名关节限速。轨迹规划、IK、插值和速度监测由适配层执行。
-- `set_gripper` 输入为两指有效夹持面距离（米）；到 G2 主关节的映射由标定定义。不能把主关节位移直接当成开度。
+- `set_gripper` 输入为两指开度（米）；映射优先由模型 mimic 和碰撞几何推导，记录 `width_semantics=collision_envelope_gap`、网格来源和 `verification=model_geometry_only`。它不自动等同于实物夹持面标定；有来源的显式 profile 可覆盖。不能仅把主关节行程当成开度。
 - `wait` 保持已声明的控制模式和最后目标，照常记录动力学；不是跳过物理时间。
 - 所有原语有调用次数和总步数预算。复位、隐藏种子、Judge、原始文件、仿真对象、任意代码导入不暴露给专家。
 - 抓住物体可能导致夹爪未达到期望开度：普通开度原语报告 `blocked`，是否构成有效抓取由任务 Judge 依据证据判定；不使用通用“闭爪即抓住”规则。

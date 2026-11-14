@@ -24,7 +24,7 @@ REF = dict(kind='fixture-calibration', sha256='a'*64, media_type='application/js
 class BindingTests(unittest.TestCase):
     def setUp(self):
         self.descriptor = discover_urdf(SOURCE)
-        self.profile = dict(schema_version='robot-profile/1', groups={'arm': ['arm_joint']},
+        self.profile = dict(schema_version='robot-profile/2', groups={'arm': ['arm_joint']},
                             gripper=dict(master_joint='master_joint', width_range_m=[0, .1],
                                          joint_per_m=1, joint_offset=0,
                                          calibration_ref=REF))

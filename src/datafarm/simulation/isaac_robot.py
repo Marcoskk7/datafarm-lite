@@ -38,9 +38,13 @@ class IsaacRobotAPI:
         driven = [n for n in self.binding['controllable_joints']
                   if stiffness is not None and stiffness[self.binding['joint_index'][n]] > 0]
         configured = {n for group in self.binding['groups'].values() for n in group}
-        gripper = self.binding['profile'].get('gripper')
+        gripper = self.binding['semantics'].get('gripper')
         if gripper:
-            configured.add(gripper['master_joint'])
+            if gripper['master_joint'] not in driven and gripper['selection_source'] == 'model':
+                self.binding['capabilities']['set_gripper'] = False
+                self.binding['semantic_diagnostics'].append(dict(component='gripper', reason='no_active_position_drive'))
+            else:
+                configured.add(gripper['master_joint'])
         if not configured.issubset(driven):
             raise BindingError('Profile requests a joint without an active position drive')
         self.binding['position_driven_joints'] = driven
@@ -63,7 +67,19 @@ class IsaacRobotAPI:
             raise BindingError('NONFINITE_STATE')
         result = {'joint_names': self.binding['joint_names'][:], 'q': q, 'dq': dq,
                   'contacts': {'availability': 'unavailable'}}
-        tcp = self.binding['profile'].get('tcp')
+        gripper = self.binding['semantics'].get('gripper')
+        if gripper is not None:
+            actual = q[self.binding['joint_index'][gripper['master_joint']]]
+            width = (actual - gripper['joint_offset']) / gripper['joint_per_m']
+            measured = gripper.get('width_observation')
+            if measured is not None:
+                width = measured['offset_m'] + sum(c*q[self.binding['joint_index'][n]]
+                                                    for n, c in measured['joint_coefficients'].items())
+            result['gripper'] = dict(width_m=width, width_range_m=gripper['width_range_m'],
+                                      state_source='measured_finger_joints' if measured else 'measured_master_joint',
+                                      verification=gripper.get('verification', 'explicit_profile'),
+                                      within_defined_range=gripper['width_range_m'][0]-1e-8 <= width <= gripper['width_range_m'][1]+1e-8)
+        tcp = self.binding['semantics'].get('tcp')
         if tcp is not None:
             # Lab 3.0 body poses are XYZW, verified against the local runtime.
             import torch
@@ -93,6 +109,8 @@ class IsaacRobotAPI:
         return dict(status='staged', targets=targets)
 
     def set_gripper(self, width_m):
+        if not self.capabilities()['set_gripper']:
+            raise BindingError('CAPABILITY_UNAVAILABLE: gripper definition or active position drive required')
         return self.set_joint_targets(gripper_target(self.binding, width_m))
 
     def move_tcp(self, *args, **kwargs):

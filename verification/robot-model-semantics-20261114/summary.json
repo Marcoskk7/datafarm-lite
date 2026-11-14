@@ -1,0 +1,119 @@
+{
+  "date": "2026-11-14",
+  "cpu_tests_passed": 26,
+  "lint": "11 rules; zero violations",
+  "diff_check": "passed",
+  "code_sha256": {
+    "src/datafarm/simulation/robot_binding.py": "706766c06d9c25c5e73dbb06191bec7993b3ced8fed2bf81f985bef4fbb80fca",
+    "src/datafarm/simulation/robot_semantics.py": "b564e8f01386a94e1cf58a70c7d4db45c07de28bf1bbe93751a92f4c58002a43",
+    "src/datafarm/simulation/isaac_robot.py": "0a427e236b6a4264cedec56c1810ca20288585391234ffd129a22666a29ab628",
+    "tools/discover_robot.py": "ce4b055d005c4dfc6bb6ffac6266fefa3795a92234dae05bbd0beb6198f3cc4a",
+    "tools/check_isaac_robot_binding.py": "cc2574aa7584ee888e1c794db592ba05f6aaf298a1cafe8f5a872bcae6dcf92a",
+    "tests/test_robot_binding.py": "c9796faed4082449a539b4dcf936c2f62527890d6bae520f4909d4e0eacad5c6",
+    "tests/test_robot_model_semantics.py": "9526580a84192f6880bcd13f26a0939a55fcd7ece575918f0e3c14f05a5c29cc"
+  },
+  "static_discovery": [
+    {
+      "report": "single-static-final.json",
+      "report_sha256": "298728a03988af55aa927d37e88a8ce8c3024085f54501945ef95d37ae9992ce",
+      "urdf_sha256": "d6aa3c4b194211adf9f2334c35c9ff928efca2ba270322b89e8b8af9510da17e",
+      "tcp_candidates": 1,
+      "gripper_candidates": 1,
+      "active_tcp": {
+        "link": "left_end_link",
+        "position_m": [
+          0,
+          0,
+          0
+        ],
+        "quaternion_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "source_ref": {
+          "kind": "robot-model",
+          "sha256": "d6aa3c4b194211adf9f2334c35c9ff928efca2ba270322b89e8b8af9510da17e",
+          "media_type": "application/urdf+xml"
+        },
+        "verification": "named_model_frame",
+        "selection_source": "model",
+        "model_frame": "left_end_link"
+      },
+      "active_gripper": {
+        "master_joint": "left_g2_joint",
+        "width_range_m": [
+          0.0,
+          0.07199978989218349
+        ],
+        "joint_per_m": 1.0000000000067464,
+        "joint_offset": 2.1010733077404163e-07,
+        "source_ref": {
+          "kind": "robot-model",
+          "sha256": "d6aa3c4b194211adf9f2334c35c9ff928efca2ba270322b89e8b8af9510da17e",
+          "media_type": "application/urdf+xml"
+        },
+        "verification": "model_geometry_only",
+        "width_semantics": "collision_envelope_gap",
+        "finger_joints": [
+          "left_g2_left_joint",
+          "left_g2_right_joint"
+        ],
+        "width_observation": {
+          "offset_m": -2.101073307726242e-07,
+          "joint_coefficients": {
+            "left_g2_left_joint": 0.9999999999932537,
+            "left_g2_right_joint": 0.9999999999932537
+          }
+        },
+        "geometry_refs": [
+          {
+            "uri": "meshes/g2_left_link.STL",
+            "sha256": "5c58507404839552ccb38312e0920554da6abd93a2f508cb8812e88712aaacf9",
+            "media_type": "model/stl"
+          },
+          {
+            "uri": "meshes/g2_right_link.STL",
+            "sha256": "5c58507404839552ccb38312e0920554da6abd93a2f508cb8812e88712aaacf9",
+            "media_type": "model/stl"
+          }
+        ],
+        "selection_source": "model"
+      }
+    },
+    {
+      "report": "dual-static-final.json",
+      "report_sha256": "ab729d216dd2a61872fbe0bd0d675a4a37f0802aef9c2f9c475162a43bac2f57",
+      "urdf_sha256": "87544e307494faf4fce4f498233aba848095c14e17403700aa717c07934972fc",
+      "tcp_candidates": 2,
+      "gripper_candidates": 2,
+      "active_tcp": null,
+      "active_gripper": null
+    },
+    {
+      "report": "dualxarm-static-final.json",
+      "report_sha256": "6278b25eec9587bb705cb9e72ec3830ffcceb779437e3b27ff8e2a5b9a69aa7b",
+      "urdf_sha256": "9bc2363fc1cc037e07dd18d10787515f7655f6eb8d3aaea3338c3f615f2074b8",
+      "tcp_candidates": 0,
+      "gripper_candidates": 0,
+      "active_tcp": null,
+      "active_gripper": null
+    }
+  ],
+  "live_reports": {
+    "single-live-final.json": "24322caae041a4b9965d0d35a687ffc26e197247ef4691dde86f5faa0a78a4fd",
+    "single-live-step-failure.json": "640d3ffb6eb09a80db2b3a23208a85a99b440b32dcd1b5f51b2982f43e2f2c31"
+  },
+  "max_width_error_m": 1.2922433869494432e-07,
+  "max_tcp_position_error_m": 8.193906755936058e-08,
+  "max_tcp_rotation_error_rad": 3.006372394280593e-07,
+  "versions": {
+    "isaaclab": "28.0.0",
+    "torch": "2.11.0+cu130",
+    "newton": "1.6.1"
+  },
+  "a_line_contract": "unchanged",
+  "instruction_audit": "not run: Windows fcntl unavailable; server SSH connection timed out",
+  "full_suite": "not run for this change"
+}

@@ -36,7 +36,7 @@
 
 ## B 线接续路径
 
-接口评审依据见 [B 线接口设计](reference/b-control-interfaces.md)（2026-11-14，`b-control/0.1.0-draft`）。该文档包含 A/B 交接字段、坐标与时间约定、Robot API、Judge、Episode、重放/HDF5 和人工协议示例；尚不代表对应运行接口已经实现。
+接口评审依据见 [B 线接口设计](reference/b-control-interfaces.md)（2026-11-14，`b-control/0.1.0-draft`）。该文档包含 A/B 交接字段、坐标与时间约定、Robot API、Judge、Episode、重放/HDF5 和人工协议示例；实现状态按各模块的实际测试证据判断。场景碰撞沿用原有资产/实体/碰撞组字段。
 
 1. 与 A 线固定 SceneGraph 交接字段，以及 Judge/Episode 的单位、坐标系、四元数、时间和关节语义。
 2. 在固定的 Isaac Lab 3.0 环境中，复用 `IsaacLab-3.0/validated_usd/airbot_single/robot.usda` 和 `robot_profiles.py`，直接实现 Robot API 的复位、观测、末端控制、夹爪、步进与接触读取，并对接 A 线场景。
