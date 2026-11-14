@@ -29,7 +29,7 @@ dev = ["pytest>=8,<10", "pytest-subtests>=0.14,<1"]
 workflow = ["requests>=2.31,<3", "numpy>=1.26,<3", "opencv-python-headless>=4.8,<5", "h5py>=3.10,<4", "pyarrow>=17,<22", "scipy>=1.11,<2", "av>=12,<17"]
 
 [project.scripts]
-datafarm = "datafarm.cli:main"
+datafarm = "datafarm.entry.cli:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "datafarm.__version__"}

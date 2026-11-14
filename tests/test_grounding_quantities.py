@@ -103,7 +103,7 @@ def test_delivery_verifies_the_bound_grounding_record(tmp_path, mutation):
 
 
 def test_cli_validate_checks_the_grounding_ledger(tmp_path, capsys):
-    from datafarm.cli import main
+    from datafarm.entry.cli import main
     path = tmp_path / 'grounding.json'
     path.write_text(json.dumps(grounding_ir({'physical_quantities': [
         {'name': 'mass', 'label': 'assumed', 'unit': 'kg', 'value': 0.2}]}).to_dict()))

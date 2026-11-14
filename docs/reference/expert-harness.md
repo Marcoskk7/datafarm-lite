@@ -5,7 +5,7 @@ controller program) against a frozen judge. It runs agent sessions in an OS sand
 itself through a broker, records every attempt and its cost, freezes the judge and inputs by hash, and
 evaluates the submitted experts on hidden held-out seeds after the round.
 
-Package: `src/datafarm/expert/` (sandbox, agent CLI sessions and test doubles in `src/datafarm/adapters/`); command line: `tools/expert_harness.py`; adapter template:
+Package: `src/datafarm/expert/` (sandbox, agent CLI sessions and test doubles in `src/datafarm/adapters/`); command line: `tools/expert_harness.py` (`src/datafarm/entry/expert_cli.py`, dry run in `src/datafarm/entry/expert_dryrun.py`); adapter template:
 `configs/expert-harness/template.json`. Authoring method: `.agents/skills/task-expert-author/SKILL.md`.
 
 ## 1. Role and messages
@@ -223,7 +223,7 @@ one rollout per submission and seed.
 15. Both delivery verifiers require every episode review to carry `joint_margin: pass` among its
     verdicts.
 
-Code: `src/datafarm/expert/`, `src/datafarm/simulation/joint_margin_audit.py`, `src/datafarm/task/contract.py`.
+Code: `src/datafarm/expert/`, `src/datafarm/entry/expert_cli.py`, `src/datafarm/entry/expert_dryrun.py`, `src/datafarm/simulation/joint_margin_audit.py`, `src/datafarm/task/contract.py`.
 
 ## 9. Data model
 

@@ -205,7 +205,9 @@ def cmd_suite(args: argparse.Namespace) -> int:
                 "cells": [{k: c.get(k) for k in ("cell_id", "status", "missing_interfaces")} for c in plan["cells"]]})
         return 0
     if args.suite_cmd == "run":
-        report = run_suite(args.suite, args.out, clock=clock, fake=args.fake,
+        from datafarm.entry.expert_dryrun import fake_suite_cells
+
+        report = run_suite(args.suite, args.out, clock=clock, fake=fake_suite_cells() if args.fake else None,
                            approve_agent_spend=args.approve_agent_spend, approve_gpu=args.approve_gpu,
                            only=args.only or (), isolation=args.isolation)
         _print(report)
@@ -215,7 +217,7 @@ def cmd_suite(args: argparse.Namespace) -> int:
 
 
 def cmd_dry_run(args: argparse.Namespace) -> int:
-    from datafarm.expert.dryrun import run_dry_run
+    from datafarm.entry.expert_dryrun import run_dry_run
 
     result = run_dry_run(args.out, isolation=args.isolation, log=lambda m: print(m, file=sys.stderr))
     _print(result)

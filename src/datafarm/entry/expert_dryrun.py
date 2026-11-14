@@ -363,3 +363,20 @@ def run_dry_run(out_dir: str | Path | None = None, *, isolation: str = "auto",
             "holdout_final_pass_rate": (results.get("final") or {}).get("pass_rate"),
             "agent_calls": usage}
 
+
+
+def fake_suite_cells() -> Callable[[TaskAdapter, dict[str, Any], Path, str | None], tuple[TaskAdapter, str]]:
+    """``evalsuite.run_suite(fake=...)`` 用的 cell 替换器：一次 suite 运行共享一个 fake world。"""
+    world: dict[str, Path] | None = None
+
+    def fake(adapter: TaskAdapter, cell: dict[str, Any], out: Path, isolation: str | None) -> tuple[TaskAdapter, str]:
+        nonlocal world
+        world = world or build_world(out / "fake-world")
+        plan_path = world["root"] / "plan" / f"{cell['cell_id']}.json"
+        plan_path.parent.mkdir(exist_ok=True)
+        plan_path.write_text(json.dumps(default_plan(world, Path(cell["round_dir"]), adversarial=False)))
+        adapter = make_dry_run_adapter(adapter, world, isolation=isolation or "none",
+                                       model=cell["model"], plan_path=plan_path, name=cell["cell_id"])
+        return adapter, str(world["holdout"])
+
+    return fake

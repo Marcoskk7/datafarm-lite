@@ -8,7 +8,7 @@ from typing import Sequence
 from datafarm.grounding.quantities import validate_grounding_artifact
 from datafarm.kernel.artifacts import ArtifactDocument, GateReceipt, IRKind
 from datafarm.kernel.schema import canonical_json_bytes, validate_artifact, validate_gate_receipt
-from datafarm.doctor import add_parsers as add_doctor_parser, handle as handle_doctor
+from datafarm.entry.doctor import add_parsers as add_doctor_parser, handle as handle_doctor
 from datafarm.kernel.io import sha256_bytes
 
 

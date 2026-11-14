@@ -16,7 +16,7 @@ os.environ.setdefault("DATAFARM_LEDGER_ROOT", str(ROOT / "runs" / "ledger"))
 os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT / "src"), os.environ.get("PYTHONPATH")]))
 sys.path.insert(0, str(ROOT / "src"))
 
-from datafarm.ledger.runs_cli import main  # noqa: E402
+from datafarm.entry.runs_cli import main  # noqa: E402
 
 if __name__ == "__main__":
     raise SystemExit(main())

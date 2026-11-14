@@ -12,7 +12,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from datafarm.ledger.runs_cli import main
+from datafarm.entry.runs_cli import main
 from datafarm.ledger.ledger import (
     CellUpdate,
     LedgerError,
