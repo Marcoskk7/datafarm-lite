@@ -1,0 +1,730 @@
+{
+  "scope": "Actual Codex/FYP decisions; includes invalid skill output. Raw session IDs retained only in local run.",
+  "receipts": [
+    {
+      "identity": "668435a54d81d8962e15c6eea66fd50c7a9220e3d6f26f7c97d074d0e5e72db3",
+      "role": "actor",
+      "status": "complete",
+      "session_hashes": [
+        "d85120a60a608556c134668f72ee448432c6d25a88813a2e0ac70e89c0f16f40"
+      ],
+      "usage": {
+        "input_tokens": 8821,
+        "cached_input_tokens": 4711,
+        "output_tokens": 747,
+        "reasoning_output_tokens": 297
+      },
+      "transport": {
+        "upstream_requests": 1,
+        "actual_model": "gpt-6.1-sol",
+        "request_shape": {
+          "keys": [
+            "client_metadata",
+            "include",
+            "input",
+            "instructions",
+            "model",
+            "parallel_tool_calls",
+            "prompt_cache_key",
+            "reasoning",
+            "store",
+            "stream",
+            "text",
+            "tool_choice",
+            "tools"
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "name": "list_mcp_resources"
+            },
+            {
+              "type": "function",
+              "name": "list_mcp_resource_templates"
+            },
+            {
+              "type": "function",
+              "name": "read_mcp_resource"
+            },
+            {
+              "type": "function",
+              "name": "update_plan"
+            },
+            {
+              "type": "function",
+              "name": "request_user_input"
+            },
+            {
+              "type": "function",
+              "name": "view_image"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__adobe"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_document_control"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_goals"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__github"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__gmail"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_calendar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_contacts"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_drive"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__hotline"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__pets"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__plugin_management"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__safety_settings"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__search_service"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sider_scholar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sites"
+            },
+            {
+              "type": "function",
+              "name": "get_goal"
+            },
+            {
+              "type": "function",
+              "name": "create_goal"
+            },
+            {
+              "type": "function",
+              "name": "update_goal"
+            },
+            {
+              "type": "image_generation",
+              "name": null
+            }
+          ],
+          "model": "gpt-6.1-sol",
+          "input_types": [
+            "message",
+            "message",
+            "message"
+          ]
+        },
+        "adaptation": "existing ASPIRE loopback inline Responses bridge"
+      },
+      "cost_usd": null
+    },
+    {
+      "identity": "8f206909dc34acd866f2415a8fada0aca52e88919b4371a262aaf6d3cbc34559",
+      "role": "distiller",
+      "status": "complete",
+      "session_hashes": [
+        "fdf905169d50396d88a327cc43e472e484b124f08e9b4a55fe977f09384a3f41"
+      ],
+      "usage": {
+        "input_tokens": 15873,
+        "cached_input_tokens": 0,
+        "output_tokens": 627,
+        "reasoning_output_tokens": 84
+      },
+      "transport": {
+        "upstream_requests": 1,
+        "actual_model": "gpt-6.1-sol",
+        "request_shape": {
+          "keys": [
+            "client_metadata",
+            "include",
+            "input",
+            "instructions",
+            "model",
+            "parallel_tool_calls",
+            "prompt_cache_key",
+            "reasoning",
+            "store",
+            "stream",
+            "text",
+            "tool_choice",
+            "tools"
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "name": "list_mcp_resources"
+            },
+            {
+              "type": "function",
+              "name": "list_mcp_resource_templates"
+            },
+            {
+              "type": "function",
+              "name": "read_mcp_resource"
+            },
+            {
+              "type": "function",
+              "name": "update_plan"
+            },
+            {
+              "type": "function",
+              "name": "request_user_input"
+            },
+            {
+              "type": "function",
+              "name": "view_image"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__adobe"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_document_control"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_goals"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__github"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__gmail"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_calendar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_contacts"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_drive"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__hotline"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__pets"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__plugin_management"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__safety_settings"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__search_service"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sider_scholar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sites"
+            },
+            {
+              "type": "function",
+              "name": "get_goal"
+            },
+            {
+              "type": "function",
+              "name": "create_goal"
+            },
+            {
+              "type": "function",
+              "name": "update_goal"
+            },
+            {
+              "type": "image_generation",
+              "name": null
+            }
+          ],
+          "model": "gpt-6.1-sol",
+          "input_types": [
+            "message",
+            "message",
+            "message"
+          ]
+        },
+        "adaptation": "existing ASPIRE loopback inline Responses bridge"
+      },
+      "cost_usd": null
+    },
+    {
+      "identity": "8f8cae7be843cbef0118a4ccaf32ce1295e4806b4e15125ce190d719467d1546",
+      "role": "verifier",
+      "status": "complete",
+      "session_hashes": [
+        "be3c44d878adb7be9af1c69081b24baaee7a4dca1ac3adfb1cc9a644941da418"
+      ],
+      "usage": {
+        "input_tokens": 7864,
+        "cached_input_tokens": 4711,
+        "output_tokens": 901,
+        "reasoning_output_tokens": 242
+      },
+      "transport": {
+        "upstream_requests": 1,
+        "actual_model": "gpt-6.1-sol",
+        "request_shape": {
+          "keys": [
+            "client_metadata",
+            "include",
+            "input",
+            "instructions",
+            "model",
+            "parallel_tool_calls",
+            "prompt_cache_key",
+            "reasoning",
+            "store",
+            "stream",
+            "text",
+            "tool_choice",
+            "tools"
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "name": "list_mcp_resources"
+            },
+            {
+              "type": "function",
+              "name": "list_mcp_resource_templates"
+            },
+            {
+              "type": "function",
+              "name": "read_mcp_resource"
+            },
+            {
+              "type": "function",
+              "name": "update_plan"
+            },
+            {
+              "type": "function",
+              "name": "request_user_input"
+            },
+            {
+              "type": "function",
+              "name": "view_image"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__adobe"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_document_control"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_goals"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__github"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__gmail"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_calendar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_contacts"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_drive"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__hotline"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__pets"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__plugin_management"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__safety_settings"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__search_service"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sider_scholar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sites"
+            },
+            {
+              "type": "function",
+              "name": "get_goal"
+            },
+            {
+              "type": "function",
+              "name": "create_goal"
+            },
+            {
+              "type": "function",
+              "name": "update_goal"
+            },
+            {
+              "type": "image_generation",
+              "name": null
+            }
+          ],
+          "model": "gpt-6.1-sol",
+          "input_types": [
+            "message",
+            "message",
+            "message"
+          ]
+        },
+        "adaptation": "existing ASPIRE loopback inline Responses bridge"
+      },
+      "cost_usd": null
+    },
+    {
+      "identity": "be3ee2df217a7bfa211e3a2d500939a355fd13465d8ba47e7f4d12550b92d15f",
+      "role": "actor",
+      "status": "complete",
+      "session_hashes": [
+        "d2e00df872674aad4d60f477689de2ab6b533d10a9a0f5df83600d9905e77101"
+      ],
+      "usage": {
+        "input_tokens": 8971,
+        "cached_input_tokens": 4711,
+        "output_tokens": 955,
+        "reasoning_output_tokens": 308
+      },
+      "transport": {
+        "upstream_requests": 1,
+        "actual_model": "gpt-6.1-sol",
+        "request_shape": {
+          "keys": [
+            "client_metadata",
+            "include",
+            "input",
+            "instructions",
+            "model",
+            "parallel_tool_calls",
+            "prompt_cache_key",
+            "reasoning",
+            "store",
+            "stream",
+            "text",
+            "tool_choice",
+            "tools"
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "name": "list_mcp_resources"
+            },
+            {
+              "type": "function",
+              "name": "list_mcp_resource_templates"
+            },
+            {
+              "type": "function",
+              "name": "read_mcp_resource"
+            },
+            {
+              "type": "function",
+              "name": "update_plan"
+            },
+            {
+              "type": "function",
+              "name": "request_user_input"
+            },
+            {
+              "type": "function",
+              "name": "view_image"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__adobe"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_document_control"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_goals"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__github"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__gmail"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_calendar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_contacts"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_drive"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__hotline"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__pets"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__plugin_management"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__safety_settings"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__search_service"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sider_scholar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sites"
+            },
+            {
+              "type": "function",
+              "name": "get_goal"
+            },
+            {
+              "type": "function",
+              "name": "create_goal"
+            },
+            {
+              "type": "function",
+              "name": "update_goal"
+            },
+            {
+              "type": "image_generation",
+              "name": null
+            }
+          ],
+          "model": "gpt-6.1-sol",
+          "input_types": [
+            "message",
+            "message",
+            "message"
+          ]
+        },
+        "adaptation": "existing ASPIRE loopback inline Responses bridge"
+      },
+      "cost_usd": null
+    },
+    {
+      "identity": "fa5c314f8181a0353f651a2e07be138e5790305c676aee7cdd4a70ce35c22dac",
+      "role": "distiller",
+      "status": "failed_or_interrupted",
+      "session_hashes": [
+        "c748c870be7bf78a879a2dc9405834b9c94aac5d571bbd5f41b127bd0a4c561f"
+      ],
+      "usage": {
+        "input_tokens": 15840,
+        "cached_input_tokens": 0,
+        "output_tokens": 712,
+        "reasoning_output_tokens": 48
+      },
+      "transport": {
+        "upstream_requests": 1,
+        "actual_model": "gpt-6.1-sol",
+        "request_shape": {
+          "keys": [
+            "client_metadata",
+            "include",
+            "input",
+            "instructions",
+            "model",
+            "parallel_tool_calls",
+            "prompt_cache_key",
+            "reasoning",
+            "store",
+            "stream",
+            "text",
+            "tool_choice",
+            "tools"
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "name": "list_mcp_resources"
+            },
+            {
+              "type": "function",
+              "name": "list_mcp_resource_templates"
+            },
+            {
+              "type": "function",
+              "name": "read_mcp_resource"
+            },
+            {
+              "type": "function",
+              "name": "update_plan"
+            },
+            {
+              "type": "function",
+              "name": "request_user_input"
+            },
+            {
+              "type": "function",
+              "name": "view_image"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__adobe"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_document_control"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__codex_goals"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__github"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__gmail"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_calendar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_contacts"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__google_drive"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__hotline"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__pets"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__plugin_management"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__safety_settings"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__search_service"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sider_scholar"
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__codex_apps__sites"
+            },
+            {
+              "type": "function",
+              "name": "get_goal"
+            },
+            {
+              "type": "function",
+              "name": "create_goal"
+            },
+            {
+              "type": "function",
+              "name": "update_goal"
+            },
+            {
+              "type": "image_generation",
+              "name": null
+            }
+          ],
+          "model": "gpt-6.1-sol",
+          "input_types": [
+            "message",
+            "message",
+            "message"
+          ]
+        },
+        "adaptation": "existing ASPIRE loopback inline Responses bridge"
+      },
+      "cost_usd": null
+    }
+  ]
+}

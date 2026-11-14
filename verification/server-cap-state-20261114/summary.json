@@ -1,0 +1,138 @@
+{
+  "date": "2026-11-14",
+  "scene_generation_pipeline_tested": false,
+  "scope": "Fixed manual AIRBOT scene, non-contact joint waypoint and return; not grasping",
+  "framework_release": "Isaac Lab 3.0.0",
+  "physics_backend": "Newton/MJWarp",
+  "program_source_sha256": "6e587b96a9d4ae2e6da436ee5b2e7c96e5bc4ef66c456f19cd688691d82d5c3a",
+  "provider_decisions": 5,
+  "actual_fyp_requests": 5,
+  "candidate_programs": 3,
+  "provided_diagnostic_programs": 1,
+  "model_actor_candidates": 2,
+  "skill_admission": {
+    "status": "sound",
+    "skill_id": "57c09f8db5c7be606fbe1da4132e0902c54328582925ff1d5290cc3f3ee0c0bd"
+  },
+  "heldout_episodes": 1,
+  "heldout_successes": 1,
+  "generalization_limit": "One cold start and one heldout seed; not a broad >=80% estimate",
+  "physical_episodes": 9,
+  "physical_steps": 7050,
+  "independent_result_recomputation": true,
+  "repeatability": {
+    "matched_steps": 1051,
+    "max_tool_link_position_error_m": 0.0,
+    "threshold_m": 0.01,
+    "passed": true,
+    "scope": "same-seed frozen-program re-execution; separate from state playback and full applied-action replay"
+  },
+  "h3": {
+    "generation_succeeded": true,
+    "prompt_id": "5e1df01b-904c-4858-99d6-8510b0ce67fa",
+    "seconds": 147.7392065525055,
+    "peak_gpu_mib": 31843,
+    "width": 512,
+    "height": 384,
+    "frames": 124,
+    "fps": 24,
+    "trajectory_fidelity": "not_accepted: visible exaggerated arm motion; first/last-frame conditioning only"
+  },
+  "real_ready": false,
+  "training_admission": false,
+  "email_status": "sent and SENT label / intended recipient / video ZIP attachment verified; private receipt retained locally",
+  "outputs": [
+    {
+      "name": "episode.h5",
+      "bytes": 270816,
+      "sha256": "40b739b60abd322228d2c274b27a9adf66296701cd909e7bf205658283858c11"
+    },
+    {
+      "name": "first-frame.png",
+      "bytes": 12268,
+      "sha256": "fb996978b1c07ff294ecdb54b8d37e295d87967837df8d4903bf4d058d06dc3d"
+    },
+    {
+      "name": "h3-generated-diagnostic.mp4",
+      "bytes": 164084,
+      "sha256": "1dbfea87e4107c58f4e80e65a6c141df44e65d08ae920214c12c1da836f4fb66"
+    },
+    {
+      "name": "h3-result.json",
+      "bytes": 7447,
+      "sha256": "b3f97b504b1d53e31d05c9ca4940dc69fd3d22fe69416ef4ef1a202f67ebdb4e"
+    },
+    {
+      "name": "h3-submitted-prompt.json",
+      "bytes": 3748,
+      "sha256": "82c479d796ad348897245acd873566f3922f54b715cb9d21af3f8d684d598c06"
+    },
+    {
+      "name": "independent-audit.json",
+      "bytes": 6590,
+      "sha256": "92887468cbaf2755a7bfb2a7093d3fab8c632893c78350bbccbb882280634e71"
+    },
+    {
+      "name": "last-frame.png",
+      "bytes": 12244,
+      "sha256": "05e32ad9ebb9efcac1d11d087e5ea65e82b70cf6876c288f5628a465f9b2c308"
+    },
+    {
+      "name": "render.json",
+      "bytes": 220,
+      "sha256": "238d763a7cd6544c3bfdea50a29e9a18f03bbddd7db935d9317a382ee0f50219"
+    },
+    {
+      "name": "repeatability.json",
+      "bytes": 222,
+      "sha256": "507e1e8fabf67b1f71f1f8d29eb92b45492e1db6f5b41e23c26f717f5f8eb247"
+    },
+    {
+      "name": "simulation-state-playback.mp4",
+      "bytes": 23891,
+      "sha256": "59e6d9122a9c06685d260d71049710e4053e4edbebae0034fc2facc543f460f1"
+    },
+    {
+      "name": "video-review.png",
+      "bytes": 57390,
+      "sha256": "792a46610fbbc74760623d847d16e7b635ed0bda1aa5238de2003492a0dd1112"
+    },
+    {
+      "name": "Codex-ASPIRE-state-test-videos-20261114.zip",
+      "bytes": 171431,
+      "sha256": "ad35377d601b4d23acb3fe48b1e9e79d920551f2e798ecfbcf1d6221b27fceba"
+    }
+  ],
+  "software_validation": {
+    "pytest_passed": 781,
+    "pytest_skipped": 7,
+    "subtests_passed": 109,
+    "warnings": 2,
+    "wall_seconds": 632.57,
+    "lint": "11 rules, zero violations",
+    "instruction_audit": {
+      "files": 405,
+      "embedded_prompts": 46,
+      "roles": 7,
+      "errors": []
+    }
+  },
+  "environment": {
+    "python": "3.12.16",
+    "packages": {
+      "isaaclab": "28.0.0",
+      "newton": "1.6.1",
+      "mujoco": "3.12.0",
+      "warp-lang": "1.17.0",
+      "torch": "2.11.0+cu130",
+      "numpy": "2.4.6",
+      "imageio-ffmpeg": "0.8.1"
+    }
+  },
+  "archive_portability": {
+    "CRLF_in_pinned_files": 0,
+    "vendored_patch_sha256": "a8257dae7b635342fd091987bde760dc0f522790ab1018c5311ff51bba8343d7",
+    "lora_fuser_sha256": "0e8222b76e086f8f100092e325a08e86bfc8bd33fb404c8b8b0cdd4d3d56362c"
+  },
+  "resource_cleanup": "Owned fixed-scene worker stopped; H3 queue empty and models released; GPU usage returned to 716 MiB."
+}

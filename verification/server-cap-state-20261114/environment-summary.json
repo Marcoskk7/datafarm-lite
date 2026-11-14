@@ -1,0 +1,12 @@
+{
+  "python": "3.12.16",
+  "packages": {
+    "isaaclab": "28.0.0",
+    "newton": "1.6.1",
+    "mujoco": "3.12.0",
+    "warp-lang": "1.17.0",
+    "torch": "2.11.0+cu130",
+    "numpy": "2.4.6",
+    "imageio-ffmpeg": "0.8.1"
+  }
+}

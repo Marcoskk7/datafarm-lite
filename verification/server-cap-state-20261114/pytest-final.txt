@@ -1,0 +1,28 @@
+.................................................. [  6%]
+........................................................................ [ 15%]
+........................................................................ [ 24%]
+...................................................................ssssss............................. [ 37%]
+...................................................................... [ 46%]
+........................................................................ [ 55%]
+.............................................................................................................................. [ 71%]
+......................................................... [ 78%]
+................................................................... [ 87%]
+................................................................... [ 95%]
+................................                                         [100%]
+=============================== warnings summary ===============================
+../IsaacLab/.venv/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/data/private/datafarm-b-control-20261114/IsaacLab/.venv/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+../IsaacLab/.venv/lib/python3.12/site-packages/dash/testing/plugin.py:104
+  /opt/data/private/datafarm-b-control-20261114/IsaacLab/.venv/lib/python3.12/site-packages/dash/testing/plugin.py:104: PytestRemovedIn10Warning: The hookimpl pytest_addhooks uses old-style configuration options (marks or attributes).
+  Please use the pytest.hookimpl(tryfirst=True) decorator instead
+   to configure the hooks.
+   See https://docs.pytest.org/en/latest/deprecations.html#configuring-hook-specs-impls-using-markers
+    @pytest.mark.tryfirst
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+781 passed, 7 skipped, 2 warnings, 109 subtests passed in 632.57s (0:10:32)
