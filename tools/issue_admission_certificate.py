@@ -37,7 +37,7 @@ from datafarm.training.cohort_auditors import (  # noqa: E402
     build_claim,
     detect_auditor,
 )
-from datafarm.core.admission import (  # noqa: E402
+from datafarm.training.admission import (  # noqa: E402
     ALLOWLIST_ROLE,
     FILES_ROLE,
     PROVENANCE_ROLE,

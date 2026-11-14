@@ -44,7 +44,7 @@ from datafarm.training.joint_actions import (
     validate_provenance_contract as validate_joint_provenance_contract,
 )
 from datafarm.training.distribution import validate_distribution_acceptance_contract
-from datafarm.core.admission import (
+from datafarm.training.admission import (
     AdmissionError,
     AdmissionExpectation,
     compute_file_manifest,

@@ -15,7 +15,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from datafarm.verify.spec import RenderVerifierSpec
+from datafarm.render.verify.spec import RenderVerifierSpec
 
 
 def _read(path: str, frame: int, size: tuple[int, int]) -> np.ndarray | None:

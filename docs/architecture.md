@@ -10,8 +10,8 @@ not into this repository.
 
 ```text
 episode + request
-  │  tools/pipeline_agent.py prepare     pin source, input and cost policy (datafarm.agent)
-  │  tools/pipeline_agent.py supervise   run agent sessions until delivery or a stop (datafarm.agent)
+  │  tools/pipeline_agent.py prepare     pin source, input and cost policy (datafarm.orchestration)
+  │  tools/pipeline_agent.py supervise   run agent sessions until delivery or a stop (datafarm.orchestration)
   ▼
 grounding              scene, cameras, references, labelled physical quantities (datafarm.grounding)
   ▼
@@ -22,10 +22,10 @@ task contract, expert  frozen judge, sandboxed author, held-out seeds (datafarm.
 rendering              render contract and provider payload checks (datafarm.render.policy),
   │                    H3 control hybrid or Seedance (datafarm.adapters.render)
   ▼
-verification, review   render verifier and independent review (datafarm.verify, datafarm.task.contract)
-  │                    bounded per-item batches around all of the above (datafarm.batch)
+verification, review   render verifier and independent review (datafarm.render.verify, datafarm.task.contract)
+  │                    bounded per-item batches around all of the above (datafarm.orchestration.batch)
   ▼
-delivery, admission    tools/pipeline_agent.py verify; admission certificate (datafarm.core.admission)
+delivery, admission    tools/pipeline_agent.py verify; admission certificate (datafarm.training.admission)
   ▼
 training (on request)  certificate-gated pi0.5 launch (datafarm.adapters.trainer.openpi, datafarm.training)
 
@@ -72,19 +72,19 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 |---|---|
 | `kernel` | Shared kernel: standard-library I/O helpers, artifact documents and receipts, schema checks, content-addressed store, file binding and source locks |
 | `grounding` | Grounding ledger: labelled physical quantities and their validated record |
-| `core` | Admission certificates |
-| `agent` | Run and resume agent sessions, phases, progress, keep the cost ledger |
 | `task` | Task contract checks, review-independence proof (`task/review_identity.py`), white delivery |
 | `expert` | Expert harness: sandboxed author sessions, rollout broker, frozen judge, held-out evaluation, expert library |
 | `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans |
-| `render` | Render contract (`render/policy.py`), rendered-delivery check (`render/delivery.py`); the renderers live in `adapters/render` |
-| `verify` | Spec-driven render verifier, counterfactual calibration, reviewer calibration |
-| `batch` | Batch supervisor: bounded per-item launch, poll, verify and retry (the subprocess task is `adapters/process`) |
+| `render` | Render contract (`render/policy.py`), rendered-delivery check (`render/delivery.py`), spec-driven render verifier with counterfactual and reviewer calibration (`render/verify`); the renderers live in `adapters/render` |
 | `ledger` | Run ledger: fixed item denominator, derived run status, launch sentinel |
-| `training` | Launch, dataset and action-mode contracts, cohort auditors |
+| `training` | Admission certificates (`training/admission.py`), launch, dataset and action-mode contracts, cohort auditors |
 | `evolution` | Feedback store and controller that evaluates and activates capability-layer changes |
+| `orchestration` | Run and resume agent sessions, phases, progress, the task cost ledger, and the batch supervisor (`orchestration/batch.py`: bounded per-item launch, poll, verify and retry) |
 | `adapters` | Outer technology: agent CLIs, metered provider, credentials and call log (`agent_harness`); OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
 | `instructions.py`, `runtime.py`, `doctor.py`, `cli.py` | Role context compiler, runtime bindings, prerequisite checks, the `datafarm` command |
+| `batch_protocol.py` | Contract shared by the batch supervisor and its task implementations: policy, poll and verdict results, `BatchTask`, launch exceptions |
+
+Dependency direction: `orchestration` may import anything; business packages (`grounding`, `task`, `expert`, `simulation`, `render`, `training`, `ledger`, `evolution`) never import `orchestration`; `adapters` import business packages and `kernel` but never `orchestration`.
 
 ## Top-level directories
 

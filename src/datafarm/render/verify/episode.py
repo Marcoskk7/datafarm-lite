@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from datafarm.verify.spec import EventSpec
+from datafarm.render.verify.spec import EventSpec
 
 
 def gripper_events(state: Mapping[str, Any], *, roles: Sequence[str], arms: Sequence[str] = ("left", "right"),

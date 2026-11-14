@@ -10,7 +10,7 @@ How system and role prompts are assembled is described in [capability-layer](cap
 |---|---|---|
 | Call ledger | `src/datafarm/adapters/agent_harness/call_log.py` | One JSON line per model call attempt (schema `datafarm.agent-call/1`) |
 | Ledger report | `src/datafarm/adapters/agent_harness/call_report.py`, `tools/agent_calls_report.py` | Calls, tokens, known and unknown cost, latency per component, backend, model and status |
-| Reviewer calibration | `src/datafarm/verify/reviewer_calibration.py`, `tools/calibrate_vlm_reviewer.py`, `configs/standing-rules.json` | VLM vs human agreement; audit against standing rules |
+| Reviewer calibration | `src/datafarm/render/verify/reviewer_calibration.py`, `tools/calibrate_vlm_reviewer.py`, `configs/standing-rules.json` | VLM vs human agreement; audit against standing rules |
 
 ## 1. Call ledger (`datafarm.agent-call/1`)
 

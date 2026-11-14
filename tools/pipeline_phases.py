@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 
-from datafarm.agent.phases import (PhaseError, brief_values, capture, cost_status, load_config,  # noqa: E402
+from datafarm.orchestration.phases import (PhaseError, brief_values, capture, cost_status, load_config,  # noqa: E402
                                    render_brief, run_phase)
 from datafarm.evolution.integration import source_for  # noqa: E402
 

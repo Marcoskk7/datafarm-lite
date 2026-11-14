@@ -1,6 +1,6 @@
 """PI0.5 cohort 准入审计器与证书 claim 构造器。
 
-通用的证书机制位于 ``datafarm.core.admission``。本模块解释由
+通用的证书机制位于 ``datafarm.training.admission``。本模块解释由
 ``tools/build_pi05_dataset.py`` 构建的数据集背后的证据，并仅从原始字节重新推导
 训练 bundle 接纳了哪些样本：一份 ``datafarm.pi05-semantic-allowlist/1.1.0``
 allowlist 加上它被切出的 dense semantic 审计报告，以及可选的
@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
 from datafarm.kernel.io import is_sha256, sha256_bytes
-from datafarm.core.admission import (
+from datafarm.training.admission import (
     ALLOWLIST_ROLE,
     FILES_ROLE,
     FILE_MANIFEST_SCHEMA,

@@ -27,7 +27,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from datafarm.verify.checks import ABSTAIN, FAIL, NA, PASS, CheckResult, Context, Evidence, persistent_runs
+from datafarm.render.verify.checks import ABSTAIN, FAIL, NA, PASS, CheckResult, Context, Evidence, persistent_runs
 
 _MODEL: dict[str, Any] = {}
 

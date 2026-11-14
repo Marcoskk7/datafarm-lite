@@ -10,11 +10,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from datafarm.agent.runtime import (supervise, recover_inflight, process_identity,
+from datafarm.orchestration.runtime import (supervise, recover_inflight, process_identity,
     review_request)
 from datafarm.task.review_identity import runtime_dir
 from datafarm.adapters.agent_harness.native_codex import command, run, save
-from datafarm.agent.cost_budget import TaskBudget
+from datafarm.orchestration.cost_budget import TaskBudget
 from test_task_cost_budget import workspace, driver_module, drive_args, receipt
 
 
@@ -296,7 +296,7 @@ def test_crash_after_failure_preserves_retry_boundary(tmp_path, monkeypatch):
 
 def test_term_resistant_group_is_killed_and_verified(tmp_path):
     import subprocess
-    from datafarm.agent.runtime import terminate_group,group_alive
+    from datafarm.orchestration.runtime import terminate_group,group_alive
     p=subprocess.Popen([sys.executable,'-c',
         'import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);print("ready",flush=True);time.sleep(60)'],
         stdout=subprocess.PIPE,text=True,start_new_session=True)

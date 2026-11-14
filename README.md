@@ -260,17 +260,14 @@ docs/                  quickstart, deployment, architecture and one reference no
 src/datafarm/
   kernel/              shared kernel: I/O helpers, artifacts, schema, store, file binding and source locks
   grounding/           grounding ledger: labelled physical quantities
-  core/                admission certificates
-  agent/               agent runtime and sessions, phases, progress, cost ledger
   task/                task contract checks, review-independence proof, white delivery
   expert/              sandboxed expert development, hidden judge and held-out seeds
   simulation/          simulator qualification, joint-margin audit, randomization plans
-  render/              render contract and rendered-delivery check
-  verify/              spec-driven render verifier, counterfactual suite, reviewer calibration
-  batch/               batch supervisor
+  render/              render contract, rendered-delivery check, spec-driven render verifier (render/verify)
   ledger/              run ledger
-  training/            launch, dataset and action-mode contracts
+  training/            admission certificates, launch, dataset and action-mode contracts
   evolution/           capability evolution store and controller
+  orchestration/       agent runtime and sessions, phases, progress, cost ledger, batch supervisor
   adapters/            outer technology: agent CLIs and call log, OS sandbox, subprocess wrappers,
                        H3 and Seedance renderers, SAPIEN replay and USDCraft, openpi launcher, LeRobot import
 tools/                 CLIs: pipeline_agent.py, pipeline_phases.py, pipeline_evolve.py, build_usd_asset.py (USDCraft), expert_harness.py, datafarm_runs.py,

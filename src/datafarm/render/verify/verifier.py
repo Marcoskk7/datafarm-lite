@@ -9,10 +9,10 @@ from typing import Any, Sequence
 import cv2
 import numpy as np
 
-from datafarm.verify import checks as C
-from datafarm.verify.media import Clip, load_clip, load_reference_clip
-from datafarm.verify.realism import check_realism
-from datafarm.verify.spec import DEFAULT_THRESHOLDS, FAMILIES, RenderVerifierSpec, validate_spec
+from datafarm.render.verify import checks as C
+from datafarm.render.verify.media import Clip, load_clip, load_reference_clip
+from datafarm.render.verify.realism import check_realism
+from datafarm.render.verify.spec import DEFAULT_THRESHOLDS, FAMILIES, RenderVerifierSpec, validate_spec
 
 VERIFIER_ID = "datafarm-render-verifier-v2"
 VERIFIER_VERSION = "2.0.0"
@@ -49,7 +49,7 @@ def run_checks(spec: RenderVerifierSpec, carrier: Clip, generated: Clip, real: C
             for entity in spec.entities:
                 run("entity", C.check_entity, ctx, entity)
                 if any(c.partition(":")[0] == "semantic_unsupported" for c in entity.checks):
-                    from datafarm.verify.semantic import check_semantic_unsupported
+                    from datafarm.render.verify.semantic import check_semantic_unsupported
                     run("entity", check_semantic_unsupported, ctx, entity)
         run("event", C.check_events, ctx)
         run("temporal", C.check_temporal, ctx)

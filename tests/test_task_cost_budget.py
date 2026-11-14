@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from datafarm.agent.cost_budget import TaskBudget, micros, budget_for_work
-from datafarm.agent.task_wait import wait_for_task, model_wait_status
+from datafarm.orchestration.cost_budget import TaskBudget, micros, budget_for_work
+from datafarm.orchestration.task_wait import wait_for_task, model_wait_status
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -218,7 +218,7 @@ def test_drive_missing_receipt_blocks_restart_even_if_claims_complete(tmp_path, 
 
 
 def test_wait_ignores_heartbeat_and_returns_on_job_completion(tmp_path, monkeypatch):
-    import datafarm.agent.task_wait as module
+    import datafarm.orchestration.task_wait as module
     p = tmp_path / 'state.json'
     state = {'status': 'working', 'phase': 'expert', 'external_jobs': [{'id': 'one', 'status': 'running'}]}
     p.write_text(json.dumps(state)); ticks = []

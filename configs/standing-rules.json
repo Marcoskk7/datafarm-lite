@@ -70,7 +70,7 @@
       "id": "SR-002-exposure-gross-guard",
       "statement": "Global exposure drift is only a gross guard (default background_mean_drift_max = 60). Realism and appearance thresholds are calibrated on human labels, not engineering guesses.",
       "globs": [
-        "src/datafarm/verify/spec.py",
+        "src/datafarm/render/verify/spec.py",
         "configs/render-verifier/*.json",
         "prompts/**/*",
         ".agents/skills/**/*.md"

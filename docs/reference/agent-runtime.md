@@ -62,7 +62,7 @@ Related: [capability layer](capability-layer.md) (context compiler and source pi
 15. **Published progress counts only verified deliveries.** `completed_episodes` is non-zero only
     when the last result is `valid` and `complete`; heartbeats do not change `last_substantive_at`.
 
-Code: `tools/pipeline_agent.py`, `src/datafarm/agent/runtime.py`, `src/datafarm/adapters/agent_harness/native_codex.py`, `src/datafarm/agent/task_wait.py`, `src/datafarm/agent/progress.py`, `src/datafarm/task/review_identity.py`, `src/datafarm/render/delivery.py`.
+Code: `tools/pipeline_agent.py`, `src/datafarm/orchestration/runtime.py`, `src/datafarm/adapters/agent_harness/native_codex.py`, `src/datafarm/orchestration/task_wait.py`, `src/datafarm/orchestration/progress.py`, `src/datafarm/task/review_identity.py`, `src/datafarm/render/delivery.py`.
 
 ## Data model
 
@@ -132,7 +132,7 @@ Configurations are JSON, with no shell interpolation and no embedded credentials
 
 | Key / flag | Default | Source |
 |---|---|---|
-| runtime `schema` | `datafarm.agent-runtime/1` (required) | `agent/runtime.py::load_config` |
+| runtime `schema` | `datafarm.agent-runtime/1` (required) | `orchestration/runtime.py::load_config` |
 | `max_sessions`, `timeout`, `poll_seconds`, `heartbeat_seconds` | 16, 1800 s, 5 s, 10 s | `load_config` |
 | `max_retries`, `backoff_seconds`, `backoff_max_seconds` | 3, 5 s, 120 s | `load_config` |
 | `driver` (required), `working_directory`, `log_directory`, `status_output{path, task_id}` | none | `load_config`, `drive`, `supervise` |

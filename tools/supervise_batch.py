@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generic batch supervisor CLI: drive a JSON task config with ``datafarm.batch.supervisor``.
+"""Generic batch supervisor CLI: drive a JSON task config with ``datafarm.orchestration.batch``.
 
 A per-task ``while True`` supervisor becomes a config file (see docs/reference/batch-supervisor.md):
 
@@ -27,12 +27,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from datafarm.batch.supervisor import (  # noqa: E402
+from datafarm.batch_protocol import BatchPolicy  # noqa: E402
+from datafarm.orchestration.batch import (  # noqa: E402
     COMPLETE,
     COMPLETE_WITH_GAPS,
     PAUSED_STATUSES,
     BatchError,
-    BatchPolicy,
     BatchSupervisor,
 )
 from datafarm.adapters.process.subprocess_task import (  # noqa: E402

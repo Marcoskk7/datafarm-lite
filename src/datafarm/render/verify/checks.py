@@ -21,8 +21,8 @@ from typing import Any
 import cv2
 import numpy as np
 
-from datafarm.verify.media import Clip, panel_slice
-from datafarm.verify.spec import EntitySpec, PanelSpec, RenderVerifierSpec
+from datafarm.render.verify.media import Clip, panel_slice
+from datafarm.render.verify.spec import EntitySpec, PanelSpec, RenderVerifierSpec
 
 PASS, FAIL, ABSTAIN, NA = "pass", "fail", "abstain", "not_applicable"
 
@@ -272,7 +272,7 @@ class Context:
         """实体的逐采样投影 simulator footprint（若可用）。"""
 
         if entity.role not in self._footprints:
-            from datafarm.verify.geometry import project_footprints
+            from datafarm.render.verify.geometry import project_footprints
 
             value = None
             if self.state is not None:
@@ -642,7 +642,7 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
                         # 先检查实际与 source 对齐的边界和局部
                         # 对比度。
                         if observed_near is None:
-                            from datafarm.verify.appearance_presence import source_boundary_presence
+                            from datafarm.render.verify.appearance_presence import source_boundary_presence
                             observed, _ = source_boundary_presence(
                                 cm8 * 255, presence_mask[j][rows, cols].astype(np.uint8) * 255,
                                 ctx.generated.frames[j][rows, cols], min_area)

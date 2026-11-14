@@ -30,7 +30,7 @@ from pathlib import Path
 import re
 from typing import Any, Iterable, Mapping, Sequence
 
-from datafarm.verify.stats import cohen_kappa, wilson_interval
+from datafarm.render.verify.stats import cohen_kappa, wilson_interval
 from datafarm.kernel.io import sha256_text
 
 PASS, FAIL, ABSTAIN = "pass", "fail", "abstain"

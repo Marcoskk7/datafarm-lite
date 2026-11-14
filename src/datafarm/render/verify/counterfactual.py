@@ -16,9 +16,9 @@ from typing import Callable
 import cv2
 import numpy as np
 
-from datafarm.verify.checks import _components, key_masks
-from datafarm.verify.media import Clip, derive_clip
-from datafarm.verify.spec import RenderVerifierSpec
+from datafarm.render.verify.checks import _components, key_masks
+from datafarm.render.verify.media import Clip, derive_clip
+from datafarm.render.verify.spec import RenderVerifierSpec
 
 
 def full_rate_frames(path: str, spec: RenderVerifierSpec) -> np.ndarray:

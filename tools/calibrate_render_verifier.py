@@ -26,13 +26,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import cv2  # noqa: E402
 
 from datafarm.kernel.io import sha256_file as sha256  # noqa: E402
-from datafarm.verify import counterfactual as CF  # noqa: E402
+from datafarm.render.verify import counterfactual as CF  # noqa: E402
 from dataclasses import replace  # noqa: E402
 
-from datafarm.verify.episode import frame_events, gripper_events, load_state  # noqa: E402
-from datafarm.verify.media import load_clip, load_reference_clip  # noqa: E402
-from datafarm.verify.spec import load_spec  # noqa: E402
-from datafarm.verify.verifier import run_checks  # noqa: E402
+from datafarm.render.verify.episode import frame_events, gripper_events, load_state  # noqa: E402
+from datafarm.render.verify.media import load_clip, load_reference_clip  # noqa: E402
+from datafarm.render.verify.spec import load_spec  # noqa: E402
+from datafarm.render.verify.verifier import run_checks  # noqa: E402
 
 G: dict = {}
 

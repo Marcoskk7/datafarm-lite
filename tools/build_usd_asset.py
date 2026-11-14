@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from datafarm.agent.cost_budget import budget_for_work
+from datafarm.orchestration.cost_budget import budget_for_work
 from datafarm.adapters.sim.usdcraft import plan, run, run_for_task
 
 

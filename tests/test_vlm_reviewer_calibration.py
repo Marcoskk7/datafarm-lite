@@ -9,7 +9,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from datafarm.verify.reviewer_calibration import (
+from datafarm.render.verify.reviewer_calibration import (
     ABSTAIN,
     FAIL,
     PASS,
@@ -24,7 +24,7 @@ from datafarm.verify.reviewer_calibration import (
     load_vlm_reviews,
     read_human_label_file,
 )
-from datafarm.verify.stats import cohen_kappa, wilson_interval
+from datafarm.render.verify.stats import cohen_kappa, wilson_interval
 
 ROOT = Path(__file__).resolve().parents[1]
 RULES = ROOT / "configs/standing-rules.json"

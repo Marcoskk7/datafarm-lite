@@ -15,7 +15,7 @@ The rules agents follow are in [`prompts/instructions/task-cost.md`](../../promp
 7. **A budgeted task does not launch an unbudgeted post-run evolution driver.** This applies in advisory and enforced mode; only `disabled` allows it.
 8. **A crash keeps the reservation.** On restart, a reservation from a session that never settled is settled from its receipt or marked unknown. It is never refunded by timeout.
 
-Code: `src/datafarm/agent/cost_budget.py`, `tools/pipeline_agent.py`.
+Code: `src/datafarm/orchestration/cost_budget.py`, `tools/pipeline_agent.py`.
 
 ## Data model
 

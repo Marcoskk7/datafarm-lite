@@ -33,7 +33,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from datafarm.verify.checks import ABSTAIN, FAIL, NA, PASS, CheckResult, Context, Evidence, _disk
+from datafarm.render.verify.checks import ABSTAIN, FAIL, NA, PASS, CheckResult, Context, Evidence, _disk
 
 TOLERANCE = {"color": 8.0, "contrast": 5.0, "chroma": 6.0, "texture": 0.25, "sharpness": 0.35, "noise": 0.30}
 LIGHTING_FEATURES = ("color", "contrast")

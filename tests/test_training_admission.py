@@ -14,7 +14,7 @@ from datafarm.training.cohort_auditors import (
     PI05_COHORT_AUDITORS,
     build_claim,
 )
-from datafarm.core.admission import (
+from datafarm.training.admission import (
     ADMISSION_ROOT_ID,
     CERTIFICATE_COMPILER_ID,
     AdmissionError,

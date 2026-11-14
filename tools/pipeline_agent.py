@@ -22,9 +22,9 @@ from datafarm.kernel.io import sha256_file
 from datafarm.render.delivery import verify_delivery
 from datafarm.task.contract import verify_input
 from datafarm.evolution.integration import bind, binding, source_for, context_for, capture, feedback
-from datafarm.agent.cost_budget import TaskBudget, validate_policy, micros, budget_for_work
-from datafarm.agent.task_wait import wait_for_task, model_wait_status
-from datafarm.agent.runtime import (supervise, stop_requested, heartbeat,
+from datafarm.orchestration.cost_budget import TaskBudget, validate_policy, micros, budget_for_work
+from datafarm.orchestration.task_wait import wait_for_task, model_wait_status
+from datafarm.orchestration.runtime import (supervise, stop_requested, heartbeat,
     process_identity, host_identity, foreign_host, recover_inflight, review_request, finish_review, terminate_group, failure_result)
 from datafarm.task.review_identity import register_identity, runtime_dir
 

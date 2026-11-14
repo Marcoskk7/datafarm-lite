@@ -160,7 +160,7 @@ Each command prints `{"schema": ..., "valid": true}` and exits 0, or prints
   must still check rendered content against the axes.
 - **Inconsistent axis vocabulary across layers.** `PROTECTED_OOD_AXIS` refuses an axis that
   mentions `distractors`. The render verifier spec accepts `distractors` as a perturbed OOD
-  axis (`src/datafarm/verify/spec.py::OOD_AXES`, and `src/datafarm/verify/realism.py::BACKGROUND_AXES`).
+  axis (`src/datafarm/render/verify/spec.py::OOD_AXES`, and `src/datafarm/render/verify/realism.py::BACKGROUND_AXES`).
 - **Provenance is declared, not proven.** The code checks hashes, decodability and region
   bounds. It cannot tell a real photo from a rendered image that is labelled `real-photo`.
 - **The Seedance source video is only checked for presence.** `check_seedance_payload` does

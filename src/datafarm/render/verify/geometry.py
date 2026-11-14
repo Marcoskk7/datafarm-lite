@@ -14,7 +14,7 @@ from typing import Any, Mapping
 import cv2
 import numpy as np
 
-from datafarm.verify.spec import EntitySpec, RenderVerifierSpec
+from datafarm.render.verify.spec import EntitySpec, RenderVerifierSpec
 
 
 def _rotation(q_wxyz) -> np.ndarray:

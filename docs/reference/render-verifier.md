@@ -1,7 +1,7 @@
 # Render verifier
 
 This document describes how a generated video is judged by machine before it can be admitted. Every task has a spec.
-The code is in `src/datafarm/verify/`, the entry point is `tools/verify_render.py`, and calibration is `tools/calibrate_render_verifier.py`.
+The code is in `src/datafarm/render/verify/`, the entry point is `tools/verify_render.py`, and calibration is `tools/calibrate_render_verifier.py`.
 
 ## 1. Fixed part and task part
 
@@ -153,7 +153,7 @@ Both tools exit 0 only on `pass` / `calibrated`, and 2 otherwise. The output is 
    `calibration.json` (`datafarm.render-verifier-calibration/2`) records `spec_sha256` and
    `generated_sha256`. The tool exits 0 only when `calibrated` is true.
 
-Code: `src/datafarm/verify/`, `tools/verify_render.py`, `tools/calibrate_render_verifier.py`.
+Code: `src/datafarm/render/verify/`, `tools/verify_render.py`, `tools/calibrate_render_verifier.py`.
 
 ## 8. Data model
 

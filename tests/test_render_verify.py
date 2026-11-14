@@ -1,4 +1,4 @@
-"""Hermetic tests for the spec-driven Render verifier (datafarm.verify).
+"""Hermetic tests for the spec-driven Render verifier (datafarm.render.verify).
 
 Synthetic T-layout clips: a brown "cup" square moves across the head panel and a
 dark "robot" bar sweeps the wrist panels.  The generated clip re-colours
@@ -71,7 +71,7 @@ def clip_from_arrays(frames_full, *, fps, layout_size=None, work_scale=0.5, gray
     import cv2
     import numpy as np
 
-    from datafarm.verify.media import Clip, _sizes
+    from datafarm.render.verify.media import Clip, _sizes
 
     frames_full = np.asarray(frames_full, np.uint8)
     height, width = frames_full.shape[1:3]
@@ -95,7 +95,7 @@ def clip_from_arrays(frames_full, *, fps, layout_size=None, work_scale=0.5, gray
 @unittest.skipUnless(HAS_CV2, "opencv and numpy are required")
 class RenderVerifierTest(unittest.TestCase):
     def setUp(self):
-        from datafarm.verify.spec import spec_from_dict
+        from datafarm.render.verify.spec import spec_from_dict
 
         self.spec = spec_from_dict(SPEC)
         kw = dict(fps=30.0, work_scale=1.0, stride=2)
@@ -104,7 +104,7 @@ class RenderVerifierTest(unittest.TestCase):
         self.real = self.clip(make_frames(cup=CUP_TARGET, noise=3))
 
     def run_checks(self, generated, **kwargs):
-        from datafarm.verify.verifier import run_checks
+        from datafarm.render.verify.verifier import run_checks
 
         return run_checks(self.spec, self.carrier, self.clip(generated), self.real, **kwargs)
 
@@ -130,7 +130,7 @@ class RenderVerifierTest(unittest.TestCase):
         self.assertEqual(self.verdicts(receipt)["entity_cup"], "fail")
 
     def test_entity_coloured_background_still_abstains(self):
-        from datafarm.verify.checks import Context, check_entity
+        from datafarm.render.verify.checks import Context, check_entity
 
         cup = replace(self.spec.entities[0], checks=("unsupported:head",), adaptive=False)
         spec = replace(self.spec, entities=(cup, *self.spec.entities[1:]))
@@ -145,7 +145,7 @@ class RenderVerifierTest(unittest.TestCase):
                 self.assertEqual(result.verdict, "abstain")
 
     def test_broader_presence_key_recognises_dim_real_object_but_not_absence(self):
-        from datafarm.verify.spec import ColorKey
+        from datafarm.render.verify.spec import ColorKey
 
         cup = replace(self.spec.entities[0], presence_keys=(ColorKey((3, 20, 40), (28, 255, 240)),))
         self.spec = replace(self.spec, entities=(cup, *self.spec.entities[1:]))
@@ -156,7 +156,7 @@ class RenderVerifierTest(unittest.TestCase):
         self.assertEqual(self.verdicts(absent)["entity_cup"], "fail")
 
     def test_presence_key_does_not_weaken_duplicate_detection(self):
-        from datafarm.verify.spec import ColorKey
+        from datafarm.render.verify.spec import ColorKey
 
         cup = replace(self.spec.entities[0], presence_keys=(ColorKey((3, 20, 40), (28, 255, 240)),))
         self.spec = replace(self.spec, entities=(cup, *self.spec.entities[1:]))
@@ -166,7 +166,7 @@ class RenderVerifierTest(unittest.TestCase):
         self.assertEqual(self.verdicts(duplicate)["entity_cup"], "fail")
 
     def test_edge_reference_filters_flat_colour_blob_but_keeps_textured_duplicate(self):
-        from datafarm.verify.checks import Context, check_entity
+        from datafarm.render.verify.checks import Context, check_entity
 
         cup = replace(self.spec.entities[0], adaptive=False,
                       unsupported_edge_reference_fraction={"head": 0.6})
@@ -193,7 +193,7 @@ class RenderVerifierTest(unittest.TestCase):
 
     def test_shadow_exposure_estimator_preserves_real_bright_defects(self):
         import numpy as np
-        from datafarm.verify.checks import _background_exposure_shift
+        from datafarm.render.verify.checks import _background_exposure_shift
 
         judged = np.ones((10, 10), bool)
         no_far_background = np.zeros((10, 10), bool)
@@ -218,7 +218,7 @@ class RenderVerifierTest(unittest.TestCase):
         self.assertEqual(self.verdicts(receipt)["background_stability"], "fail")
 
     def test_departing_initial_shadow_can_return_to_nearby_surface_brightness(self):
-        from datafarm.verify.spec import Threshold
+        from datafarm.render.verify.spec import Threshold
         frames = make_frames(cup=CUP_TARGET)
         frames[:30, 120:150, 100:150] = (155, 155, 155)
         self.spec = replace(self.spec, thresholds={**self.spec.thresholds,
@@ -231,7 +231,7 @@ class RenderVerifierTest(unittest.TestCase):
         self.assertEqual(self.verdicts(receipt)["background_stability"], "fail")
 
     def test_background_static_fraction_limit_skips_unmeasurable_frames(self):
-        from datafarm.verify.spec import Threshold
+        from datafarm.render.verify.spec import Threshold
 
         carrier = make_frames()
         # Most of the fixed head view changes in the source.  The narrow strip
@@ -259,7 +259,7 @@ class RenderVerifierTest(unittest.TestCase):
         self.assertEqual(self.verdicts(receipt)["background_stability"], "fail")
 
     def test_event_local_motion_does_not_confuse_nearby_motion_with_event(self):
-        from datafarm.verify.spec import EventSpec, Threshold
+        from datafarm.render.verify.spec import EventSpec, Threshold
 
         base = make_frames(count=120)
         source = base[[min(max(t - 42, 0), 25) for t in range(120)]]
@@ -302,7 +302,7 @@ class RenderVerifierTest(unittest.TestCase):
         tuned = replace(self.spec, entities=(cup, *self.spec.entities[1:]))
 
         def entity_verdict(frames, spec):
-            from datafarm.verify.checks import Context, check_entity
+            from datafarm.render.verify.checks import Context, check_entity
             return check_entity(Context(spec, self.carrier, self.clip(frames)), spec.entities[0]).verdict
 
         wispy = make_frames(cup=CUP_TARGET)
@@ -327,8 +327,8 @@ class RenderVerifierTest(unittest.TestCase):
         self.assertEqual(self.verdicts(receipt)["temporal_consistency"], "fail")
 
     def test_source_supported_dark_panel_is_not_a_camera_flash(self):
-        from datafarm.verify.checks import Context, check_temporal
-        from datafarm.verify.spec import Threshold
+        from datafarm.render.verify.checks import Context, check_temporal
+        from datafarm.render.verify.spec import Threshold
         import numpy as np
 
         carrier = np.full((30, 270, 320, 3), 200, np.uint8)
@@ -357,33 +357,33 @@ class RenderVerifierTest(unittest.TestCase):
         self.assertIn(self.verdicts(receipt)["realism_vs_real_world"], ("fail",))
 
     def test_missing_real_reference_abstains(self):
-        from datafarm.verify.verifier import run_checks
+        from datafarm.render.verify.verifier import run_checks
 
         receipt = run_checks(self.spec, self.carrier, self.clip(make_frames(cup=CUP_TARGET)), None)
         self.assertEqual(self.verdicts(receipt)["realism_vs_real_world"], "abstain")
         self.assertEqual(receipt["verdict"], "abstain")
 
     def test_chunked_without_seams_is_rejected_by_spec_validation(self):
-        from datafarm.verify.spec import validate_spec
+        from datafarm.render.verify.spec import validate_spec
 
         problems = validate_spec(replace(self.spec, chunked=True))
         self.assertTrue(any(p.startswith("P3") for p in problems))
 
     def test_unmapped_task_role_is_rejected(self):
-        from datafarm.verify.spec import validate_spec
+        from datafarm.render.verify.spec import validate_spec
 
         problems = validate_spec(replace(self.spec, task_ir_roles=("cup", "robot", "lid")))
         self.assertTrue(any("lid" in p for p in problems))
 
     def test_ood_requires_declared_axes(self):
-        from datafarm.verify.spec import validate_spec
+        from datafarm.render.verify.spec import validate_spec
 
         spec = replace(self.spec, realism=replace(self.spec.realism, mode="ood"))
         self.assertTrue(any(p.startswith("P4") for p in validate_spec(spec)))
 
     def test_ood_lighting_ignores_global_colour_cast_but_keeps_entities(self):
         import numpy as np
-        from datafarm.verify.verifier import run_checks
+        from datafarm.render.verify.verifier import run_checks
 
         spec = replace(self.spec, realism=replace(self.spec.realism, mode="ood",
                                                    perturbed_axes=("lighting",)))
@@ -397,8 +397,8 @@ class RenderVerifierTest(unittest.TestCase):
     def test_semantic_check_abstains_without_model(self):
         import os
         from dataclasses import replace as dc_replace
-        from datafarm.verify.checks import Context
-        from datafarm.verify.semantic import _MODEL, check_semantic_unsupported
+        from datafarm.render.verify.checks import Context
+        from datafarm.render.verify.semantic import _MODEL, check_semantic_unsupported
 
         saved = os.environ.pop("DATAFARM_DINOV2", None)
         _MODEL.clear()
@@ -411,7 +411,7 @@ class RenderVerifierTest(unittest.TestCase):
                 os.environ["DATAFARM_DINOV2"] = saved
 
     def test_sub_check_panel_restriction(self):
-        from datafarm.verify.spec import EntitySpec
+        from datafarm.render.verify.spec import EntitySpec
 
         entity = EntitySpec("robot", (), (), checks=("missing", "unsupported:head"))
         self.assertEqual(entity.active_checks("head"), {"missing", "unsupported"})

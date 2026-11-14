@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from datafarm.verify.appearance_presence import source_boundary_presence
+from datafarm.render.verify.appearance_presence import source_boundary_presence
 
 
 class ObservedEntityPresenceTest(unittest.TestCase):

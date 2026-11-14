@@ -1,4 +1,4 @@
-"""由 JSON 任务配置构建的、由 subprocess 支撑的 :class:`~datafarm.batch.supervisor.BatchTask`。
+"""由 JSON 任务配置构建的、由 subprocess 支撑的 :class:`~datafarm.batch_protocol.BatchTask`。
 
 供 ``tools/supervise_batch.py`` 使用，使每任务 supervisor 可以变成一个配置文件。一次 attempt
 就是一条命令，通过 ``batch_exec.py`` 在其独立 session、独立目录
@@ -52,7 +52,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from datafarm.runtime import expand, load_bindings
-from datafarm.batch.supervisor import (
+from datafarm.batch_protocol import (
     CRASH_KINDS,
     BatchPolicy,
     BatchTask,
@@ -61,9 +61,8 @@ from datafarm.batch.supervisor import (
     LaunchOutcomeUnknown,
     Poll,
     Verdict,
-    write_json_atomic,
 )
-from datafarm.kernel.io import read_json_or_none
+from datafarm.kernel.io import atomic_write_json, read_json_or_none
 
 TASK_CONFIG_SCHEMA = "datafarm.batch-task-config/1.0.0"
 TEMPLATE_FIELDS = frozenset({"item", "item_index", "attempt", "seed", "launch_id", "attempt_dir",
@@ -385,9 +384,9 @@ class SubprocessTask:
         argv, cwd, env = self.command(self.config["launch"], values)
         try:
             directory.mkdir(parents=True, exist_ok=True)
-            write_json_atomic(directory / "attempt.json", {
+            atomic_write_json(directory / "attempt.json", {
                 "item": item, "attempt": attempt, "seed": seed, "launch_id": launch_id,
-                "argv": argv, "cwd": cwd, "host": self.host, "created_at": time.time()})
+                "argv": argv, "cwd": cwd, "host": self.host, "created_at": time.time()}, fsync_dir=True)
             log = open(directory / "log.txt", "ab")
         except OSError as exc:
             raise LaunchNotStarted(f"cannot prepare {directory}: {exc}") from exc
@@ -407,7 +406,7 @@ class SubprocessTask:
             log.close()
         self._children[launch_id] = process
         handle = self._handle(values, process.pid, _start_ticks(process.pid))
-        write_json_atomic(directory / "handle.json", handle)
+        atomic_write_json(directory / "handle.json", handle, fsync_dir=True)
         return handle
 
     def reconcile(self, item: str, attempt: int, seed: int, launch_id: str) -> Any:

@@ -18,7 +18,7 @@ try:
 except ImportError:  # pragma: no cover - the tool imports the numpy-based dataset module
     np = None
 
-from datafarm.core.admission import AdmissionError
+from datafarm.training.admission import AdmissionError
 
 from tests.admission_fixtures import sha, write_dense_cohort, write_json
 

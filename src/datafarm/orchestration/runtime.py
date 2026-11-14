@@ -15,7 +15,7 @@ import socket
 import time
 
 from datafarm.adapters.agent_harness.native_codex import save
-from datafarm.agent.task_wait import model_wait_status, wait_for_task
+from datafarm.orchestration.task_wait import model_wait_status, wait_for_task
 from datafarm.kernel.io import sha256_file
 from datafarm.kernel.io import sha256_text
 from datafarm.task.review_identity import register_identity, runtime_dir, validate_completion
@@ -55,7 +55,7 @@ def heartbeat(work, **fields):
     runtime = {**old, **fields, 'heartbeat': time.time(), 'supervisor_pid': os.getpid(),
                'supervisor_identity': process_identity(os.getpid()), 'supervisor_host': socket.gethostname()}
     save(path, runtime)
-    from datafarm.agent.progress import publish
+    from datafarm.orchestration.progress import publish
     publish(work, runtime)
 
 
@@ -119,7 +119,7 @@ def terminate_group(pgid, timeout=5):
 
 def recover_inflight(work):
     """在允许任何新的模型调用前，重整已持久化的执行状态。"""
-    from datafarm.agent.cost_budget import budget_for_work
+    from datafarm.orchestration.cost_budget import budget_for_work
     for path in sorted((Path(work) / 'sessions').glob('*/execution.json')):
         record = json.loads(path.read_text())
         status = record.get('status')
@@ -316,7 +316,7 @@ def supervise(args, drive):
                     elif execution['status'] == 'returned':
                         recovered_result = {'status': 'session-budget-exhausted', 'recovered_session': str(latest.parent)}
                     control['dispatch_after'] = None
-                from datafarm.agent.progress import refresh_external_jobs
+                from datafarm.orchestration.progress import refresh_external_jobs
                 state = refresh_external_jobs(work)
                 if recovered_result is None and model_wait_status(state) and state.get('status') == 'working' and not review_request(work):
                     control['status'] = 'waiting-external-jobs'

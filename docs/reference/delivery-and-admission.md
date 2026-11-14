@@ -2,9 +2,9 @@
 
 Three separate mechanisms stand between a rendered episode and policy training:
 
-- **Render verifier** (`src/datafarm/verify/`): one program shared by all tasks, configured by a spec the agent writes for each task. See [render-verifier](render-verifier.md).
+- **Render verifier** (`src/datafarm/render/verify/`): one program shared by all tasks, configured by a spec the agent writes for each task. See [render-verifier](render-verifier.md).
 - **Delivery verification** (`src/datafarm/render/delivery.py::verify_delivery`, which delegates white-only data to `task/white_delivery.py`): a task delivery is complete, unmodified, and bound to its contract, attempts, grounding record and independent review.
-- **Admission certificate** (`src/datafarm/core/admission.py`): consumed by the training launcher. An independent root re-derives the admitted cohort from stored evidence.
+- **Admission certificate** (`src/datafarm/training/admission.py`): consumed by the training launcher. An independent root re-derives the admitted cohort from stored evidence.
 
 The three are not chained in code; see [Limitations](#limitations). The schema of `delivery.json` and the review file is in [`prompts/instructions/task-artifact-contract.md`](../../prompts/instructions/task-artifact-contract.md).
 
@@ -19,7 +19,7 @@ The three are not chained in code; see [Limitations](#limitations). The schema o
 7. **A white-only delivery is never mistaken for rendered or training data.** See [White-only delivery](#white-only-delivery).
 8. **An admission certificate verifies only with an independent root receipt and fresh evidence.** `verify_certificate` loads the certificate by digest from the content-addressed store. It requires an `admission` receipt with verdict `pass`, authority `admission-root`, a trusted root ID different from the certificate producer, and all checks true. No trusted root may reject it. The root's checks are re-run against the stored evidence. When an `AdmissionExpectation` is given, the provenance digest, allowlist digest, `repo_id`, waiver set and member IDs must match the launch.
 
-Code: `src/datafarm/render/delivery.py`, `src/datafarm/task/contract.py`, `src/datafarm/task/review_identity.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/core/admission.py`, `src/datafarm/training/cohort_auditors.py`.
+Code: `src/datafarm/render/delivery.py`, `src/datafarm/task/contract.py`, `src/datafarm/task/review_identity.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/training/admission.py`, `src/datafarm/training/cohort_auditors.py`.
 
 ## Data model
 

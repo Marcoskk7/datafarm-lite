@@ -38,7 +38,7 @@ class AdmissionBinding:
     """launch 如何绑定到其 Admission Certificate。
 
     ``certificate-verified`` binding 必须由成功的
-    ``datafarm.core.admission.verify_certificate`` 结果构造（见
+    ``datafarm.training.admission.verify_certificate`` 结果构造（见
     ``from_verification``）。
     """
 
