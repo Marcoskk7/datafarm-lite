@@ -73,17 +73,17 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 | `kernel` | Shared kernel: standard-library I/O helpers, artifact documents and receipts, schema checks, content-addressed store, file binding and source locks |
 | `grounding` | Grounding ledger: labelled physical quantities and their validated record |
 | `core` | Admission certificates |
-| `agent` | Compile role context, run and resume agent sessions, meter usage, keep the cost ledger and call log |
-| `task` | Task contract and delivery check, white delivery |
+| `agent` | Run and resume agent sessions, meter usage, keep the cost ledger and call log |
+| `task` | Task contract checks, review-independence proof (`task/review_identity.py`), white delivery |
 | `expert` | Expert harness: sandboxed author sessions, rollout broker, frozen judge, held-out evaluation, expert library |
 | `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans, USDCraft adapter |
-| `render` | Render contract (`render/policy.py`) and renderers: the H3 control hybrid (`render/h3`) and the Seedance client (`render/seedance`) |
+| `render` | Render contract (`render/policy.py`), rendered-delivery check (`render/delivery.py`) and renderers: the H3 control hybrid (`render/h3`) and the Seedance client (`render/seedance`) |
 | `verify` | Spec-driven render verifier, counterfactual calibration, reviewer calibration |
 | `batch` | Batch supervisor: bounded per-item launch, poll, verify and retry |
 | `ledger` | Run ledger: fixed item denominator, derived run status, launch sentinel |
 | `training` | Certificate-gated pi0.5 launch, dataset and action-mode contracts, cohort auditors |
 | `evolution` | Feedback store and controller that evaluates and activates capability-layer changes |
-| `runtime.py`, `doctor.py`, `cli.py` | Runtime bindings, prerequisite checks, the `datafarm` command |
+| `instructions.py`, `runtime.py`, `doctor.py`, `cli.py` | Role context compiler, runtime bindings, prerequisite checks, the `datafarm` command |
 
 ## Top-level directories
 

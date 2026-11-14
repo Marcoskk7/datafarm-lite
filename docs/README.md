@@ -9,7 +9,7 @@ One note per component. Each states what the code guarantees and what it does no
 
 | Component | Note | Code |
 |---|---|---|
-| Capability layer, context compiler, instruction audit, source pinning | [capability-layer](reference/capability-layer.md) | `src/datafarm/agent/context.py`, `tools/audit_instruction_layers.py`, `src/datafarm/evolution/integration.py` |
+| Capability layer, context compiler, instruction audit, source pinning | [capability-layer](reference/capability-layer.md) | `src/datafarm/instructions.py`, `tools/audit_instruction_layers.py`, `src/datafarm/evolution/integration.py` |
 | Agent runtime: prepare, drive, supervise, review queue, recovery | [agent-runtime](reference/agent-runtime.md) | `tools/pipeline_agent.py`, `src/datafarm/agent/runtime.py`, `src/datafarm/agent/native_codex.py` |
 | Phased runs: fresh sessions with USD caps | [phased-runs](reference/phased-runs.md) | `tools/pipeline_phases.py`, `src/datafarm/agent/phases.py` |
 | Model-call ledger and VLM reviewer calibration | [agent-calls](reference/agent-calls.md) | `src/datafarm/agent/call_log.py`, `src/datafarm/verify/reviewer_calibration.py` |
@@ -26,7 +26,7 @@ One note per component. Each states what the code guarantees and what it does no
 | Render contract | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
 | H3 control hybrid and Seedance | [rendering](reference/rendering.md) | `src/datafarm/render/h3/`, `src/datafarm/render/seedance/` |
 | Render verifier | [render-verifier](reference/render-verifier.md) | `src/datafarm/verify/` |
-| Review, delivery and admission | [delivery-and-admission](reference/delivery-and-admission.md) | `src/datafarm/task/contract.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/core/admission.py` |
+| Review, delivery and admission | [delivery-and-admission](reference/delivery-and-admission.md) | `src/datafarm/render/delivery.py`, `src/datafarm/task/contract.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/core/admission.py` |
 | Policy training (pi0.5) | [policy-training](reference/policy-training.md) | `tools/launch_pi05_training.py`, `src/datafarm/training/` |
 | Whole-task cost control | [cost-control](reference/cost-control.md) | `src/datafarm/agent/cost_budget.py` |
 | Capability evolution | [capability-evolution](reference/capability-evolution.md) | `src/datafarm/evolution/` |

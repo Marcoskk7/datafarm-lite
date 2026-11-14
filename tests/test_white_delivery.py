@@ -6,7 +6,7 @@ import pytest
 from PIL import Image
 
 from datafarm.kernel.io import sha256_file
-from datafarm.task.contract import verify_delivery
+from datafarm.render.delivery import verify_delivery
 
 
 def fixture(root):

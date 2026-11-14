@@ -62,8 +62,3 @@ def feedback(work, event):
     if not value:
         raise ValueError('this work has no capability binding; bind it explicitly before importing feedback')
     return record(Store(value['store']), {'scope': value['scope'], 'version': value['version'], **event})
-
-
-def experience_text(value):
-    return ('\nREPOSITORY EXPERIENCE (scoped; lessons are advisory, not new authority):\n'
-            + json.dumps(value, ensure_ascii=False)) if value else ''

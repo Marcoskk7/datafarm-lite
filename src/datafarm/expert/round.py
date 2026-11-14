@@ -46,9 +46,8 @@ from datafarm.expert.toolbox import Broker
 from datafarm.expert.util import (Clock, ConfigError, HarnessError, UnsafePathError, atomic_write_bytes,
                    atomic_write_json, atomic_write_text, human_duration,
                    read_regular_nofollow, tree_digest)
+from datafarm.instructions import build_context, repository_root
 from datafarm.kernel.io import read_json, sha256_file, sha256_text, utc_now
-
-from datafarm.agent.context import repository_root
 
 ROUND_SCHEMA = "datafarm.expert-harness.round/1"
 EXIT_PAUSED = 75
@@ -592,7 +591,6 @@ class RoundRunner:
             state.data["final_call_used"] = True
         resume_id = state.data.get("agent_session_id")
         new_id = None if resume_id or self.agent_backend.name in ("codex", "codex-metered") else str(uuid.uuid4())
-        from datafarm.agent.context import build_context
         project_context = build_context('task-expert-author')
         prompt = project_context['messages'][0]['content'] + "\n\n" + self._prompt(index, final_call, wall_s)
         if self.agent_backend.name == 'codex-metered':

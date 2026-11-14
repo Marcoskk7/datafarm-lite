@@ -8,7 +8,7 @@ from helpers import NOW, payload_for
 from datafarm.grounding.quantities import GroundingError, validate_grounding, validate_quantities
 from datafarm.kernel.artifacts import ArtifactDocument, IRKind
 from datafarm.kernel.schema import SchemaError, validate_artifact
-from datafarm.task.contract import verify_delivery
+from datafarm.render.delivery import verify_delivery
 from test_white_delivery import fixture
 
 EVIDENCE = {'path': 'calibration/scale.json', 'sha256': '0' * 64}

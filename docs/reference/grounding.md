@@ -35,7 +35,7 @@ is done by the agent following `.agents/skills/sim-grounding/SKILL.md`.
 11. Camera-pose and grasp randomization plans are deterministic per seed, content-addressed and
     episode-constant; per-frame camera jitter is rejected.
 
-Code: `src/datafarm/grounding/quantities.py`, `src/datafarm/kernel/schema.py`, `src/datafarm/task/contract.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/render/policy.py`, `src/datafarm/simulation/randomization.py`.
+Code: `src/datafarm/grounding/quantities.py`, `src/datafarm/kernel/schema.py`, `src/datafarm/task/contract.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/render/delivery.py`, `src/datafarm/render/policy.py`, `src/datafarm/simulation/randomization.py`.
 
 ## Data model
 

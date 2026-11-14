@@ -196,13 +196,14 @@ def _run_locked(out):
     return state
 
 
-def run_for_task(directory, task_work):
+def run_for_task(directory, task_work, *, budget_for_work):
     """把一次资产执行挂接到已有的任务预算/作业/审查生命周期上。
 
     导出的资产保持未资格验证（unqualified）状态。作者会排队提交仿真器资格
     验证证据，供独立审查，之后才会在任务场景中采用该资产。
+    ``budget_for_work(work)`` 由调用方（编排层）提供：返回该任务的预算或 None。
+    它在构建锁内、确认没有既有执行之后才被调用。
     """
-    from datafarm.agent.cost_budget import budget_for_work
     work = Path(task_work).resolve(strict=True)
     out = Path(directory).resolve(strict=True)
     if not out.is_relative_to(work):

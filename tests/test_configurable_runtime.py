@@ -11,7 +11,8 @@ from types import SimpleNamespace
 import pytest
 
 from datafarm.agent.runtime import (supervise, recover_inflight, process_identity,
-    runtime_dir, review_request)
+    review_request)
+from datafarm.task.review_identity import runtime_dir
 from datafarm.agent.native_codex import command, run, save
 from datafarm.agent.cost_budget import TaskBudget
 from test_task_cost_budget import workspace, driver_module, drive_args, receipt
@@ -360,7 +361,7 @@ def test_completion_cannot_upgrade_rejected_report(tmp_path, monkeypatch):
 
 
 def test_generic_driver_cannot_reuse_author_identity_for_review(tmp_path):
-    from datafarm.agent.runtime import register_identity
+    from datafarm.task.review_identity import register_identity
     from datafarm.kernel.io import sha256_file
     workspace(tmp_path)
     for name,key,role in [('first','author','orchestrator'),('second','review-check','task-verifier')]:
@@ -385,7 +386,7 @@ def test_argv_only_review_is_refused_before_model_launch(tmp_path, monkeypatch):
 
 
 def test_native_first_turn_crash_retains_provable_session_origin(tmp_path):
-    from datafarm.agent.runtime import register_identity
+    from datafarm.task.review_identity import register_identity
     workspace(tmp_path)
     origin=tmp_path/'sessions/first';origin.mkdir()
     save(origin/'native-command.json',{'resume':None})
@@ -400,7 +401,7 @@ def test_native_first_turn_crash_retains_provable_session_origin(tmp_path):
 
 
 def test_native_origin_identity_is_stable_on_revalidation(tmp_path):
-    from datafarm.agent.runtime import register_identity
+    from datafarm.task.review_identity import register_identity
     workspace(tmp_path)
     origin=tmp_path/'sessions/first';origin.mkdir()
     save(origin/'native-command.json',{'resume':None})
@@ -417,7 +418,7 @@ def test_native_origin_identity_is_stable_on_revalidation(tmp_path):
 
 
 def test_native_identity_accepts_own_redirected_log(tmp_path):
-    from datafarm.agent.runtime import register_identity
+    from datafarm.task.review_identity import register_identity
     workspace(tmp_path)
     session=tmp_path/'sessions/one';session.mkdir()
     logs=tmp_path/'logs';logs.mkdir();(logs/'stdout.jsonl').write_text('actual native stream')
@@ -428,7 +429,7 @@ def test_native_identity_accepts_own_redirected_log(tmp_path):
 
 
 def test_native_origin_changes_are_rejected_on_every_revalidation(tmp_path):
-    from datafarm.agent.runtime import register_identity
+    from datafarm.task.review_identity import register_identity
     workspace(tmp_path)
     origin=tmp_path/'sessions/first';origin.mkdir()
     save(origin/'native-command.json',{'resume':None})

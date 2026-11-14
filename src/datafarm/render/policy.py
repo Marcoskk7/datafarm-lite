@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from string import Template
 
+from datafarm.instructions import repository_root
 from datafarm.kernel.binding import bound_file, require
 from datafarm.kernel.io import sha256_bytes, sha256_file, sha256_text
 
@@ -162,7 +163,6 @@ def load_contract(path: Path) -> dict:
     require(json_sha(c['intent']) == c.get('intent_sha256'), 'render intent changed')
     require(sha256_text(c['prompt']) == c.get('prompt_sha256'), 'render prompt changed')
     # 用当前 core 模板重新编译，因此修改被冻结的 prompt 或 core 都会使其失效。
-    from datafarm.agent.context import repository_root
     expected = compile_prompt(Path(c['intent_root']), c['intent'], c['overlay'], assets=repository_root())
     require(c == expected, 'compiled render contract differs from current templates/intent')
     override = os.environ.get('DATAFARM_RENDER_MODE')
@@ -311,7 +311,6 @@ def check_h3_payload(manifest: dict, contract_path: Path) -> dict:
     require(hashes[:len(wanted)] == wanted, 'H3 manifest lacks bound real images')
     lowering = manifest.get('prompt_lowering')
     if lowering:
-        from datafarm.agent.context import repository_root
         expected = lower_h3_prompt(c, lowering, assets=repository_root())
     else:
         expected = c['prompt']

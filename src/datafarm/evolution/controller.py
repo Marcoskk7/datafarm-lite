@@ -10,6 +10,7 @@ from datafarm.evolution.events import learn, pending
 from datafarm.evolution.experiments import check_policy, compare, evaluate, freeze_policy, run
 from datafarm.evolution.store import digest, read, write
 from datafarm.evolution.versions import active, activate, initialize, resolve, snapshot, version
+from datafarm.instructions import write_context
 
 PROTECTED = ('AGENTS.md', 'prompts/instructions/authority-and-scope.md',
              'prompts/instructions/instruction-layers.md', 'prompts/instructions/mode-and-style-contract.md',
@@ -174,7 +175,6 @@ def cycle(store, *, root, driver, policy_path, max_candidates=1, timeout=600, ev
             work = attempt / 'source'
             shutil.copytree(source_root, work)
             proposal_path = attempt / 'proposal.json'
-            from datafarm.agent.context import write_context
             context = write_context(attempt / 'context', 'pipeline-improver', root=source_root,
                 user=json.dumps({'parent': parent, 'feedback': feedback,
                     'candidate_source': str(work), 'proposal_output': str(proposal_path),

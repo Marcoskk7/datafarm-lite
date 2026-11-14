@@ -47,7 +47,7 @@ Related: [capability evolution](capability-evolution.md) (how K changes and is a
     and reason) are reported but pass; stale known entries are reported.
 14. **The instruction audit fails when a universal instruction carries machine-local authority.**
 
-Code: `src/datafarm/agent/context.py`, `src/datafarm/evolution/integration.py`, `src/datafarm/evolution/versions.py`, `src/datafarm/evolution/events.py`, `tools/pipeline_agent.py`, `tools/lint_standing_rules.py`, `tools/audit_instruction_layers.py`.
+Code: `src/datafarm/instructions.py`, `src/datafarm/evolution/integration.py`, `src/datafarm/evolution/versions.py`, `src/datafarm/evolution/events.py`, `tools/pipeline_agent.py`, `tools/lint_standing_rules.py`, `tools/audit_instruction_layers.py`.
 
 ## Data model
 

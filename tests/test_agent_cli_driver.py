@@ -8,7 +8,8 @@ import sys
 
 import pytest
 
-from datafarm.agent.runtime import register_identity, runtime_dir, supervise
+from datafarm.agent.runtime import supervise
+from datafarm.task.review_identity import register_identity, runtime_dir
 from datafarm.kernel.io import sha256_file
 from test_configurable_runtime import policy
 from test_task_cost_budget import driver_module, workspace
