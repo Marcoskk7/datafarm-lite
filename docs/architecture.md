@@ -81,7 +81,7 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 | `evolution` | Feedback store and controller that evaluates and activates capability-layer changes |
 | `orchestration` | Run and resume agent sessions, phases, progress, the task cost ledger, and the batch supervisor (`orchestration/batch.py`: bounded per-item launch, poll, verify and retry) |
 | `adapters` | Outer technology: agent CLIs, metered provider, credentials and call log (`agent_harness`); OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
-| `instructions.py`, `runtime.py`, `doctor.py`, `cli.py` | Role context compiler, runtime bindings, prerequisite checks, the `datafarm` command |
+| `instructions.py`, `config.py`, `doctor.py`, `cli.py` | Role context compiler, environment/runtime path bindings, prerequisite checks, the `datafarm` command |
 | `batch_protocol.py` | Contract shared by the batch supervisor and its task implementations: policy, poll and verdict results, `BatchTask`, launch exceptions |
 
 Dependency direction: `orchestration` may import anything; business packages (`grounding`, `task`, `expert`, `simulation`, `render`, `training`, `ledger`, `evolution`) never import `orchestration`; `adapters` import business packages and `kernel` but never `orchestration`.

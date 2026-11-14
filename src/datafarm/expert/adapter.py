@@ -203,7 +203,7 @@ class TaskAdapter:
             raise ConfigError(f"cannot read adapter {target}: {exc}") from exc
         if overrides:
             raw = deep_merge(raw, overrides)
-        from datafarm.runtime import expand as expand_runtime, load_bindings
+        from datafarm.config import expand as expand_runtime, load_bindings
         raw = expand_runtime(raw, load_bindings())
         return cls(raw, target)
 

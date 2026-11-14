@@ -1,6 +1,6 @@
 # Modified by the DataFarm authors from openpi (Apache-2.0); see vendor/trainer/README.md.
 """See _CONFIGS for the list of available configs."""
-from datafarm.runtime import runtime_path as _release_path
+from datafarm.config import runtime_path as _release_path
 
 import abc
 from collections.abc import Sequence

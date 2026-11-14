@@ -24,7 +24,7 @@ import subprocess
 import sys
 from typing import Any
 
-from datafarm.runtime import expand, load_bindings, source_root
+from datafarm.config import expand, load_bindings, source_root
 from datafarm.training import (
     STATE_CONDITIONING_MODES,
     AdmissionBinding,

@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import sys
 
-from datafarm.runtime import expand, load_bindings, source_root
+from datafarm.config import expand, load_bindings, source_root
 
 PROFILES = ("core", "seedance", "training", "h3-control", "h3-ood", "usdcraft")
 

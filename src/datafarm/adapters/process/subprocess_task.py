@@ -51,7 +51,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from datafarm.runtime import expand, load_bindings
+from datafarm.config import expand, load_bindings
 from datafarm.batch_protocol import (
     CRASH_KINDS,
     BatchPolicy,

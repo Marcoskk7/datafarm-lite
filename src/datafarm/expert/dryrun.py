@@ -72,7 +72,7 @@ class FakeExpert:
 
 
 def repo_root() -> Path:
-    from datafarm.runtime import source_root
+    from datafarm.config import source_root
     return Path(os.environ["DATAFARM_WORKSPACE"]) if "DATAFARM_WORKSPACE" in os.environ else source_root()
 
 

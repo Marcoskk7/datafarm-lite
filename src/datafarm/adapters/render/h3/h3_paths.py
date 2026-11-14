@@ -80,9 +80,9 @@ def run_dir(arg=None) -> Path:
 
 
 def _bindings_file() -> dict:
-    """仅取 runtime bindings 文件的显式条目（绝不使用 datafarm.runtime 默认值）。"""
+    """仅取 runtime bindings 文件的显式条目（绝不使用 datafarm.config 默认值）。"""
     datafarm_src()  # 在此导入，使 `--help` 和纯环境变量查找从不触碰 bindings 文件
-    from datafarm.runtime import explicit_bindings
+    from datafarm.config import explicit_bindings
     try:
         return explicit_bindings()
     except ValueError as e:

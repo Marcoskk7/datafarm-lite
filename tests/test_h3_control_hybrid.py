@@ -167,7 +167,7 @@ def test_bindings_resolve_from_env_prefix_and_explicit_file(no_bindings, tmp_pat
 
 
 def test_runtime_defaults_cover_every_config_and_asset_binding(tmp_path):
-    from datafarm.runtime import defaults, expand
+    from datafarm.config import defaults, expand
     known = defaults(tmp_path)
     for key in PATHS.BINDING_KEYS:
         assert key in known, key

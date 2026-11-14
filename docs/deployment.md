@@ -6,7 +6,7 @@ be overridden in `bindings.json` in the checkout (or the file named by `DATAFARM
 the environment variable `DATAFARM_<KEY>`. Values are paths, never secrets. Tools that need a
 binding fail closed with a message naming it. They do not fall back to a guess.
 
-Implementation: `src/datafarm/runtime.py::defaults`, `::load_bindings`, `::expand`
+Implementation: `src/datafarm/config.py::defaults`, `::load_bindings`, `::expand`
 (configs use `${KEY}` placeholders). The H3 control hybrid uses its own fail-closed resolver,
 `src/datafarm/adapters/render/h3/h3_paths.py`, which reads only explicit environment variables or
 `bindings.json` entries: apart from `H3_PYTHON` its keys have no workspace default.

@@ -19,7 +19,7 @@ Two parts stay only because hash-bound or base modules import them at load time,
 
 - **Piper training:** the `pi05_piper_dual` and `pi05_piper_dual_eef_xyz3d` configs and their data configs in
   `training/config.py`; the policies `policies/piper_policy.py` and `policies/piper_eef_xyz3d_policy.py`.
-- **DataFarm path bindings:** `training/config.py` imports `datafarm.runtime.runtime_path` to expand
+- **DataFarm path bindings:** `training/config.py` imports `datafarm.config.runtime_path` to expand
   `${OPENPI_CACHE}`, so `src/` of this repository must be importable when it loads.
 - **Training metrics:** per-dimension loss, a JSONL metrics log and a fixed-batch `eval_step` in `scripts/train.py`.
 - **Noise-prior research options:** a Gaussian-process prior (`use_gp_prior`, `gp_kernel_type`, `gp_length_scale`),
