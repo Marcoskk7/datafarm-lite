@@ -30,7 +30,7 @@ def verify_file(item):
 
 
 def validate_clock(row, clock):
-    """Check a source row against the batch config's clock: {transport_fps, canonical_fps, max_transport_frames}."""
+    """按 batch 配置里的 clock 检查 source row：{transport_fps, canonical_fps, max_transport_frames}。"""
     n, t = row['frames'], row['transport_frames']
     if not (0 < n <= t <= clock['max_transport_frames'] and t % 8 == 1 and 0 <= t - n < 8):
         raise ValueError('unsupported canonical/transport clock')

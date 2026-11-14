@@ -1,13 +1,13 @@
-"""Per-episode initial object placements for simulated expert collection.
+"""用于模拟 expert 采集的每个 episode 初始物体摆放。
 
-Two modes, chosen by the orchestrator from the user's goal and recorded in the scene's `placement_mode`:
-  local_robustness  each manipulated object at its nominal position (derived from the real episode) plus a uniform
-                    jitter, default +-30 mm: small validation runs and debugging.
-  broad_table       each object sampled independently and uniformly over the reachable tabletop region: training
-                    data and broad-deployment claims.  The region comes from grounding (`reachable_tabletop_xy`,
-                    probed with the robot's kinematics and joint limits on the table plane).
-Both modes keep a minimum distance between objects (default 80 mm) by resampling the whole layout.  The plan is a
-deterministic function of its inputs and seed and carries a sha256 digest; the scene sampler reads it by index.
+两种模式，由 orchestrator 根据用户目标选择，并记录在场景的 `placement_mode` 中：
+  local_robustness  每个被操作的物体位于其标称位置（由真实 episode 推导）加上均匀
+                    抖动，默认 +-30 mm：用于小规模验证运行与调试。
+  broad_table       每个物体在可触及的桌面区域内独立且均匀采样：用于训练
+                    数据与广泛部署的结论。该区域来自 grounding（`reachable_tabletop_xy`，
+                    用机器人的运动学与关节限位在桌面平面上探测得到）。
+两种模式都通过对整个布局重新采样来保持物体间的最小距离（默认 80 mm）。规划是其输入与 seed 的
+确定性函数，并带有 sha256 摘要；场景采样器按索引读取它。
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ MAX_TRIES = 1000
 
 
 def nominal_positions(scene: dict[str, Any], key: str = "objects_initial") -> dict[str, tuple[float, float]]:
-    """{object: (x, y)} from scene[key]; entries may be {"xy": [x, y]}, {"x": x, "y": y} or [x, y, ...]."""
+    """从 scene[key] 得到 {object: (x, y)}；条目可以是 {"xy": [x, y]}、{"x": x, "y": y} 或 [x, y, ...]。"""
     out = {}
     for name, value in (scene.get(key) or {}).items():
         if isinstance(value, dict) and "xy" in value:
@@ -109,7 +109,7 @@ def generate_plan(scene: dict, mode: str, count: int, seed: int, *, jitter_m: fl
 
 
 def default_mode(target_count: int, request: str = "") -> str:
-    """The orchestrator's default when the user did not choose: broad for training-scale goals, local otherwise."""
+    """用户未选择时 orchestrator 的默认值：训练规模的目标用 broad，否则用 local。"""
     text = request.lower()
     if any(k in text for k in ("validation", "validate", "验证")):
         return "local_robustness"

@@ -1,36 +1,36 @@
 ---
 name: dataset-delivery
-description: Turn independently reviewed, source-bound full episodes into aligned batch datasets and verifiable delivery, with optional requested training.
+description: 把经过独立评审、来源绑定的完整 episode 转换为对齐的批量数据集与可验证的交付，并可选地按请求进行训练。
 ---
 
-# Definition of done for data production
+# 数据生产的完成定义
 
-The inputs are the actions/actual states of complete simulated episodes, the white mesh, the real references, the photorealistic final videos and the independent reviews.
-First read docs/reference/delivery-and-admission.md.
+输入是完整模拟 episode 的动作/实际状态、白色网格、真实参考、照片级最终视频以及独立评审。
+先阅读 docs/reference/delivery-and-admission.md。
 
-1. For each episode, check the hashes of the input, actions, images, frame mapping, prompt, real references and the finally selected media.
-   If a video/reference/action was repaired it must be re-reviewed, and the earlier certificate must not be reused. Record continuation-based mixed provenance honestly, and do not claim everything was regenerated.
-2. Review separately the structure/task, adoption of the real references, real-world style, camera/timing, and joint data; a machine pass and
-   a provider success do not equal final admission. The independent reviewer must personally decode the real references and the generated video and view them side by side,
-   save the bound comparison images and frame numbers, and cover the real baseline, the robot body, the attached cameras/cables and objects that actually exist,
-   the table/background, and the photographic feel of all views declared by the current task; components that do not exist use not_applicable with evidence and reason,
-   and must not be invented. Local textures and text-only reviews cannot count as a style pass.
-   OOD must still be a reasonable real change along approved axes. unverified does not count as pass. Real hard shadows are not a defect in themselves; exposure serves only as a coarse safeguard.
-3. Fix the target number of qualified episodes and the denominator of all attempts. Infrastructure failures, quality rejections, replacement relations and costs are all kept; when quality
-   is not met, re-collect/repair within the authorized budget, and do not delete bad samples and then write 100% success. Run a representative complete canary before scaling.
-4. The agent itself generates the data encoding/export adapter for the new task, stating the state/action dimensions, order, units,
-   absolute/delta representation, time alignment and camera names; verify by reading the exported samples, not only by checking that the directory is non-empty. Do not use the state schema of another task
-   to interpret the new device. For a pi0.5 dataset, `tools/build_pi05_dataset.py` builds the inline-224 LeRobot dataset from the admitted cohort. Record the data manifest, the provenance certificates and a runnable reading example.
-5. Issue admission independently and verify it at the actual build entry point; use delivery.json to record the admitted episodes,
-   all attempt manifests, the dataset manifest, the grounding record, the input/instruction versions and the independent reviews.
-   For tasks run by pipeline_agent drive/supervise, the episode review must be completed through the state.review_requests queue;
-   the review file writes runtime_review=<request ID> and lists it in the evidence of that review report; hand-written execution records are rejected.
-   Run pipeline_agent verify.
-6. Only if the request includes training, prepare an explicit state_conditioning, the action range/normalization and deployment consistency, launch through
-   an admission-bound tool, and check the actual update count/checkpoint/inference before reporting. Data delivery does not equal success on the real robot.
+1. 对每个 episode，检查输入、动作、图像、帧映射、prompt、真实参考以及最终选定媒体的哈希。
+   如果视频/参考/动作被修复过，就必须重新评审，且不得复用早先的证书。如实记录基于续接的混合来源，不要声称一切都已重新生成。
+2. 分别评审结构/任务、真实参考的采用、真实世界风格、相机/时序以及关节数据；机器通过和
+   provider 成功都不等于最终准入。独立评审者必须亲自解码真实参考和生成视频并并排查看，
+   保存绑定后的对比图像和帧号，覆盖真实基线、机器人本体、安装的相机/线缆以及实际存在的物体、
+   桌面/背景，以及当前任务声明的所有视图的摄影质感；不存在的组件用 not_applicable 并附证据与理由，
+   不得凭空编造。局部纹理和仅靠文字的评审不能算作风格通过。
+   OOD 仍必须是沿获批维度的合理真实变化。unverified 不算通过。真实的硬阴影本身不是缺陷；曝光只作为粗略的安全保障。
+3. 固定合格 episode 的目标数量和全部尝试的分母。基础设施故障、质量拒收、替换关系和成本全部保留；当质量
+   不达标时，在授权预算内重新采集/修复，不要删掉坏样本然后写成 100% 成功。扩大规模前先跑一个有代表性的完整 canary。
+4. 由 agent 自身为新任务生成数据编码/导出 adapter，说明状态/动作维度、顺序、单位、
+   绝对/增量表示、时间对齐和相机名称；通过读取导出的样本来验证，而不只是检查目录非空。不要用另一个任务的状态 schema
+   来解释新设备。对于 pi0.5 数据集，`tools/build_pi05_dataset.py` 从已准入的 cohort 构建 inline-224 LeRobot 数据集。记录数据 manifest、来源证书和一个可运行的读取示例。
+5. 独立签发准入，并在实际构建入口处验证它；用 delivery.json 记录已准入的 episode、
+   所有尝试 manifest、数据集 manifest、grounding 记录、输入/指令版本以及独立评审。
+   对于由 pipeline_agent drive/supervise 运行的任务，episode 评审必须通过 state.review_requests 队列完成；
+   评审文件写入 runtime_review=<request ID>，并在该评审报告的 evidence 中列出它；手写的执行记录会被拒绝。
+   运行 pipeline_agent verify。
+6. 仅当请求包含训练时，准备显式的 state_conditioning、动作范围/归一化与部署一致性，通过
+   绑定准入的工具启动，并在报告前检查实际的更新次数/checkpoint/推理结果。数据交付不等于在真机上的成功。
 
-The delivery note must let a new reader answer what the input is, how much data there is, how to read it, why it can be trusted, and what is unverified.
+交付说明必须能让新读者回答：输入是什么、数据有多少、如何读取、为什么可信，以及哪些尚未验证。
 
-When the user explicitly wants only white-mesh output, use `--stop-after white` in prepare to fix the boundary, and produce the white-mesh delivery according to
-`docs/reference/delivery-and-admission.md`; do not submit rendering, and do not forge adoption of references, photographic style or training admission.
-The white mesh still needs independent evidence for the full task, actions, joints, clocks and all declared views. In all other cases the default full-delivery rules apply.
+当用户明确只要白模输出时，在 prepare 中使用 `--stop-after white` 固定边界，并按照
+`docs/reference/delivery-and-admission.md` 产出白模交付；不要提交渲染，也不要伪造对参考、摄影风格或训练准入的采用。
+白模仍然需要针对完整任务、动作、关节、时钟和所有声明视图的独立证据。在其他所有情况下，适用默认的完整交付规则。

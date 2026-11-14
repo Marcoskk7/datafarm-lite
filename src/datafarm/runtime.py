@@ -1,4 +1,4 @@
-"""Portable runtime bindings. Values are paths, never credentials themselves."""
+"""可移植的运行时绑定。值是路径，绝不是凭据本身。"""
 from __future__ import annotations
 
 import json
@@ -27,8 +27,8 @@ def defaults(workspace: Path) -> dict[str, str]:
         "ANALYSIS_PYTHON": sys.executable, "ANALYSIS_ENV": sys.prefix,
         "TRAINING_PYTHON": w + "/environments/training/bin/python",
         "H3_PYTHON": w + "/environments/h3/bin/python", 
-        # H3 control hybrid (src/datafarm/render/h3): model root, patched VideoX-Fun checkout, turbo LoRA,
-        # EVAL-v1 DINOv2 and OOD SAM2.1 weights, optional HED annotator source; the harness itself never defaults them
+        # H3 control hybrid（src/datafarm/render/h3）：模型根目录、打过补丁的 VideoX-Fun checkout、turbo LoRA、
+        # EVAL-v1 DINOv2 与 OOD SAM2.1 权重、可选的 HED annotator 源码；harness 本身绝不为其设默认值
         "H3_MODELS": w + "/external/h3-models", "H3_VIDEOX_FUN": w + "/external/videox-fun",
         "H3_TURBO_LORA": w + "/external/h3-models/Minimax-h3-Turbo/minimax_h3_ref2v_turbo_4step_v0.1_bf16.safetensors",
         "H3_EVAL_DINO": w + "/external/models/dinov2-base", "H3_SAM2": w + "/external/models/sam2.1-hiera-large",
@@ -59,7 +59,7 @@ def expand(value, bindings: dict[str, str]):
 
 
 def explicit_bindings(workspace: Path | None = None) -> dict[str, str]:
-    """Entries of the runtime bindings file only, without defaults or environment overrides."""
+    """仅取运行时绑定文件中的条目，不含默认值或环境变量覆盖。"""
     root = workspace or Path(os.environ.get("DATAFARM_WORKSPACE", source_root()))
     path = Path(os.environ.get("DATAFARM_BINDINGS", root / "bindings.json"))
     if not path.is_file():

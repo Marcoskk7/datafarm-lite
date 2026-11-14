@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Stand-in simulator for dry runs: loads the expert plugin like the real runner
-(``file.py:Class`` built as ``Class(pose_bank, home=home)``), drives ``next_plan`` /
-``complete`` for a few primitives, probes that protected paths are hidden, and writes
-an initial-state record plus a state "trace" for the out-of-sandbox judge.
+"""用于 dry run 的替身模拟器：像真实 runner 一样加载 expert 插件
+（``file.py:Class`` 以 ``Class(pose_bank, home=home)`` 构造），对几个 primitive 驱动
+``next_plan`` / ``complete``，探测受保护路径是否被隐藏，并写出初始状态记录和一份
+状态 "trace"，供 sandbox 外的 judge 使用。
 
-Deterministic behaviour: family = seed % 4; seed 13 is an invalid start; ``FAKE_RAISE``
-in the expert raises inside the plugin; ``FAKE_STEPS`` above ``--trace-capacity`` hits the
-trace capacity like the real runner.
+确定性行为：family = seed % 4；seed 13 是无效起点；expert 中的 ``FAKE_RAISE``
+会在插件内抛出异常；``FAKE_STEPS`` 超过 ``--trace-capacity`` 时会像真实 runner
+一样触及 trace 容量上限。
 """
 
 import argparse

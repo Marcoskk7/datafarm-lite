@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Score and pack finished H3 packages: assemble -> frozen EVAL-v1 score -> lite review pack (one pass per call).
+"""为已完成的 H3 package 打分并打包：assemble -> 冻结的 EVAL-v1 评分 -> lite 评审 pack（每次调用执行一遍）。
 
-Handles the --packages given, or else every <run>/queue/done ticket and every derived (assembly-only) package; finished
-packages are skipped, so it can be repeated.  The scorer is the frozen evaluations/render-h3/h3eval.py of this checkout (EVAL-v1), run with H3_PYTHON
-and --dino ${H3_EVAL_DINO}.  h3_review_prep.py needs the pack this writes.
+处理给定的 --packages，否则处理每个 <run>/queue/done ticket 以及每个 derived（仅 assembly）package；已完成的
+package 会被跳过，因此可以重复运行。评分器是本 checkout 冻结的 evaluations/render-h3/h3eval.py（EVAL-v1），用 H3_PYTHON
+和 --dino ${H3_EVAL_DINO} 运行。h3_review_prep.py 需要这里写出的 pack。
 
   python h3_score_and_pack.py [--run-dir <run>] [--workers 6] [--packages <pkg dir> ...]
 """
@@ -77,7 +77,7 @@ def main() -> int:
             p = Path(json.loads(f.read_text())["ticket"]["package"])
             if p not in pkgs:
                 pkgs.append(p)
-        for pj in sorted(run.glob("pkgs/*/*/*/package.json")):  # derived (assembly-only) packages have no ticket
+        for pj in sorted(run.glob("pkgs/*/*/*/package.json")):  # derived（仅 assembly）的 package 没有 ticket
             if json.loads(pj.read_text()).get("derived_from") and pj.parent not in pkgs:
                 pkgs.append(pj.parent)
 

@@ -1,4 +1,4 @@
-"""Bound file references: a ``{path, sha256}`` record must resolve to the exact bytes it names."""
+"""绑定文件引用：``{path, sha256}`` 记录必须解析到它所指向的确切字节。"""
 from __future__ import annotations
 
 from pathlib import Path

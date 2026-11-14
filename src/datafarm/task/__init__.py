@@ -1,1 +1,1 @@
-"""A task's contracts: grounding, task contract, render contract and delivery."""
+"""任务契约：grounding、任务契约、渲染契约与交付。"""

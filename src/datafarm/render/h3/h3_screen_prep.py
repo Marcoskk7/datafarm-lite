@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Producer-side per-chunk seed screen: composites for a screening model, and the merge of its answers.
+"""producer 侧的逐 chunk seed 筛选：为筛选模型合成对比图，并合并其答案。
 
-`composites` writes, per chunk and seed, 4 carrier|generated frame pairs from the chunk's keep range on one image, for a
-separate screening model that picks the cleanest seed per chunk.  `merge` combines per-part answers (part-*.json in the
-screen directory) into choice.json, schema h3.seed-screen/1.  The screen is NOT the acceptance review: the final package
-still goes to the frozen, independent blind review (EVAL-v1).
+`composites` 会针对每个 chunk 和 seed，在同一个 chunk keep 范围内的 4 对 carrier|generated 帧合成到一张图上，
+供独立的筛选模型为每个 chunk 挑选最干净的 seed。`merge` 把各部分答案（screen 目录中的 part-*.json）合并为
+choice.json，schema 为 h3.seed-screen/1。该筛选并非验收评审：最终 package 仍要送交冻结的、独立的盲审
+（EVAL-v1）。
 
   python h3_screen_prep.py composites --cands <pkg_s0> <pkg_s1> ... --out <run>/screen/<task>/<episode>
   python h3_screen_prep.py merge <screen dir> --chunks <n> --screener <label, e.g. the model that ran the screen>
@@ -69,7 +69,7 @@ def merge(args) -> int:
     rows = [chunks[i] for i in range(args.chunks)]
     seeds = range(len(rows[0]["scores"]))
     print("per-chunk choice:", [c["choice"] for c in rows])
-    # a seed that is clean in every chunk is the single-seed alternative, which keeps one look across the episode
+    # 在每个 chunk 中都干净的 seed 构成单 seed 备选方案，可在整个 episode 内保持统一观感
     print("per-seed worst:", [max(c["scores"][k] for c in rows) for k in seeds],
           "total:", [sum(c["scores"][k] for c in rows) for k in seeds])
     (Path(args.screen_dir) / "choice.json").write_text(json.dumps(

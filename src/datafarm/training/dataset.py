@@ -1,9 +1,9 @@
-"""Generated-video → LeRobot inline-224 materialization for Piper PI0.5.
+"""面向 Piper PI0.5 的生成视频 → LeRobot inline-224 物化。
 
-The three-view split is an explicit, frozen layout rather than an inferred
-``split_y = 3 * H // 4``.  For the 1280x1080 Seedance carrier that inference
-cuts at row 810, while the carrier's head panel ends at row 720, so head images
-would absorb 90 rows of wrist view and both wrist images would be truncated.
+三视图切分是显式且冻结的布局，而不是推断出的
+``split_y = 3 * H // 4``。对于 1280x1080 的 Seedance 载体，那种推断
+在第 810 行切分，而载体的 head 面板止于第 720 行，因此 head 图像
+会吞入 90 行 wrist 视图，两个 wrist 图像也会被截断。
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ CAMERA_KEYS = (
 
 @dataclass(frozen=True)
 class TLayout:
-    """Pixel rectangles (y0, y1, x0, x1) of each policy view in a carrier frame."""
+    """载体帧中每个策略视图的像素矩形 (y0, y1, x0, x1)。"""
 
     layout_id: str
     width: int
@@ -53,7 +53,7 @@ class TLayout:
         }
 
 
-# Seedance three-view carrier: 1280x720 head over two 640x360 wrists.
+# Seedance 三视图载体：1280x720 的 head 覆盖在两个 640x360 的 wrist 之上。
 SEEDANCE_T_LAYOUT_1280X1080 = TLayout(
     layout_id="seedance-t-1280x1080-head720-v1",
     width=1280,
@@ -63,7 +63,7 @@ SEEDANCE_T_LAYOUT_1280X1080 = TLayout(
 
 
 def load_piper_fk_factory(source: Path) -> Callable[[], Any]:
-    """Load the official Piper FK class from an explicitly pinned source file."""
+    """从显式固定版本的源文件加载官方 Piper FK 类。"""
 
     if not source.is_file():
         raise FileNotFoundError(f"Piper FK source does not exist: {source}")
@@ -81,7 +81,7 @@ def load_piper_fk_factory(source: Path) -> Callable[[], Any]:
 
 @dataclass(frozen=True)
 class PiperEefEncoder:
-    """Convert simulator Piper joint readback to the real dataset's 14-D EEF convention."""
+    """将仿真器 Piper 关节读回值转换为真实数据集的 14 维 EEF 约定。"""
 
     fk_factory: Callable[[], Any]
     real_gripper_open_m: float = 0.105
@@ -98,8 +98,8 @@ class PiperEefEncoder:
         pose = np.asarray(fk.CalFK(values[:6].tolist())[-1], dtype=np.float64)
         if pose.shape != (6,):
             raise ValueError(f"Piper FK returned an unexpected pose shape: {pose.shape}")
-        pose[:3] *= 1e-3  # official SDK: millimetres -> metres
-        pose[3:] *= math.pi / 180.0  # official SDK: degrees -> radians
+        pose[:3] *= 1e-3  # 官方 SDK：毫米 -> 米
+        pose[3:] *= math.pi / 180.0  # 官方 SDK：度 -> 弧度
         return pose
 
     def _command_gripper(self, record: Mapping[str, Any], arm: str) -> float:
@@ -135,8 +135,8 @@ class PiperEefEncoder:
             raise ValueError("EEF conversion needs at least two source frames")
         state = all_state[:-1].copy()
         action = all_state[1:].copy()
-        # Action pose is the next puppet EEF pose; both state and action keep
-        # the current master gripper command, as in the real data.
+        # 动作位姿是下一个 puppet EEF 位姿；state 与 action 都保留
+        # 当前的 master 夹爪命令，与真实数据一致。
         action[:, 6] = state[:, 6]
         action[:, 13] = state[:, 13]
         return state, action
@@ -149,15 +149,13 @@ RECOVERY_SPLICE_MAX_JOINT_GAP_RAD = 0.01
 def recovery_excisions(
     payload: Mapping[str, Any], *, max_joint_gap_rad: float = RECOVERY_SPLICE_MAX_JOINT_GAP_RAD
 ) -> tuple[dict[str, Any], ...]:
-    """Frame ranges of the deliberate misaligned-approach recovery demonstrations.
+    """刻意错位接近的恢复演示的帧范围。
 
-    The recovery drives the arm to a wrong pose, retracts and recenters on the
-    *same* joint target before the qualified close, so one observation carries
-    two different futures.  A state-free policy cannot tell the two visits apart
-    and can oscillate on the real robot.  Each range
-    covers the whole detour, from the first misaligned command through the last
-    recenter frame; the frames on either side of the cut must hold the same
-    joint target, which is what makes the splice exact.
+    该恢复过程先把机械臂驱动到错误位姿，再回撤并在合格闭合之前重新对中到
+    *同一个*关节目标，因此一次观测携带两个不同的未来。不依赖状态的策略无法区分
+    这两次访问，可能在真实机器人上振荡。每个范围覆盖
+    整个绕行过程，从第一条错位命令到最后一条重新对中帧；切口两侧的帧必须保持同一个
+    关节目标，这正是拼接能够精确成立的原因。
     """
 
     records = payload["records"]
@@ -224,17 +222,15 @@ def validate_frame_aligned_state(payload: Mapping[str, Any], *, expected_frames:
 def layout_seam_report(
     image: np.ndarray | Sequence[np.ndarray], layout: TLayout, min_ratio: float = 8.0
 ) -> dict[str, Any]:
-    """Measure that the declared panel boundaries are real seams of the frame.
+    """测量所声明的面板边界确实是帧中的真实接缝。
 
-    A boundary passes when the mean absolute step across it is at least ``min_ratio``
-    times the median step over the frame: a split at a row/column with no
-    discontinuity (a 3H/4 cut at row 810) scores about 1. Whether the
-    declared seam is the *strongest* edge is reported but not gated, because a
-    straight scene edge (the wall/table horizon in the head view, a stick on a dark
-    table) can be sharper than a correct seam. With several frames the best frame
-    is used per boundary (a generated render can make both sides of a seam the same
-    colour in some frames); metrics are informational for renders, whose layout is
-    gated on the carrier and on per-frame carrier alignment.
+    当跨越边界的平均绝对阶跃至少为全帧中位阶跃的 ``min_ratio`` 倍时，
+    该边界通过：在不存在不连续的行/列处切分（例如第 810 行的 3H/4 切分）得分约为 1。
+    所声明的接缝是否为*最强*边缘会被报告但不作为门槛，因为一条
+    笔直的场景边缘（head 视图中的墙/桌地平线、深色桌面上的棍状物）可能比正确的接缝
+    更锐利。给定多帧时，每个边界取最佳帧（生成的渲染可能在某些帧中把接缝
+    两侧画成相同颜色）；指标对渲染而言仅为信息性质，渲染的布局
+    以载体和逐帧载体对齐为准。
     """
 
     images = [image] if isinstance(image, np.ndarray) and image.ndim == 3 else list(image)
@@ -266,7 +262,7 @@ def layout_seam_report(
 def decode_carrier(
     path: Path, expected_frames: int, layout: TLayout
 ) -> Iterator[tuple[np.ndarray, ...]]:
-    """Yield the first ``expected_frames`` split frames; the carrier holds one more."""
+    """产出前 ``expected_frames`` 个切分帧；载体多持有一帧。"""
 
     import av  # noqa: PLC0415
 
@@ -284,14 +280,12 @@ def decode_carrier(
 
 
 def sampled_carrier_frames(path: Path, count: int = 12, stride: int = 60) -> list[np.ndarray]:
-    """Spread a few carrier frames for the seam report instead of just the first.
+    """为接缝报告散布采样若干载体帧，而不只是取第一帧。
 
-    layout_seam_report takes the best frame per boundary precisely because a
-    generated render can paint both sides of a seam the same colour in some
-    frames. Judging a whole episode on frame 0 therefore rejects sound carriers:
-    an OOD sample scored 6.19 on its first frame (below the 8.0 bound) but 17.85
-    across 19 sampled frames, with the strongest row and column seams landing
-    exactly on the declared 720/640 boundaries.
+    正因生成的渲染可能在某些帧中把接缝两侧画成相同颜色，
+    layout_seam_report 才按边界取最佳帧。只凭第 0 帧评判整个 episode 因此
+    会拒绝健全的载体：一个 OOD 样本在其第一帧上得分为 6.19（低于 8.0 的界限），
+    但在 19 个采样帧上为 17.85，最强行接缝与列接缝恰好落在所声明的 720/640 边界上。
     """
 
     import av  # noqa: PLC0415
@@ -360,7 +354,7 @@ def materialize_episode(
     batch_frames: int = 16,
     excise_recovery: bool = False,
 ) -> tuple[int, dict[str, Any], dict[str, Any]]:
-    """Write one LeRobot v2.1 parquet episode with inline 224x224 PNG views."""
+    """写入一个 LeRobot v2.1 parquet episode，视图为 inline 224x224 PNG。"""
 
     import pyarrow as pa  # noqa: PLC0415
     import pyarrow.parquet as parquet  # noqa: PLC0415
@@ -378,8 +372,8 @@ def materialize_episode(
     expected_frames = len(records) - 1
     if len(state) != expected_frames:
         raise ValueError(f"{sample_id}: state length mismatch")
-    # Image i pairs with state i, so the kept media frames are the kept poses
-    # except the last, which only supplies the final action target.
+    # 图像 i 与 state i 配对，因此保留下来的媒体帧就是保留下来的位姿，
+    # 唯一例外是最后一帧，它只用于提供最终的动作目标。
     retained_media_set = set(retained[:-1])
 
     generated_hash = sha256_file(generated_video)
@@ -454,8 +448,8 @@ def materialize_episode(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     parquet.write_table(table, output_path, compression="snappy")
 
-    # Round-trip gate: the stored first frame must decode to exactly the
-    # declared-layout crop after resize_with_pad.
+    # 回读校验：存储的第一帧经 resize_with_pad 后必须精确解码为
+    # 所声明布局的裁剪结果。
     stored = parquet.read_table(output_path, columns=list(CAMERA_KEYS)).slice(0, 1).to_pylist()[0]
     from PIL import Image  # noqa: PLC0415
 
@@ -499,7 +493,7 @@ def materialize_episode(
 
 
 def audit_action_shift(dataset_root: Path) -> dict[str, Any]:
-    """Verify action pose = next state pose and action gripper = current gripper."""
+    """校验 action 位姿 = 下一 state 位姿，且 action 夹爪 = 当前夹爪。"""
 
     import pyarrow.parquet as parquet  # noqa: PLC0415
 
@@ -538,7 +532,7 @@ def audit_action_shift(dataset_root: Path) -> dict[str, Any]:
 
 
 def audit_joint_action_shift(dataset_root: Path, *, gripper_unit: str) -> dict[str, Any]:
-    """Verify next-state absolute joint targets and current absolute grippers."""
+    """校验下一状态绝对关节目标与当前绝对夹爪。"""
 
     import pyarrow.parquet as parquet  # noqa: PLC0415
 
@@ -592,7 +586,7 @@ def audit_joint_action_shift(dataset_root: Path, *, gripper_unit: str) -> dict[s
 
 
 def _rotation_matrices(rpy: np.ndarray) -> np.ndarray:
-    """Piper SDK RPY (R = Rz(yaw) Ry(pitch) Rx(roll)) to rotation matrices."""
+    """Piper SDK RPY（R = Rz(yaw) Ry(pitch) Rx(roll)）转换为旋转矩阵。"""
 
     roll, pitch, yaw = (np.asarray(rpy, dtype=np.float64)[..., index] for index in range(3))
     cr, sr, cp, sp, cy, sy = np.cos(roll), np.sin(roll), np.cos(pitch), np.sin(pitch), np.cos(yaw), np.sin(yaw)
@@ -610,7 +604,7 @@ def _rotation_matrices(rpy: np.ndarray) -> np.ndarray:
 
 
 def geodesic_angle(rpy: np.ndarray, reference_rpy: np.ndarray) -> np.ndarray:
-    """Rotation angle between orientations; unlike RPY deltas it has no gimbal-lock gain."""
+    """两个朝向之间的旋转角；与 RPY 差值不同，它没有万向节锁带来的增益。"""
 
     relative = np.swapaxes(_rotation_matrices(reference_rpy), -1, -2) @ _rotation_matrices(rpy)
     cosine = (np.trace(relative, axis1=-2, axis2=-1) - 1.0) / 2.0
@@ -622,15 +616,15 @@ def _angular_error(values: np.ndarray, reference: np.ndarray) -> np.ndarray:
 
 
 def audit_terminal_home(dataset_root: Path, contract: Mapping[str, Any]) -> dict[str, Any]:
-    """Verify that every episode ends stationary at the same canonical home."""
+    """校验每个 episode 都在同一个规范 home 处静止收尾。"""
 
     import pyarrow.parquet as parquet  # noqa: PLC0415
 
     schema = contract.get("schema_version")
     if schema != "eef_terminal_home_contract/1.1.0":
         raise ValueError("Missing or unsupported terminal-home contract")
-    # The tail is bounded in translation (m), geodesic rotation (rad) and gripper (m),
-    # because RPY amplifies tiny rotations near pitch 90 deg.
+    # 尾部在平移（m）、测地旋转（rad）与夹爪（m）三方面都有界，
+    # 因为 RPY 在 pitch 接近 90 度附近会放大微小旋转。
     tail_translation_limit = float(contract["max_stationary_tail_translation_m"])
     tail_rotation_limit = float(contract["max_stationary_tail_rotation_rad"])
     tail_gripper_limit = float(contract["max_stationary_tail_gripper_m"])
@@ -744,6 +738,6 @@ def audit_terminal_home(dataset_root: Path, contract: Mapping[str, Any]) -> dict
 
 
 # ---------------------------------------------------------------------------
-# Canonical-HDF5 + uniformly scaled provider render
+# 规范 HDF5 + 统一缩放的 provider 渲染
 # ---------------------------------------------------------------------------
 

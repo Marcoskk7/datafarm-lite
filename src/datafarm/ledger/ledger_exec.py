@@ -1,10 +1,10 @@
-"""Detached sentinel that runs one worker command for a pipeline run.
+"""为一个 pipeline 运行执行单条 worker 命令的分离式哨兵进程。
 
-Started by ``tools/datafarm_runs.py launch`` in its own session. It starts the real command,
-touches a heartbeat while the command lives, forwards SIGTERM/SIGINT, and records
-the exit code in the run ledger, so an unexpected exit is always visible.
+由 ``tools/datafarm_runs.py launch`` 在其自己的 session 中启动。它启动真正的命令，
+在命令存活期间更新 heartbeat，转发 SIGTERM/SIGINT，并把
+退出码记入 run ledger，因此意外退出总是可见的。
 
-Usage: python -m datafarm.ledger.ledger_exec RUN_DIR WORKER_ID HEARTBEAT_SECONDS -- CMD...
+用法：python -m datafarm.ledger.ledger_exec RUN_DIR WORKER_ID HEARTBEAT_SECONDS -- CMD...
 """
 
 from __future__ import annotations

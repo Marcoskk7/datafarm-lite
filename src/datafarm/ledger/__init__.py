@@ -1,1 +1,1 @@
-"""The run ledger: run state, gaps and resumable status."""
+"""运行账本：运行状态、缺口和可恢复状态。"""

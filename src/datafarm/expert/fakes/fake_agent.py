@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Scripted stand-in for the agent CLI (tests and ``tools/expert_harness.py dry-run``; no model calls).
+"""agent CLI 的脚本化替身（测试和 ``tools/expert_harness.py dry-run`` 用；不调用模型）。
 
-It speaks the Claude Code ``stream-json`` format (system/init, assistant tool_use, user
-tool_result, result with total_cost_usd/usage/num_turns/session_id), keeps its session
-memory under ``$HOME`` like the real CLI, honours ``--session-id`` / ``--resume``, and
-performs a JSON plan with the real ``xh`` tool inside the real sandbox.
+它说 Claude Code 的 ``stream-json`` 格式（system/init、assistant tool_use、user
+tool_result、含 total_cost_usd/usage/num_turns/session_id 的 result），像真实 CLI 一样
+把会话记忆保存在 ``$HOME`` 下，支持 ``--session-id`` / ``--resume``，并在真实
+sandbox 内用真实的 ``xh`` 工具执行一个 JSON plan。
 
-Plan: ``{"sessions": [[step, ...], ...], "cost_per_session": 0.5}``; steps:
-``{"op": "write", "path": "expert.py", "text": "..."}``,
-``{"op": "xh", "args": [...], "expect": [0]}``,
-``{"op": "probe", "paths": [...], "out": "isolation-probe.json"}``,
-``{"op": "api_error", "times": N}`` (fail the first N invocations of this session),
-``{"op": "auth_error"}``, ``{"op": "sleep", "seconds": S}``, ``{"op": "symlink", ...}``,
-``{"op": "write_outside", "paths": [...]}``.
+Plan：``{"sessions": [[step, ...], ...], "cost_per_session": 0.5}``；step：
+``{"op": "write", "path": "expert.py", "text": "..."}``、
+``{"op": "xh", "args": [...], "expect": [0]}``、
+``{"op": "probe", "paths": [...], "out": "isolation-probe.json"}``、
+``{"op": "api_error", "times": N}``（使本会话的前 N 次调用失败）、
+``{"op": "auth_error"}``、``{"op": "sleep", "seconds": S}``、``{"op": "symlink", ...}``、
+``{"op": "write_outside", "paths": [...]}``。
 """
 
 import argparse
@@ -62,10 +62,10 @@ def main():
     memory["sessions"][session_id]["prompts"].append(len(prompt))
     sessions_plan = plan.get("sessions", [])
     cursor = memory.get("cursor", 0)
-    key = "plan-session-%d" % cursor  # repeated failures of one plan session share a counter
+    key = "plan-session-%d" % cursor  # 同一 plan 会话的重复失败共享一个计数器
     memory["invocations"][key] = memory["invocations"].get(key, 0) + 1
     with open(memory_path, "w", encoding="utf-8") as handle:
-        json.dump(memory, handle)  # like the real CLI, the conversation exists before any work
+        json.dump(memory, handle)  # 与真实 CLI 一样，会话在任何工作之前就已存在
     emit({"type": "system", "subtype": "init", "session_id": session_id, "model": args.model,
           "cwd": os.getcwd(), "tools": ["Bash", "Read", "Edit", "Write"]})
     steps = sessions_plan[cursor] if cursor < len(sessions_plan) else [{"op": "noop"}]

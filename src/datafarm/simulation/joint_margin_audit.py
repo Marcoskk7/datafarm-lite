@@ -1,4 +1,4 @@
-"""Independent read-only physical trace metrics."""
+"""独立的只读物理轨迹指标。"""
 
 import json
 import numpy as np
@@ -16,7 +16,7 @@ def audit(path):
     delta = np.diff(steps)
     if np.any(delta < 0):
         raise ValueError("nonmonotonic control clock")
-    # Some callbacks observe the same physics step. Count it once, retaining last.
+    # 某些 callback 会观测到同一个物理 step。只计一次，并保留最后一次。
     ids = np.r_[np.flatnonzero(delta > 0), len(steps) - 1]
     records = [records[i] for i in ids]
     steps = steps[ids]
@@ -80,7 +80,7 @@ def audit(path):
     policy = binding["policy"]
     target, joint = policy["target_margin_deg"], policy["target_joint"]
     out["joint_target_met"] = all(x["actual"]["min_margin_deg"][joint] >= target for x in out["arms"].values())
-    # One joint's target is task-specific, never an all-joint verdict.
+    # 单个关节的目标是任务特定的，绝不是全关节的判定。
     out["actual_within_bounds"] = all(min(a["actual"]["min_margin_deg"]) >= 0 for a in out["arms"].values())
     out["commands_complete_and_within_bounds"] = all(
         a["missing_command_samples"] == 0 and a["command"] is not None and min(a["command"]["min_margin_deg"]) >= 0

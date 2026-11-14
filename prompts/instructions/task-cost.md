@@ -1,68 +1,67 @@
-# Task cost
+# 任务成本
 
-All model costs of a new task, from the real input to the white-mesh data, share one persistent ledger. The default mode
-is advisory, with a target of 30 USD and a reference limit of 50 USD, configurable before prepare. It covers orchestration,
-scene and interface implementation, expert development, independent review, failure retries and repairs. Photographic
-generation and GPU compute are recorded separately and are outside this model budget. The price basis, model/tier, caching
-and unknown usage must be traceable. The target is not a promise that every new task can succeed within that amount.
+一个新任务从真实输入到白模数据的所有模型成本共享一份持久账本。默认模式
+为 advisory，目标为 30 USD，参考上限为 50 USD，可在 prepare 前配置。它覆盖编排、
+场景与接口实现、专家开发、独立审查、失败重试和修复。照片级
+生成和 GPU 计算单独记录，且在此模型预算之外。价格基准、模型/层级、缓存
+和未知用量必须可追溯。目标并不是承诺每个新任务都能在该金额内成功。
 
-The user's request governs. Never change the task definition, data count, mode or success criteria silently to save money.
-A count that was not explicit is an execution assumption and must not be written as a user request. The quality and
-independent-review requirements stay in force.
+用户的请求起决定作用。绝不要为了省钱而静默更改任务定义、数据数量、模式或成功标准。
+未明确说明的数量是执行假设，不得写成用户请求。质量和
+独立审查要求始终有效。
 
-## How to work
+## 如何工作
 
-- One main executor drives progress. The parent chat receives stage results; run no second scheduler and no per-minute
-  model polling. Use programs for scheduling, log polling, counting and hash comparison. `pipeline_agent.py wait` waits for
-  a substantive change of task state. Give progress updates the user asked for, but do not open a model subtask just to
-  produce the same status.
-- Load only the skills the current stage needs; do not inject all rendering, training, development and review rules every
-  round. A stage handoff passes the input/code/contract hashes, a result summary, the main failures, output paths, the
-  remaining budget and in-flight IDs. Raw logs stay in the outputs and are viewed on demand.
-- Reuse the verified general robot interface, collection, clock, image encoding and statistics tools. The semantics,
-  adapter, expert and judge of a new task are still generated from current evidence; reusing tools never copies another
-  task's authorization or skips this task's verification.
-- First confirm with 2-3 discriminating samples that the necessary physical actions are feasible, and only then start
-  expert trial and error. Repair the largest failure group first. Do not let the expert burn budget on a low-level action
-  interface known to fail.
-- Deterministic checks with the same source, contract, judge and environment hashes can be reused. When something changes,
-  redo only the affected checks, then the required final independent acceptance. The visual review of an earlier sample
-  cannot replace the review of a new video.
-- Label general infrastructure work and routine task runs separately. Infrastructure spending incurred for a task still
-  counts toward that task's end-to-end total; changing the category does not remove it. Opening separate infrastructure
-  work is a new scope and does not enlarge the budget.
+- 一个主执行器推进进度。父对话接收阶段结果；不要运行第二个调度器，也不要按分钟
+  轮询模型。用程序完成调度、日志轮询、计数和哈希比较。`pipeline_agent.py wait` 等待
+  任务状态的实质性变化。提供用户要求的进度更新，但不要仅为产出相同状态而
+  开启模型子任务。
+- 只加载当前阶段需要的 skill；不要每轮都注入所有渲染、训练、开发和审查规则。
+  阶段交接传递输入/代码/契约哈希、结果摘要、主要失败、输出路径、剩余预算
+  和进行中的 ID。原始日志留在输出中，按需查看。
+- 复用经过验证的通用机器人接口、采集、时钟、图像编码和统计工具。新任务的
+  语义、adapter、expert 和 judge 仍根据当前证据生成；复用工具绝不复制其他
+  任务的授权，也不跳过本任务的验证。
+- 先用 2-3 个有判别力的样本确认必要的物理动作可行，然后才开始
+  专家试错。先修复最大的失败组。不要让 expert 把预算消耗在已知会失败的底层动作
+  接口上。
+- 具有相同源、契约、judge 和环境哈希的确定性检查可以复用。当某些东西发生变化时，
+  只重做受影响的检查，然后做必需的最终独立验收。早期样本的视觉审查
+  不能替代对新视频的审查。
+- 把通用基础设施工作和常规任务运行分开标注。为某个任务产生的基础设施支出仍然
+  计入该任务的端到端总额；更改类别不会移除它。开启单独的基础设施
+  工作是新的范围，不会扩大预算。
 
-## Modes
+## 模式
 
-`prepare` pins `configs/task-cost-policy.json` and saves the policy hash and a persistent ledger.
+`prepare` 固定 `configs/task-cost-policy.json`，并保存策略哈希和一份持久账本。
 
-- `disabled`: no threshold scheduling, but all sessions, known costs and unknown liabilities are still saved.
-- `advisory` (default): hints from target and limit. `on_excess=warn` continues; `pause` pauses once the known cost reaches
-  the limit. Unknown costs are marked, and you must not claim the total is within budget.
-- `enforced`: needs a metered driver that can limit itself and all its child calls. Reservations, unsettled amounts, unknown
-  receipts and overruns block continuation. A post-hoc token estimate cannot replace a hard limit.
+- `disabled`：不做阈值调度，但仍保存所有会话、已知成本和未知负债。
+- `advisory`（默认）：根据目标和上限给出提示。`on_excess=warn` 会继续；`pause` 在已知成本达到
+  上限时暂停。未知成本会被标记，且你不得声称总额在预算内。
+- `enforced`：需要一个能限制自身及其所有子调用的计量 driver。预留、未结算金额、未知
+  收据和超支会阻止继续。事后的 token 估算不能替代硬限制。
 
-Native Codex uses the existing login and saves JSONL token usage. Without a reliable dollar receipt, `cost_usd=null` and the
-total cost is unknown. The native CLI does not satisfy enforced, and declaring `cost_control` does not make it so. Missing
-usage is never zero, and the known cost is only a subtotal. `disabled` does not delete costs or cancel the physical, video,
-independent-review and provenance contracts. Record an overrun as it is.
+原生 Codex 使用现有登录并保存 JSONL token 用量。没有可靠的美元收据时，`cost_usd=null`，总成本
+为未知。原生 CLI 不满足 enforced，声明 `cost_control` 也不会使其满足。缺失
+用量绝不为零，已知成本只是小计。`disabled` 不会删除成本，也不会取消物理、视频、
+独立审查和来源契约。如记录超支就如实记录。
 
-Never rewrite the policy or its hash, delete the ledger, or create a new task to remove earlier costs. Adjust the quota of a
-new task before prepare. A configuration change during a run keeps the control history and does not reset the task policy,
-the session count or the retry state. When model consumption outside the driver is not covered, mark the end-to-end cost as
-incompletely covered. A claim of cost savings needs a measurement on the same task with the same data volume, difficulty and
-judge; software tests only show budget and state behaviour.
+绝不要重写策略或其哈希、删除账本，或创建新任务来移除先前成本。在 prepare 前调整
+新任务的配额。运行期间的配置变更会保留控制历史，且不会重置任务策略、
+会话计数或重试状态。当 driver 之外的模型消耗未被覆盖时，把端到端成本标记为未完全
+覆盖。声称节省成本需要在同一任务、相同数据量、难度和
+judge 下进行测量；软件测试只能展示预算和状态行为。
 
-## Waiting without a model
+## 不依赖模型的等待
 
-`pipeline_agent.py wait` only polls `state.json`. It calls no model and changes no task state. It returns when
-phase/status/next_action/questions or the ID/status/error of `external_jobs` changes, not on a heartbeat. `complete` is only
-a status notification; the delivery must still be verified.
+`pipeline_agent.py wait` 只轮询 `state.json`。它不调用任何模型，也不更改任务状态。当
+phase/status/next_action/questions 或 `external_jobs` 的 ID/status/error 变化时返回，而不是按心跳返回。`complete` 只是
+状态通知；交付仍必须验证。
 
-When the only next step is waiting for a submitted job, write `"model_wait_for": ["job-id"]` in `state.json` and save the same
-ID and the real status in `external_jobs`. Before creating a session, `drive` checks these dependencies and returns
-`waiting-external-jobs` until they end. The external supervisor keeps monitoring the real process and updating the status. A
-heartbeat, an unknown status or an observation timeout must not be written as a failure followed by a duplicate submission.
-When independent work remains, do not set this field; clear it after the dependencies are handled.
+当唯一的下一步是等待已提交作业时，写入 `"model_wait_for": ["job-id"]` 到 `state.json`，并在 `external_jobs` 中保存相同
+ID 和真实状态。创建会话前，`drive` 检查这些依赖并返回
+`waiting-external-jobs`，直到它们结束。外部 supervisor 持续监控真实进程并更新状态。心跳、未知状态或
+观测超时不得写成失败后再重复提交。若仍有独立工作，不要设置该字段；依赖处理完后清除它。
 
-Protocol details: `docs/reference/cost-control.md`.
+协议细节：`docs/reference/cost-control.md`。

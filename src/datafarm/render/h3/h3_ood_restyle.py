@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Output-side OOD appearance edit of an ACCEPTED sim2real render.
+"""对已 ACCEPTED 的 sim2real 渲染做输出侧 OOD 外观编辑。
 
-Content (robot, objects, motion, contacts) is the accepted sim2real video, untouched.  Only the authorized OOD axes change:
-  * tabletop material (--material-bgr): inside a per-frame tabletop mask (SAM2 masks tracked on the generated video by
-    h3_sam2_table_masks.py, or measured on the aligned WHITE CARRIER: bright, unsaturated plane 4-connected to the panel
-    bottom, edge-blocked so the wall and robot stay out), the pixel is re-synthesized as material * shading(x, y, t),
-    where shading = generated luminance / its smooth table baseline (keeps the generated shadows, contacts and noise);
-    uniform materials only, because a texture cannot follow the moving wrist cameras;
-  * light colour (--light): a mean-preserving per-channel gain over the whole frame.
-Gains and recolouring only: no pixel is moved or retimed; the carrier only supplies WHERE the table is.
+内容（机器人、物体、运动、接触）就是已接受的 sim2real 视频，不做改动。只有被授权的 OOD 轴会变化：
+  * 桌面材质（--material-bgr）：在逐帧桌面掩码内（由 h3_sam2_table_masks.py 在生成视频上跟踪的 SAM2
+    掩码，或在对齐后的 WHITE CARRIER 上测得：明亮、低饱和、与 panel 底部 4 连通的平面，并受边缘
+    阻挡，使墙面和机器人被排除），像素被重新合成为 material * shading(x, y, t)，其中
+    shading = 生成亮度 / 其平滑桌面基线（保留生成的阴影、接触和噪声）；仅支持均匀材质，因为纹理
+    无法跟随移动的腕部相机；
+  * 灯光颜色（--light）：对整帧施加保均值的逐通道增益。
+只做增益与重新着色：不移动、不重定时任何像素；carrier 只用于确定桌面在哪里。
 
   python h3_ood_restyle.py --src <pkg dir with final-t3-*.mp4 + carrier-t3-*.mp4> --out <dir> \
       [--material-bgr B,G,R] [--masks <prefix of <prefix>-<panel>.npy>] [--light <preset>]
@@ -26,7 +26,7 @@ import numpy as np
 from h3_media import link_or_copy
 from h3_spatial import T_LAYOUT_PANELS as PANELS
 
-# BGR gains, normalised to mean 1 (colour temperature only, exposure unchanged)
+# BGR 增益，归一化为均值 1（只改色温，曝光不变）
 LIGHT = {
     "warm-3000k": (0.86, 0.99, 1.15),
     "warm-amber-2700k": (0.80, 0.98, 1.20),
@@ -45,7 +45,7 @@ def table_mask_carrier(p: np.ndarray) -> np.ndarray:
     seeds = set(lab[h - 2, :].tolist()) - {0}
     m = np.isin(lab, list(seeds)).astype(np.uint8)
     m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-    inv = 1 - m  # fill small holes (carrier noise specks)
+    inv = 1 - m  # 填补小空洞（carrier 噪声斑点）
     k, lab2, st, _ = cv2.connectedComponentsWithStats(inv, connectivity=4)
     for i in range(1, k):
         x, y, ww, hh, area = st[i]
@@ -55,8 +55,8 @@ def table_mask_carrier(p: np.ndarray) -> np.ndarray:
 
 
 def refine_with_generated(m: np.ndarray, gp: np.ndarray) -> np.ndarray:
-    """Grow the mask by <=7 px into generated pixels that look like the generated table (removes the white halo where
-    generated object outlines and the carrier's differ by a few pixels), then add cast shadows on the table."""
+    """把掩码向生成像素中最多扩张 7 px，只纳入看起来像生成桌面的像素（消除生成物体轮廓与
+    carrier 相差几个像素处产生的白色光晕），随后补上桌面上的投影阴影。"""
     lab = cv2.cvtColor(gp.astype(np.uint8), cv2.COLOR_BGR2LAB).astype(np.float32)
     if m.sum() < 50:
         return m
@@ -64,12 +64,12 @@ def refine_with_generated(m: np.ndarray, gp: np.ndarray) -> np.ndarray:
     band = (cv2.dilate(m, np.ones((19, 19), np.uint8)) > 0) & (m == 0)
     close = np.linalg.norm(lab - ref, axis=2) < 16
     m2 = (m.astype(bool) | (band & close)).astype(np.uint8)
-    # cast shadows: unsaturated, darker-than-table but not robot-black pixels 4-connected to the table (a SAM2 mask can
-    # leave darker shadow lobes out, and those would keep the original table colour)
+    # 投影阴影：低饱和、比桌面暗但不至于机器人全黑的像素，且与桌面 4 连通（SAM2 掩码可能漏掉
+    # 较暗的阴影瓣，那些区域会保留原本的桌面颜色）
     hsv = cv2.cvtColor(gp.astype(np.uint8), cv2.COLOR_BGR2HSV)
     tv = float(np.median(hsv[..., 2][m2 > 0]))
     shadow = (hsv[..., 1] < 45) & (hsv[..., 2] > max(70.0, 0.35 * tv)) & (hsv[..., 2] < tv * 1.05)
-    # only below the table's upper edge in each column (the wall is also unsaturated and darker than the table)
+    # 仅保留每列中桌面自身下缘以下的区域（墙面同样低饱和且比桌面暗）
     h, w = m2.shape
     has = m2.any(0)
     top = np.where(has, m2.argmax(0), h)
@@ -85,12 +85,12 @@ def table_mask(carrier_panel: np.ndarray, generated_panel: np.ndarray, masks, fr
     carrier_mask = table_mask_carrier(carrier_panel)
     if masks is None:
         return refine_with_generated(carrier_mask, generated_panel)
-    # SAM2 mask on the generated frames, 3-frame temporal majority, closed
+    # 生成帧上的 SAM2 掩码，取 3 帧时间多数表决，再做闭运算
     stack = masks[max(frame - 1, 0) : frame + 2].astype(np.uint8)
     sam = (stack.sum(0) * 2 > len(stack)).astype(np.uint8)
     sam = cv2.morphologyEx(sam, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
-    # bright objects the carrier knows are NOT table, though SAM2 can merge a white object into it: drop their interior
-    # (eroded, so small outline offsets stay SAM's decision)
+    # carrier 判定为“非桌面”的明亮物体，可能被 SAM2 并入桌面：丢弃其内部
+    # （先腐蚀，让小的轮廓偏移仍由 SAM 决定）
     h = carrier_mask.shape[0]
     top = np.where(carrier_mask.any(0), carrier_mask.argmax(0), h)
     below = np.arange(h)[:, None] >= top[None, :]
@@ -98,14 +98,14 @@ def table_mask(carrier_panel: np.ndarray, generated_panel: np.ndarray, masks, fr
     objects = cv2.erode(((carrier_mask == 0) & below & bright).astype(np.uint8), np.ones((21, 21), np.uint8))
     sam = (sam & (1 - objects)).astype(np.uint8)
     reference_area = float(np.median(history[-48:])) if history else float(sam.mean())
-    if sam.mean() < 0.6 * reference_area:  # SAM2 lost the table (occlusion/re-prompt gap):
-        sam = np.maximum(sam, carrier_mask)  # fall back to the carrier-measured table for this frame
+    if sam.mean() < 0.6 * reference_area:  # SAM2 丢失了桌面（遮挡/重提示间隙）：
+        sam = np.maximum(sam, carrier_mask)  # 该帧回退到由 carrier 测得的桌面
     history.append(float(sam.mean()))
     return refine_with_generated(sam, generated_panel)
 
 
 def retable(gp: np.ndarray, m: np.ndarray, material: np.ndarray) -> np.ndarray:
-    """Table pixels = material x generated shading x the generated table's brightness falloff."""
+    """桌面像素 = material x 生成 shading x 生成桌面的亮度衰减。"""
     ms = cv2.GaussianBlur(m.astype(np.float32), (0, 0), 1.5)[..., None]
     lum = cv2.cvtColor(gp.astype(np.uint8), cv2.COLOR_BGR2GRAY).astype(np.float32)
     tl = np.where(m > 0, lum, np.nan)

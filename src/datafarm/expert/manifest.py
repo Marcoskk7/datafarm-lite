@@ -1,12 +1,11 @@
-"""Evaluator tamper manifest (after HELIX's ``evaluator_manifest``).
+"""评估器篡改清单（参照 HELIX 的 ``evaluator_manifest``）。
 
-At round start the harness hashes everything that decides or feeds a verdict: judge and
-verifier code, the verifier's contract package, the rollout runner and physics/material
-files, the initial-state generator, the holdout seed list, the adapter and brief. It
-re-hashes at the end of every session and before holdout evaluation. Any difference
-invalidates the round unless an operator recorded an amendment (``tools/expert_harness.py amend``)
-first -- which is how a mid-round rule change such as a verifier revision becomes an
-auditable event instead of a silent one.
+每轮开始时，工具链会哈希所有用于决定或输入 verdict 的内容：judge 与
+verifier 代码、verifier 的 contract 包、rollout runner 与 physics/material
+文件、初始状态生成器、holdout seed 列表、adapter 与 brief。它会在每次会话
+结束时以及 holdout 评估之前重新哈希。任何差异都会使该轮无效，除非运维人员
+事先记录了修订（``tools/expert_harness.py amend``）——这样，诸如 verifier
+改版之类的轮中规则变更就会成为可审计的事件，而不是静默变更。
 """
 
 from __future__ import annotations
@@ -55,7 +54,7 @@ def diff_manifests(base: Mapping[str, Any], current: Mapping[str, Any]) -> list[
 
 
 class ManifestGuard:
-    """Round-level tamper checks with a stored baseline and recorded amendments."""
+    """轮次级篡改检查，带已存储的基准和已记录的修订。"""
 
     def __init__(self, paths: RoundPaths, entries: Iterable[str], state: RoundState, events: EventLog,
                  clock_now, extra: Mapping[str, str] | None = None) -> None:
@@ -99,7 +98,7 @@ class ManifestGuard:
             self.state.violation("tamper", f"{len(changes)} protected entries changed at {label}",
                                  utc_now(self.now()))
         self.state.save()
-        # public event carries no paths or digests (holdout seed file is one of them)
+        # 公开事件不携带路径或摘要（holdout seed 文件就是其中之一）
         self.events.emit("manifest_check", label=label, ok=not changes, changed=len(changes))
         self.events.emit("manifest_check_detail", private=True, label=label, changes=changes)
         return not changes, changes

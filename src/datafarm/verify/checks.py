@@ -1,16 +1,16 @@
-"""Fixed check families of the Render gate.
+"""Render 门禁的固定检查族。
 
-Every check compares the generated observation with an authority it does not
-own: the simulator carrier for geometry, entities, events and time, and the real
-reference footage for appearance.  A check returns ``pass``, ``fail``,
-``abstain`` (the authority needed to judge is missing or unmeasurable, which
-blocks admission) or ``not_applicable`` (an objective measurability condition,
-e.g. a moving wrist camera has no static background; it does not block).
+每项检查都把生成的观测与一个它并不拥有的权威来源比较：几何、
+实体、事件和时间以 simulator carrier 为准，外观以真实 reference
+影像为准。检查返回 ``pass``、``fail``、``abstain``（判断所需的
+权威来源缺失或不可测，会阻止准入）或 ``not_applicable``（一种
+客观的可测性条件，例如运动中的 wrist 相机没有静态背景；它
+不阻止准入）。
 
-Defects must persist for ``persist_samples`` consecutive sampled frames before
-they fail a check.  This removes single-frame colour-mask noise while still
-catching every defect a viewer can notice (at stride 2 and 30 fps, three
-samples are 0.2 s).
+缺陷必须在 ``persist_samples`` 个连续采样帧中持续存在，才会
+让检查失败。这消除了单帧颜色掩码噪声，同时仍能捕获观众
+可以注意到的每个缺陷（步长 2、30 fps 时，三个采样
+为 0.2 秒）。
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class Evidence:
     kind: str
     frame: int
     end_frame: int | None = None
-    bbox: tuple[int, int, int, int] | None = None  # layout coordinates
+    bbox: tuple[int, int, int, int] | None = None  # layout 坐标
     detail: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -64,7 +64,7 @@ class CheckResult:
 
 
 def runs(flags: np.ndarray) -> list[tuple[int, int]]:
-    """Inclusive (start, end) index pairs of consecutive True values."""
+    """连续 True 值的闭区间 (start, end) 下标对。"""
 
     out: list[tuple[int, int]] = []
     start = None
@@ -89,7 +89,7 @@ def _disk(radius: int) -> np.ndarray:
 
 
 def key_masks(frames: np.ndarray, keys) -> np.ndarray:
-    """Boolean masks [N,H,W] of the union of HSV keys, lightly cleaned."""
+    """HSV keys 并集的布尔掩码 [N,H,W]，经过轻度清理。"""
 
     out = np.zeros(frames.shape[:3], bool)
     small = _disk(1)
@@ -114,12 +114,12 @@ def _lab(frame: np.ndarray) -> np.ndarray:
 
 def appearance_model(frames: np.ndarray, carrier: np.ndarray, broad: np.ndarray,
                      max_frames: int = 40) -> dict[str, Any] | None:
-    """Robust CIELAB model of the entity as this video renders it.
+    """实体在此视频渲染外观下的稳健 CIELAB 模型。
 
-    Pixels are taken where the carrier (geometric authority) has the entity,
-    eroded so that edges and occluders are excluded, and where the broad target
-    key agrees.  Median and a trimmed covariance with a floor give a Mahalanobis
-    gate that adapts to the render's colour grading.
+    像素取自 carrier（几何权威）存在该实体之处，经腐蚀以排除
+    边缘和遮挡物，并且与宽泛 target key 一致的位置。中位数与
+    带下限的截尾协方差给出一个可适应渲染
+    调色的 Mahalanobis 门限。
     """
 
     erode = _disk(2)
@@ -140,8 +140,8 @@ def appearance_model(frames: np.ndarray, carrier: np.ndarray, broad: np.ndarray,
         inliers = pixels
     cov = np.cov(inliers.T) + np.diag([6.0 ** 2, 2.5 ** 2, 2.5 ** 2])
     chroma = float(np.hypot(center[1], center[2]))
-    # A chromatic entity must stay chromatic: this separates a dark-rendered
-    # object from black robot links and neutral cast shadows of similar lightness.
+    # 有彩色的实体必须保持彩色：这可将深色渲染的物体与亮度相近的黑色机器人
+    # 连杆及中性投射阴影区分开。
     chroma_min = 0.5 * chroma if chroma >= 6.0 else 0.0
     return {"center": center.tolist(), "inv_cov": np.linalg.inv(cov), "pixels": int(len(pixels)),
             "gate": 3.0, "chroma_min": chroma_min}
@@ -187,8 +187,8 @@ class Context:
                 if not entity.adaptive:
                     self._masks[key] = key_masks(frames, entity.target_keys)
                 else:
-                    # One appearance mode per colour part: carrier_keys[i] and
-                    # target_keys[i] describe the same part of one object.
+                    # 每个颜色部分一个外观模式：carrier_keys[i] 与
+                    # target_keys[i] 描述同一物体的同一部分。
                     paired = len(entity.carrier_keys) == len(entity.target_keys)
                     parts = (list(zip(entity.carrier_keys, entity.target_keys)) if paired
                              else [(None, None)])
@@ -200,9 +200,9 @@ class Context:
                         c_mask = (key_masks(self.carrier.frames[: self.samples], (c_key,)) if c_key
                                   else self.mask("carrier", entity))
                         if relit:
-                            # Deliberate relighting moves every colour; a fixed key
-                            # would read that as a missing object.  Learn the
-                            # entity's look from carrier-authorised pixels only.
+                            # 有意的重新打光会改变每种颜色；固定 key 会把那读作
+                            # 物体缺失。仅从 carrier 授权的像素学习
+                            # 实体的外观。
                             broad = np.ones(frames.shape[:3], bool)
                         else:
                             broad = key_masks(frames, (t_key,) if t_key else entity.target_keys)
@@ -219,11 +219,11 @@ class Context:
         return self._masks[key]
 
     def carrier_foreground(self) -> np.ndarray:
-        """Where the carrier departs from its own static background (per sample).
+        """carrier 偏离其自身静态背景的位置（按采样）。
 
-        The per-pixel temporal median of the carrier is the empty workcell;
-        anything that ever differs from it — every robot link whatever its
-        shade, moved objects, simulator shadows — is simulator content.
+        carrier 的逐像素时间中位数即空工作单元；任何曾与其不同之处——
+        无论深浅的每个机器人连杆、移动的物体、simulator 阴影——
+        都是 simulator 内容。
         """
 
         if "__fg__" not in self._masks:
@@ -232,12 +232,12 @@ class Context:
             background = np.median(frames[::step].astype(np.int16), axis=0)
             fg = np.zeros(frames.shape[:3], bool)
             n = len(frames)
-            # Simulator renders are noise-free, so small differences are real
-            # content: a light-grey link against a grey wall differs by ~10-20.
+            # simulator 渲染无噪声，因此小差异也是真实内容：
+            # 浅灰连杆对灰墙的差异约为 10-20。
             for j, frame in enumerate(frames):
                 f = frame.astype(np.int16)
                 mask = np.abs(f - background).max(axis=2) > 12
-                for k in (-8, -4, 4, 8):  # samples; stride 2 -> +-8 / +-16 frames
+                for k in (-8, -4, 4, 8):  # 采样；步长 2 -> +-8 / +-16 帧
                     if 0 <= j + k < n:
                         mask |= np.abs(f - frames[j + k].astype(np.int16)).max(axis=2) > 6
                 fg[j] = cv2.dilate(mask.astype(np.uint8), _disk(3)) > 0
@@ -245,13 +245,13 @@ class Context:
         return self._masks["__fg__"]
 
     def camera_profile(self, panel: PanelSpec) -> dict[str, float] | None:
-        """How the real camera itself behaves in this panel (Grounding authority).
+        """真实相机本身在此 panel 中的行为（Grounding 权威）。
 
-        ``exposure_shift_max``: largest global brightness shift of the real
-        footage relative to its first frames; ``luma_step_p999``: 99.9th
-        percentile of frame-to-frame mean-brightness steps.  A render may do
-        what the real camera does, so these bound the exposure-drift and
-        flicker thresholds from below.
+        ``exposure_shift_max``：真实影像相对于其最初几帧的最大全局
+        亮度偏移；``luma_step_p999``：帧间平均亮度步进的 99.9
+        百分位。渲染可以表现得像真实相机，因此这些值从下方
+        约束曝光漂移与闪烁
+        阈值。
         """
 
         if self.real is None or len(self.real.gray) < 10:
@@ -269,7 +269,7 @@ class Context:
         return self._footprints[key]
 
     def footprint(self, entity: EntitySpec) -> np.ndarray | None:
-        """Projected simulator footprint of the entity per sample, if available."""
+        """实体的逐采样投影 simulator footprint（若可用）。"""
 
         if entity.role not in self._footprints:
             from datafarm.verify.geometry import project_footprints
@@ -296,7 +296,7 @@ class Context:
 
 
 # ---------------------------------------------------------------------------
-# transport
+# 传输
 
 
 def check_transport(ctx: Context) -> CheckResult:
@@ -336,7 +336,7 @@ def check_transport(ctx: Context) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
-# structure
+# 结构
 
 
 def _geometry_descriptor(panel_bgr: np.ndarray) -> np.ndarray:
@@ -367,10 +367,10 @@ def _edge_image(panel_bgr: np.ndarray) -> np.ndarray:
 
 
 def _dark_edge_depths(gray_panel: np.ndarray, level: float = 20.0) -> tuple[int, int, int, int]:
-    """Depth (pixels) of near-black stripes along the top, bottom, left, right edges."""
+    """上、下、左、右边缘处近黑条纹的深度（像素）。"""
 
-    # A crop/offset stripe is uniformly black along the whole edge; a black
-    # robot link reaching the edge is dark but textured, so require low spread.
+    # 裁剪/偏移条纹沿整条边缘均匀发黑；触及边缘的黑色
+    # 机器人连杆虽暗但有纹理，因此要求低方差。
     rows = (gray_panel.mean(axis=1) < level) & (gray_panel.std(axis=1) < 8.0)
     cols = (gray_panel.mean(axis=0) < level) & (gray_panel.std(axis=0) < 8.0)
 
@@ -386,11 +386,11 @@ def _dark_edge_depths(gray_panel: np.ndarray, level: float = 20.0) -> tuple[int,
 
 
 def dark_border_runs(ctx: Context, panel: PanelSpec) -> tuple[list[tuple[int, int]], np.ndarray]:
-    """Samples where the render shows a black edge stripe the carrier does not have.
+    """渲染出现黑边条纹而 carrier 没有的采样。
 
-    Panel assembly errors (a provider output cropped or offset by a few pixels)
-    show up as a black band at a panel edge — between head and wrists, or down
-    one side.  Depth is measured at work scale; >= 2 px there is >= 4 layout px.
+    panel 组装错误（provider 输出被裁掉或偏移几个像素）会表现为
+    panel 边缘的黑带——顶腕与手腕之间，或某一侧边缘。深度按
+    work scale 测量；此处 >= 2 px 即 >= 4 layout px。
     """
 
     rows, cols = ctx.work_slice(panel)
@@ -408,10 +408,10 @@ def dark_border_runs(ctx: Context, panel: PanelSpec) -> tuple[list[tuple[int, in
                         else generated[:, :a] if edge == 2 else generated[:, -a:])
                 if float(np.all(band < 3, axis=2).mean()) < near_zero_min:
                     continue
-                # Black interior material may sit behind a visible rim at the
-                # panel edge. Padding must reach that edge, not merely occupy
-                # part of a larger dark band. Use two work pixels so one row
-                # of codec ringing at a panel seam does not hide real padding.
+                # 黑色内部材质可能位于 panel 边缘可见边框之后。
+                # padding 必须到达该边缘，而不只是占据更大暗带的一部分。
+                # 使用两个 work 像素，使 panel 接缝处一行 codec 振铃
+                # 不会掩盖真正的 padding。
                 edge_band = (generated[:2] if edge == 0 else generated[-2:] if edge == 1
                              else generated[:, :2] if edge == 2 else generated[:, -2:])
                 if float(np.all(edge_band < 3, axis=2).mean()) < near_zero_min:
@@ -487,7 +487,7 @@ def check_structure(ctx: Context) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
-# entities
+# 实体
 
 
 def _components(mask: np.ndarray, min_area: float):
@@ -551,9 +551,9 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
         radius = int(np.clip(spec.threshold("entity_tolerance_frac") * np.sqrt(typical_area),
                              2, 0.05 * min(height, width)))
         disk = _disk(radius)
-        # Can colour tell this entity apart from this render's background at all?
-        # (a wooden table vs a wooden object cannot).  Measure how much of the
-        # background far from every simulated object is keyed as the entity.
+        # 颜色究竟能否把该实体与此渲染的背景区分开？
+        # （木桌对木质物体则不能）。测量远离每个模拟物体的背景
+        # 有多大比例被 key 成该实体。
         leak_values = []
         diffuse_leak_values = []
         for j in range(0, n, max(1, n // 30)):
@@ -570,11 +570,11 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
                     target = cv2.morphologyEx(target, cv2.MORPH_OPEN,
                                               np.ones((size, size), np.uint8))
                 leak_values.append(float(target[far].mean()))
-                # A detached entity-sized blob is the very signal the
-                # unsupported-instance test is meant to catch. It cannot also
-                # make that test unmeasurable by raising background leakage.
-                # Keep broad, thin and border-touching colour regions in the
-                # background estimate; only compact interior blobs are exempt.
+                # 分离的实体大小斑块正是
+                # unsupported-instance 测试要捕获的信号。它不能同时通过
+                # 抬高背景泄漏使该测试不可测。在背景估计中保留
+                # 宽大、细长和触边的颜色区域；只有紧凑的内部斑块
+                # 被豁免。
                 diffuse = target.copy()
                 leak_labels, leak_stats, leak_keep = _components(target, 1)
                 for k in leak_keep:
@@ -589,8 +589,8 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
         leak = float(np.median(leak_values)) if leak_values else 0.0
         diffuse_leak = float(np.median(diffuse_leak_values)) if diffuse_leak_values else leak
         if leak > spec.threshold("entity_key_leak_max") and active & {"unsupported", "extent"}:
-            # Where the background itself reads as the entity, neither new
-            # blobs nor growth can be attributed to the entity.
+            # 当背景本身被读作该实体时，新斑块和增长都无法归因于
+            # 该实体。
             lost = sorted(active & {"unsupported", "extent"})
             if diffuse_leak <= spec.threshold("entity_key_leak_max"):
                 lost = [name for name in lost if name != "unsupported"]
@@ -617,19 +617,19 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
             labels, stats, keep = _components(cm, min_area)
             visible[j] = bool(keep)
             cm8 = cm.astype(np.uint8)
-            # Presence can use the lower-chroma look of a real reference, but
-            # unsupported/extent must keep the stricter new-instance key.
+            # presence 可以使用真实 reference 中低彩度的外观，但
+            # unsupported/extent 必须沿用更严格的新实例 key。
             gen_near = cv2.dilate(presence_mask[j][rows, cols].astype(np.uint8), disk) > 0
             car_near = cv2.dilate(cm8, disk) > 0
             if footprint is not None:
-                # Anything inside a simulated object's projected footprint is
-                # backed by that object (its interior, its shaded side).
+                # 位于模拟物体投影 footprint 内的任何内容都由该物体
+                # 支撑（其内部、其背光面）。
                 car_near |= cv2.dilate(footprint[j][rows, cols].astype(np.uint8), disk) > 0
             if occluders is not None:
-                # "Unsupported" means a new object on empty background.  A blob
-                # on top of another simulated entity (one object keyed as another
-                # object's colour) is an identity/appearance question, not a
-                # hallucinated object.
+                # "Unsupported" 指空背景上的新物体。叠在另一个模拟实体之上的
+                # 斑块（一个物体被 key 成另一个物体的颜色）属于
+                # 身份/外观问题，而不是
+                # 幻觉物体。
                 car_near |= cv2.dilate(occluders[j][rows, cols].astype(np.uint8), disk) > 0
             if "missing" in active:
                 observed_near = None
@@ -637,10 +637,10 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
                     comp = labels == k
                     recall = float(gen_near[comp].mean())
                     if recall < recall_min and entity.presence_keys:
-                        # Explicit presence keys already allow a material to
-                        # differ from its strict instance colour. Check actual
-                        # source-aligned boundaries and local contrast before
-                        # declaring a desaturated or shaded part absent.
+                        # 显式 presence key 已允许材质与其严格
+                        # 实例颜色不同。在判定去饱和或背光的部件缺失之前，
+                        # 先检查实际与 source 对齐的边界和局部
+                        # 对比度。
                         if observed_near is None:
                             from datafarm.verify.appearance_presence import source_boundary_presence
                             observed, _ = source_boundary_presence(
@@ -654,15 +654,15 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
                         x, y, w, h = stats[k, :4]
                         detail["missing"][j] = (int(x), int(y), int(w), int(h), recall)
             if "unsupported" in active:
-                # A hallucinated entity is entity-sized; slivers are mask noise.
+                # 幻觉实体是实体大小的；细条是掩码噪声。
                 g_labels, g_stats, g_keep = _components(gm_instance, max(min_area, 0.25 * typical_area))
                 for g in g_keep:
                     comp = g_labels == g
                     support = float(car_near[comp].mean())
-                    # A blob that covers most of a carrier instance *is* that
-                    # instance, even if it also spreads beyond it (a darker
-                    # rendered object interior, a merged shadow).  Oversize is the
-                    # extent sub-check's job; unsupported means a new instance.
+                    # 覆盖 carrier 实例大部分的斑块 *就是* 那个实例，
+                    # 即使它同时溢出其外（更暗的渲染物体内部、
+                    # 合并的阴影）。尺寸过大是 extent 子检查的职责；
+                    # unsupported 指的是新实例。
                     touched = np.unique(labels[comp & cm])
                     touched = [k for k in touched if k in keep]
                     if touched:
@@ -680,11 +680,11 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
                         detail["unsupported"][j] = (int(x), int(y), int(w), int(h), support)
                     worst["support"] = min(worst["support"], support)
             if "extent" in active and keep:
-                # A nearby, disconnected target-colour sliver is not growth of
-                # this carrier instance. Keep only rendered components that
-                # touch its tolerance halo; the unsupported check owns new
-                # components elsewhere. This also avoids panel-edge codec
-                # colour from enlarging the instance's bounding box.
+                # 附近但不相连的 target 颜色细条不是该 carrier 实例的
+                # 增长。只保留触及其实例容差 halo 的渲染分量；
+                # 其他位置的新分量归 unsupported 检查负责。这也能
+                # 避免 panel 边缘的 codec 颜色扩大
+                # 实例的包围盒。
                 extent_labels, _, _ = _components(gm_instance, 1)
                 others_all = np.zeros_like(cm8)
                 for k in keep:
@@ -693,19 +693,19 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
                 for k in keep:
                     x, y, w, h = stats[k, :4]
                     if x <= 1 or y <= 1 or x + w >= width - 1 or y + h >= height - 1:
-                        continue  # cut by the panel border; extent is not observable
+                        continue  # 被 panel 边框截断；extent 不可观测
                     comp8 = (labels == k).astype(np.uint8)
                     if occluder is not None and (occluder & (cv2.dilate(comp8, disk) > 0)).any():
-                        continue  # touches another entity: visible extent depends on occlusion
-                    # Search far enough to see a grown object (up to ~2x), but
-                    # never into a neighbouring instance.
+                        continue  # 触及其他实体：可见 extent 取决于遮挡
+                    # 搜索范围要足以看到增长后的物体（最多约 2 倍），
+                    # 但绝不进入相邻实例。
                     reach = max(2 * radius, int(0.6 * max(w, h)))
                     region = cv2.dilate(comp8, _disk(reach)) > 0
                     others = others_all.copy()
                     others[labels == k] = 0
                     region &= ~(cv2.dilate(others, disk) > 0)
                     if occluder is not None:
-                        # never attribute another entity's pixels to this one
+                        # 绝不把另一个实体的像素归于本实体
                         region &= ~(cv2.dilate(occluder.astype(np.uint8), disk) > 0)
                     halo = cv2.dilate(comp8, disk) > 0
                     linked_ids = np.unique(extent_labels[region & halo & gm_instance])
@@ -719,9 +719,9 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
                     gx, gy, gw, gh = cv2.boundingRect(points)
                     shrink = min(gw / max(w, 1), gh / max(h, 1))
                     if footprint is not None:
-                        # Growth = rendered entity pixels outside the simulated
-                        # object's projected silhouette (an interior the carrier
-                        # key cannot see is inside it and therefore allowed).
+                        # 增长 = 位于模拟物体投影轮廓之外的渲染实体
+                        # 像素（carrier key 看不到的内部仍在其内，
+                        # 因此允许）。
                         fp_labels = fp_cache.get(j)
                         if fp_labels is None:
                             _, fp_labels = cv2.connectedComponents(footprint[j][rows, cols].astype(np.uint8))
@@ -729,7 +729,7 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
                         ids = np.unique(fp_labels[comp8 > 0])
                         ids = ids[ids > 0]
                         if not len(ids):
-                            continue  # object not projectable here (e.g. against a wrist lens)
+                            continue  # 此处物体不可投影（例如贴在 wrist 镜头上）
                         own = np.isin(fp_labels, ids)
                         silhouette = cv2.dilate(own.astype(np.uint8), _disk(max(1, radius // 2))) > 0
                         outside = float((linked & ~silhouette & ~halo).sum())
@@ -740,9 +740,9 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
                     grow_values.append(hi)
                     if hi > worst["ratio"]:
                         worst["ratio"] = hi
-                    # Only growth is judged: a shaded part dropping out of the
-                    # colour mask looks like shrinking but is not a defect, and a
-                    # truly vanished object is the "missing" sub-check's job.
+                    # 只判断增长：背光部件掉出颜色掩码看起来像缩小，
+                    # 但不是缺陷；真正消失的物体归 "missing"
+                    # 子检查负责。
                     if hi > ratio_max:
                         extent[j] = True
                         detail["extent"][j] = (int(gx), int(gy), int(gw), int(gh), round(hi, 3))
@@ -790,7 +790,7 @@ def check_entity(ctx: Context, entity: EntitySpec) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
-# events
+# 事件
 
 
 def _roi_motion(gray: np.ndarray, rows, cols, roi: np.ndarray, lo: int, hi: int) -> np.ndarray:
@@ -839,10 +839,10 @@ def check_events(ctx: Context) -> CheckResult:
             mg = _roi_motion(ctx.generated.gray, gr, gc, roi_gray, lo, hi)
             if len(mc) < 2 * half or float(mc.std()) < 0.15:
                 skipped.append({"panel": panel.name, "reason": "insufficient_source_motion_in_window"})
-                continue  # carrier shows too little motion here to time the event
-            # Motion elsewhere in the 90-frame correlation window does not
-            # establish that this particular event is visible.  A task may
-            # require local source motion before interpreting a correlation lag.
+                continue  # carrier 此处运动太少，无法为事件定时
+            # 90 帧相关窗口内其他位置的运动不能证明该事件本身
+            # 可见。任务可以要求在解释相关滞后之前先有局部
+            # source 运动。
             event_index = event.frame - max(1, lo)
             local = mc[max(0, event_index - 4):min(len(mc), event_index + 5)]
             local_peak = float(local.max()) if len(local) else 0.0
@@ -885,7 +885,7 @@ def check_events(ctx: Context) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
-# temporal and seams
+# 时序与接缝
 
 
 def _panel_diffs(gray: np.ndarray, rows, cols) -> tuple[np.ndarray, np.ndarray]:
@@ -898,14 +898,14 @@ def _panel_diffs(gray: np.ndarray, rows, cols) -> tuple[np.ndarray, np.ndarray]:
 def _source_supported_temporal_steps(generated: np.ndarray, carrier: np.ndarray,
                                      flagged: np.ndarray, *, min_share: float,
                                      gray_scale: float) -> np.ndarray:
-    """Identify a gradual, source-backed occlusion rather than a camera flash.
+    """区分渐进的、由 source 支撑的遮挡与相机闪光。
 
-    A dark real object front can change most of a wrist panel in one frame while
-    its light-grey simulator counterpart changes the panel mean only slightly.
-    Require the changed render pixels to follow the source's moving footprint,
-    leave measurable static background, and continue in the same direction in
-    a neighbouring frame. A whole-panel flash fails the spatial condition and
-    a one-frame flash fails the temporal condition.
+    一个深色真实物体正面可能在一帧内改变 wrist panel 的大部分，
+    而其浅灰 simulator 对应物只轻微改变 panel 均值。要求发生变化
+    的渲染像素跟随 source 的移动 footprint、留下可测的静态
+    背景，并在相邻帧中以相同方向继续。整 panel 闪光不满足
+    空间条件，单帧闪光不满足
+    时间条件。
     """
 
     explained = np.zeros(len(flagged), bool)
@@ -917,16 +917,16 @@ def _source_supported_temporal_steps(generated: np.ndarray, carrier: np.ndarray,
     for i in np.flatnonzero(flagged):
         if not cmean[i] or np.sign(gmean[i]) != np.sign(cmean[i]):
             continue
-        # A moving surface enters over several frames. A single-frame flash
-        # returns in the opposite direction; a persistent exposure step has
-        # no adjacent source-backed luminance transition.
+        # 移动的表面会跨若干帧逐渐进入。单帧闪光会沿相反方向
+        # 返回；持续的曝光阶跃则没有相邻的、由 source 支撑的
+        # 亮度过渡。
         neighbours = [j for j in (i - 2, i - 1, i + 1, i + 2) if 0 <= j < len(gmean)]
         if not any(np.sign(gmean[j]) == np.sign(gmean[i])
                    and abs(gmean[j]) >= 0.25 * abs(gmean[i]) for j in neighbours):
             continue
-        # The carrier and edit may place the same edge transition one frame
-        # apart. Use adjacent source transitions, within existing event lag
-        # tolerance, rather than demanding identical contrast at one instant.
+        # carrier 与编辑可能把同一边缘过渡放到相差一帧的位置。
+        # 使用相邻的 source 过渡（在既有事件滞后容差内），而不是
+        # 要求某一瞬间对比度完全相同。
         source_delta = np.max(np.abs(np.diff(
             carrier[max(0, i - 1):min(len(carrier), i + 3)].astype(np.int16), axis=0)), axis=0)
         source_motion = cv2.dilate((source_delta > 5).astype(np.uint8), _disk(radius)) > 0
@@ -934,9 +934,9 @@ def _source_supported_temporal_steps(generated: np.ndarray, carrier: np.ndarray,
         if footprint_fraction < 0.20:
             continue
         if footprint_fraction > 0.70:
-            # A withdrawing wrist camera can move nearly the whole image.
-            # Such support cannot alone excuse a flash: require real optical
-            # flow and photometric agreement after compensating that motion.
+            # 后退的 wrist 相机可能移动几乎整个画面。
+            # 这种支撑本身不足以豁免闪光：需要在补偿该运动后
+            # 要求真实光流与光度一致。
             previous, current = generated[i], generated[i + 1]
             flow = cv2.calcOpticalFlowFarneback(current, previous, None, .5, 3, 15, 3, 5, 1.2, 0)
             yy, xx = np.mgrid[:current.shape[0], :current.shape[1]].astype(np.float32)
@@ -973,13 +973,13 @@ def check_temporal(ctx: Context) -> CheckResult:
             failed.append(panel.name)
             continue
         diff, luma, c_diff, c_luma = diff[:count], luma[:count], c_diff[:count], c_luma[:count]
-        # A higher-contrast render turns the same carrier event into a larger
-        # pixel change; compare changes in units of each clip's own contrast.
+        # 对比度更高的渲染会把同一 carrier 事件变成更大的像素变化；
+        # 以各片段自身的对比度为单位比较变化。
         g_con = float(np.median(ctx.generated.gray[:count + 1, rows, cols].reshape(count + 1, -1).std(axis=1))) or 1.0
         c_con = float(np.median(ctx.carrier.gray[:count + 1, rows, cols].reshape(count + 1, -1).std(axis=1))) or 1.0
         c_diff_scaled = c_diff * (g_con / c_con)
         local = np.array([np.median(diff[max(0, i - 7): i + 8]) for i in range(count)])
-        # diff[i] is the change into frame i + 1; seams are judged by the continuity check.
+        # diff[i] 是进入第 i + 1 帧的变化；接缝由 continuity 检查判定。
         not_seam = np.array([(i + 1) not in seams for i in range(count)])
         jumps = (diff > 4 * np.maximum(local, 0.3)) & (diff > 3 * np.maximum(c_diff_scaled, 0.3)) & not_seam
         freezes = (diff < 0.05) & (c_diff > 0.5)
@@ -1018,12 +1018,12 @@ def check_temporal(ctx: Context) -> CheckResult:
 
 
 def check_continuity(ctx: Context) -> CheckResult:
-    """Chunk seams must look like any other frame transition.
+    """Chunk 接缝必须看起来像任何其他帧过渡。
 
-    Two things can jump at a seam: brightness/white balance (photometric) and
-    content (structural).  The photometric step is judged with the same limit as
-    flicker anywhere else; the structural jump is measured after matching the
-    two frames' global gain and bias, relative to local motion and the carrier.
+    接缝处可能跳变的有两样东西：亮度/白平衡（光度）和
+    内容（结构）。光度步进使用与其他位置闪烁相同的限值判定；
+    结构跳变在匹配两帧的全局增益与偏置之后，相对局部
+    运动和 carrier 测量。
     """
 
     spec = ctx.spec
@@ -1047,7 +1047,7 @@ def check_continuity(ctx: Context) -> CheckResult:
             step_max = max(step_max, 1.25 * profile["luma_step_p999"])
 
         def structural(a: np.ndarray, b: np.ndarray) -> float:
-            # match b's gain/bias to a before differencing
+            # 差分前先把 b 的增益/偏置匹配到 a
             sa, sb = float(a.std()) or 1.0, float(b.std()) or 1.0
             b2 = (b - b.mean()) * (sa / sb) + a.mean()
             return float(np.abs(a - b2).mean())
@@ -1067,8 +1067,8 @@ def check_continuity(ctx: Context) -> CheckResult:
                         / max(float(np.median(car[seam - 8:seam + 8].reshape(16, -1).std(axis=1))), 1.0))
             carrier_luma = abs(float(car[seam].mean() - car[seam - 1].mean())) * contrast
             ratio = jump / max(local, 0.3)
-            # Tiny texture re-rolls in a static view give huge ratios over a
-            # near-zero local motion; require a visible absolute change too.
+            # 静态视图中的微小纹理重掷在近零局部运动上会给出巨大比值；
+            # 因此还要求可见的绝对变化。
             structural_bad = (ratio > multiple and jump > 3.0 * max(carrier_jump, 0.3)
                               and jump > spec.threshold("seam_structural_min"))
             photometric_bad = luma_step > max(step_max, 2.5 * carrier_luma + 1.0)
@@ -1086,17 +1086,17 @@ def check_continuity(ctx: Context) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
-# background
+# 背景
 
 
 def _background_exposure_shift(delta: np.ndarray, judged: np.ndarray,
                                far: np.ndarray) -> tuple[float, bool]:
-    """Avoid fitting camera exposure to a moving object's broad dark shadow.
+    """避免把相机曝光拟合到移动物体宽大的深色阴影上。
 
-    A shadow can cover most of the static carrier pixels while leaving an
-    unshadowed upper quartile near the first-frame exposure. Correct only in
-    that observable case. A true global exposure drop has no near-zero upper
-    quartile; bright blobs are still measured against the median.
+    阴影可能覆盖大部分静态 carrier 像素，同时留下接近首帧曝光的
+    无阴影上四分位。仅在这种可观测情形下校正。真正的全局
+    曝光下降没有接近零的上四分位；明亮斑块仍按
+    中位数测量。
     """
 
     values = delta[judged]
@@ -1109,15 +1109,15 @@ def _background_exposure_shift(delta: np.ndarray, judged: np.ndarray,
 
 
 def check_background(ctx: Context) -> CheckResult:
-    """Where the simulator background is unchanged, the render must be unchanged too.
+    """simulator 背景未变之处，渲染也必须未变。
 
-    For every frame t the judged pixels are those whose carrier value still
-    equals the carrier's first frames, excluding a shadow margin around anything
-    that has moved by t (real rooms have shadows that follow the arm).  On those
-    pixels the generated frame is compared with its own first frames: the signed
-    mean change measures exposure / white-balance drift, the p95 of the blurred
-    absolute change measures local relighting or texture crawl.  A defect must
-    persist for ``persist_samples`` frames.
+    对每一帧 t，被判定的像素是 carrier 值仍等于 carrier 最初
+    几帧的像素，并排除在 t 时刻已移动的任何物体周围的阴影
+    边缘（真实房间里的阴影会跟随机械臂）。在这些像素上
+    将生成帧与其自身的最初几帧比较：有符号均值变化衡量
+    曝光 / 白平衡漂移，模糊后绝对变化的 p95 衡量局部
+    重新打光或纹理蠕动。缺陷必须持续
+    ``persist_samples`` 帧。
     """
 
     spec = ctx.spec
@@ -1143,10 +1143,10 @@ def check_background(ctx: Context) -> CheckResult:
         c_ref = np.median(carrier[: min(5, count)], axis=0)
         g_ref = cv2.GaussianBlur(np.median(gen[: min(5, count)], axis=0), (5, 5), 0)
         margin = _disk(max(2, int(spec.threshold("background_shadow_margin_frac") * carrier.shape[2])))
-        # Real light can throw a moving body's shadow well away from it (a lifted
-        # object, an arm overhead). A departing initial shadow can also reveal a
-        # brighter surface. Its return is bounded by nearby opening appearance,
-        # observed source motion, and the configured coarse exposure allowance.
+        # 真实光线会把运动物体的阴影投到离它很远的地方（举起的物体、
+        # 头顶的机械臂）。离开的初始阴影也可能露出更亮的表面。
+        # 其回归受邻近初始外观、观测到的 source 运动以及配置的
+        # 粗粒度曝光容差限制。
         shadow_reach = _disk(max(3, int(spec.threshold("background_shadow_reach_frac") * carrier.shape[2])))
         opening_surface_ceiling = cv2.dilate(g_ref, shadow_reach)
         moved = np.zeros(c_ref.shape, np.uint8)
@@ -1171,8 +1171,8 @@ def check_background(ctx: Context) -> CheckResult:
             delta = cv2.GaussianBlur(gen[t], (5, 5), 0) - g_ref
             shift, shadow_corrected = _background_exposure_shift(delta, judged_px, far_px)
             shadow_shift_corrections += int(shadow_corrected)
-            # Exposure drift is a camera property, judged against the real
-            # camera's own drift; local drift is what remains after removing it.
+            # 曝光漂移是相机属性，对照真实相机自身的漂移来判定；
+            # 局部漂移是去除它之后剩下的部分。
             mean_drift[i] = abs(shift)
             residual = delta - shift
             restored_shadow = ((cv2.dilate(moved, shadow_reach) > 0)
@@ -1180,11 +1180,11 @@ def check_background(ctx: Context) -> CheckResult:
                                & (residual > 0) & (residual <= base_mean_max)
                                & (g_ref + residual <= opening_surface_ceiling + 3))
             local = np.concatenate([np.maximum(residual[judged_px & ~restored_shadow], 0.0),
-                                    np.maximum(-residual[far_px], 0.0)])        # darkening far from motion
+                                    np.maximum(-residual[far_px], 0.0)])        # 远离运动处的变暗
             local_p95[i] = float(np.percentile(local, 95)) if local.size else 0.0
-            # A compact hallucinated light is small relative to the background,
-            # so also measure the largest coherent brightened blob.  Darkening is
-            # left to the p95 statistic: soft arm shadows can land anywhere.
+            # 紧凑的幻觉亮斑相对背景很小，因此还测量最大的连贯变亮
+            # 斑块。变暗交给 p95 统计量：柔和的机械臂阴影可能落在
+            # 任何地方。
             odd = (residual > blob_level) & judged_px & ~restored_shadow
             if odd.any():
                 count, _, stats, _ = cv2.connectedComponentsWithStats(odd.astype(np.uint8), connectivity=8)
@@ -1234,7 +1234,7 @@ def check_background(ctx: Context) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
-# reference leak
+# reference 泄漏
 
 
 def check_reference_leak(ctx: Context) -> CheckResult:
@@ -1264,7 +1264,7 @@ def check_reference_leak(ctx: Context) -> CheckResult:
                 for k in keep:
                     comp = labels == k
                     if float(car_near[comp].mean()) >= 0.3:
-                        continue  # the simulator also has the entity there
+                        continue  # simulator 在那里也有该实体
                     fill = float(max(g[rows, cols][comp].mean() for g in gen))
                     key = f"ref{ref_index}:{panel.name}:{entity.role}:{k}"
                     metrics[key] = round(fill, 3)

@@ -1,28 +1,27 @@
 #!/usr/bin/python3
-"""xh -- the authoring agent's only way to run things in an expert-harness round.
+"""xh -- 编写 agent 在 expert-harness 轮次中运行事物的唯一途径。
 
-Commands (all print JSON):
+命令（均打印 JSON）：
 
   xh rollout --seed N [--class C] [--file expert.py] [--note TEXT] [--hypothesis TEXT]
-      Snapshot the expert file and run it on development seed N. The harness decides
-      whether it may run (development seeds only, concurrency, budget, static audit) and
-      records the attempt; you get an attempt id. Rollouts take minutes; do not block on
-      them longer than ``xh wait`` allows.
+      为 expert 文件做快照，并在开发 seed N 上运行它。是否允许运行（仅限开发 seed、
+      并发、预算、静态审计）由工具链决定，并会记录本次尝试；你会得到一个 attempt id。
+      Rollout 需要数分钟；阻塞等待的时间不要超过 ``xh wait`` 允许的上限。
   xh wait [ATTEMPT ...] [--timeout S]
-      Wait until the named attempts (or, without names, any running attempt) finish, at
-      most S seconds (capped by the harness, about 200 s, so the prompt cache stays warm).
-  xh result ATTEMPT        Outcome and verdict fields of one attempt.
-  xh status                Budget, running and recent attempts, submissions, messages.
-  xh budget                Budget only.
+      等待指定的 attempt（未指定名称时，等待任意正在运行的 attempt）完成，
+      最多 S 秒（受工具链限制，约 200 s，以保持 prompt cache 温热）。
+  xh result ATTEMPT        单个 attempt 的结果与 verdict 字段。
+  xh status                预算、正在运行及近期的 attempt、提交、消息。
+  xh budget                仅预算。
   xh submit NOTE [--final] [--class C] [--file expert.py]
-      Snapshot the expert as a submission. The harness scores every submission later on
-      hidden holdout seeds; you only get an acknowledgement. ``--final`` ends the round.
+      将 expert 快照为一个提交。工具链之后会在隐藏的 holdout seed 上为每个提交打分；
+      你只会收到确认。``--final`` 结束本轮。
   xh flag-for-human REASON
-      Stop the round and ask an operator to look (task impossible, setup broken, rules in
-      conflict). This is a legitimate outcome, not a failure.
+      停止本轮并请运维人员介入查看（任务不可行、环境损坏、规则冲突）。这是一种
+      正当结果，而非失败。
 
-Exit codes: 0 ok, 1 wait timed out, 2 rejected, 3 harness not answering, 4 usage error.
-The harness owns every ledger; this tool only drops request files and reads answers.
+退出码：0 正常，1 等待超时，2 被拒绝，3 工具链无响应，4 用法错误。
+所有台账均由工具链持有；本工具只写入请求文件并读取应答。
 """
 
 import argparse

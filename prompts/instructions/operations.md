@@ -1,27 +1,13 @@
-# Registration, background persistence and recovery
+# 注册、后台持久性与恢复
 
-A request for a complete pipeline, or for a cohort to go from stage X to the end, first registers through `tools/datafarm_runs.py` the
-original request text, the authorization basis, the stage, the fixed sample denominator, the code version and the output directory. A repair
-is a child run of the original run. Do not bypass the ledger to start a loop with no provenance.
+对于完整 pipeline 的请求，或让一个 cohort 从阶段 X 走到结束的请求，先通过 `tools/datafarm_runs.py` 登记原始请求文本、授权依据、阶段、固定样本分母、代码版本和输出目录。修复是原始 run 的 child run。不要绕过台账去启动一个没有来源凭据的循环。
 
-A formal run requires traceable, clean, committed code. Do not overwrite user changes to clean the state; open a separate isolated worktree
-and commit only this task's changes. The budget scope follows the existing authorization; only exceeding the deployment's GPU allowance or
-using an unauthorized paid service needs separate handling. Read credentials from a protected file; they must not appear in argv, logs or manifests.
+正式 run 需要可追溯、干净且已提交的代码。不要为了清理状态而覆盖用户的更改；打开一个独立的隔离 worktree，只提交本任务的更改。预算范围遵循现有授权；只有超出部署的 GPU 配额或使用未授权的付费服务才需要单独处理。从受保护文件中读取凭据；它们不得出现在 argv、日志或 manifest 中。
 
-Host through ledger launch. After the launcher exits, confirm the real worker's PID, PPID, session, command, and log/state; for GPUs also check
-the job or lease against the actual worker. After an interval long enough to expose exit problems, do a second check in a new tool call: besides
-being alive, the worker's log, counters, outputs or check times must have advanced. Waiting may be segmented, and a single block must not exceed
-60 seconds so that communication continues; the total observation window follows the task's needs.
+通过 ledger launch 托管。启动器退出后，确认真实 worker 的 PID、PPID、会话、命令以及日志/状态；对于 GPU，还要对照实际 worker 检查作业或租约。在足以暴露退出问题的一段时间后，在一个新的工具调用中做第二次检查：除了仍然存活之外，worker 的日志、计数器、输出或检查时间必须已经推进。等待可以分段进行，单次阻塞不得超过 60 秒，以便沟通持续；总观察窗口按任务需求而定。
 
-Only when both checks pass may you say "running persistently in the background", and give the run/job, update time and progress with it. A
-sentinel heartbeat only proves the sentinel is alive. When the remote shows no change, also prove that the poller's check time is updating and
-that the remote task ID is valid.
+只有当两次检查都通过时，你才能说“已在后台持续运行”，并同时给出 run/job、更新时间和进度。sentinel 心跳只能证明 sentinel 存活。当远程显示没有变化时，还要证明轮询器的检查时间正在更新，并且远程任务 ID 有效。
 
-A failed lease or PID query is unknown, not a lost task. Prefer reusing the task or job ID and breakpoints to avoid duplicate cost. Releasing a
-lease does not mean the process stopped; after cancelling, verify the actual worker. Record state changes as ledger events and bind the verification
-report at finalize. Report any gaps explicitly, and never shrink the denominator.
+租约或 PID 查询失败是未知，而不是任务丢失。优先复用任务或作业 ID 以及断点，以避免重复成本。释放租约并不意味着进程已停止；取消之后要验证实际 worker。把状态变化记录为 ledger events，并在 finalize 时绑定验证报告。明确报告任何缺口，绝不要缩小分母。
 
-New collection or replanning obeys `configs/joint-margin-requirements.json`: the source of the real limits for every joint, the actual readback of
-the whole segment (including home, wait and recovery), next-state and connection, and margin and dwell statistics. Validate the task boundaries with a
-small sample before expanding the batch. Candidate margins are candidates awaiting validation, not new hardware limits. Never crop only the labels
-without recapturing the corresponding images.
+新的采集或重新规划遵循 `configs/joint-margin-requirements.json`：每个关节真实限制的来源、整段（包括 home、wait 和 recovery）的实际回读、下一状态与连接，以及余量和停留统计。在扩大批次之前用小样本验证任务边界。候选余量是等待验证的候选，而不是新的硬件限制。绝不要只裁剪标签而不重新采集对应的图像。

@@ -1,8 +1,8 @@
-"""Current-observation-relative Piper EEF chunks (metres / wrapped Euler radians).
+"""相对于当前观测的 Piper EEF chunk（米 / 环绕的 Euler 弧度）。
 
-The grippers remain absolute. Every target in a chunk uses the SAME observation
-anchor, never an adjacent target or a cumulative sum. This removes constant
-coordinate offsets; it does not calibrate a pose-dependent kinematic error.
+夹爪保持绝对值。一个 chunk 中的每个目标都使用同一个观测
+锚点，绝不使用相邻目标或累加和。这消除了常量
+坐标偏移；但它不标定依赖位姿的运动学误差。
 """
 from dataclasses import dataclass, replace
 import numpy as np
@@ -38,7 +38,7 @@ class DeltaEef:
     inverse: bool = False
 
     def __call__(self, data):
-        # Even state-free models need fresh measured state for reconstruction.
+        # 即使是不依赖状态的模型，重建时也需要新鲜的实测状态。
         state = np.asarray(data["state"])
         if self.inverse and state.shape[-1] == 32:
             state = state[..., :14]
@@ -50,7 +50,7 @@ class DeltaEef:
 
 
 def install():
-    """Register new configs without mutating the read-only trainer checkout."""
+    """注册新的 config，同时不改动只读的 trainer 检出目录。"""
     from openpi.training import config as cfg
     from openpi import transforms
 

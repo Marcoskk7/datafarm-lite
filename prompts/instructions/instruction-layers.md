@@ -1,44 +1,31 @@
-# General capability and task outputs
+# 通用能力与 task 输出
 
-DataFarm takes a robot task, scene and real episode it has not seen before, and the agent autonomously
-completes understanding, scene adaptation, expert development, verification, batch collection and photographic data
-production. The input episode is a complete real-robot record: a single video, or multi-camera videos with
-actions/states, camera parameters and device information. The output is a dataset that keeps its correspondence to the
-simulated actions, with provenance and independent review records. Training is an optional downstream step.
+DataFarm 接收一个它此前未见过的机器人 task、场景和真实 episode，由 agent 自主完成理解、场景适配、expert 开发、验证、批量采集和摄影级数据生产。输入 episode 是一份完整的真实机器人记录：单个视频，或带 actions/states、相机参数和设备信息的多相机视频。输出是一个与模拟动作保持对应关系的数据集，带有来源记录和独立评审记录。训练是可选的后续步骤。
 
-## First layer: the shared capability
+## 第一层：共享能力
 
-- `.agents/skills/`: how to observe, propose verifiable hypotheses, generate implementations, trial-run, diagnose,
-  correct, scale the batch and resume.
-- `prompts/roles/`: the responsibilities of each role.
-- `prompts/render/`: the real-reference, action-fidelity and style requirements that a task cannot override.
-- `prompts/instructions/`: authority, evidence and the handoffs between stages.
-- `src/datafarm/agent/context.py` and `src/datafarm/task/contract.py`: load these instructions explicitly and verify task outputs.
-- The expert harness, run ledger, batch supervisor, providers and admission: execution tools.
+- `.agents/skills/`：如何观测、提出可验证假设、生成实现、试运行、诊断、纠正、扩展批次和恢复。
+- `prompts/roles/`：每个角色的职责。
+- `prompts/render/`：task 无法覆盖的真实参考、动作保真度和风格要求。
+- `prompts/instructions/`：权限、证据以及各阶段之间的交接。
+- `src/datafarm/agent/context.py` 和 `src/datafarm/task/contract.py`：显式加载这些指令并验证 task 输出。
+- expert harness、run ledger、batch supervisor、providers 和 admission：执行工具。
 
-A new task with no adapter in the repository is not a capability gap: the agent generates a new adapter, brief, judge
-and initial-state sampler from the new task. Judge a missing general capability by whether the agent knows how to
-generate it, can call tools to verify it, and will diagnose and recover from a failure.
+仓库中没有对应 adapter 的新 task 并不是能力缺口：agent 会从新 task 生成新的 adapter、brief、judge 和 initial-state sampler。判断某个通用能力是否缺失，要看 agent 是否知道如何生成它、能否调用工具验证它、以及是否会诊断并从失败中恢复。
 
-## Second layer: the products of one task
+## 第二层：单个 task 的产物
 
-| Output | Who generates it, based on what | Purpose |
+| 输出 | 由谁、基于什么生成 | 用途 |
 |---|---|---|
-| grounding.json / grounding.md | The orchestrator observes the complete real episode, reads device/calibration evidence and fits | Geometry, cameras, objects, actions, the identifiable range and uncertainty |
-| task.json / requirements.md | The task designer, from the observations and the user's goal | Success relations, complete action phases, randomization axes, physical and collection criteria |
-| scene / init / expert / adapter.json | The agent, using the simulator API and general interfaces | Randomized initial states, observation-to-action control, the rollout command for the broker |
-| judge / verifier spec / brief | Independent contract-review and verification roles, frozen afterwards | Success criteria and negative controls; the expert author cannot edit the judge |
-| render-overlay.json / render prompt | The orchestrator, from the task, cameras and real references | The objects, events, views and continuity of this task; they cannot cancel the general rules |
-| batch configs / dataset spec / receipts | The orchestrator and an independent verifier | Batch scaling, review, admission, data export and reproduction |
+| grounding.json / grounding.md | orchestrator 观测完整真实 episode、读取设备/标定证据并进行拟合 | 几何、相机、物体、动作、可辨识范围与不确定性 |
+| task.json / requirements.md | task designer，依据观测和用户目标 | 成功关系、完整动作阶段、随机化轴、物理和采集准则 |
+| scene / init / expert / adapter.json | agent，使用 simulator API 和通用接口 | 随机化初始状态、observation-to-action 控制、供 broker 使用的 rollout 命令 |
+| judge / verifier spec / brief | 独立的 contract-review 和验证角色，之后冻结 | 成功准则和负向对照；expert author 不能编辑 judge |
+| render-overlay.json / render prompt | orchestrator，依据 task、相机和真实参考 | 本 task 的物体、事件、视角和连续性；它们不能取消通用规则 |
+| batch configs / dataset spec / receipts | orchestrator 和一个独立 verifier | 批次扩展、评审、admission、数据导出和复现 |
 
-These files go in `runs/<run-id>/task/` or the workspace the user names, with the manifest and hashes registered. The
-templates under `configs/` are starting points, not task results. Never load the thresholds, mode authorizations, model
-choices or prompts of an unrelated task automatically. File extensions do not tell the layers apart.
-`tools/audit_instruction_layers.py` classifies files by layer; the loading manifest is `configs/agent-instructions.json`.
+这些文件放在 `runs/<run-id>/task/` 或用户指定的工作区中，并登记 manifest 和哈希。`configs/` 下的模板是起点，不是 task 结果。绝不要自动加载无关 task 的阈值、模式授权、模型选择或 prompt。文件扩展名不能区分层次。`tools/audit_instruction_layers.py` 按层对文件分类；加载 manifest 是 `configs/agent-instructions.json`。
 
-## Changing the layers
+## 修改各层
 
-Requirements specific to a new task go only in the second layer. Change the first layer only for a verifiable defect
-that spans tasks, and update the skill, prompt, verifier and tests together. Success on one task does not authorize OOD
-on another, and a numerical threshold of one task is not a general truth. Keep earlier outputs and failure evidence, and
-never manufacture compliance with a new policy by rewriting existing certificates.
+新 task 特定的要求只放在第二层。只有在存在跨 task 的可验证缺陷时才修改第一层，并同时更新 skill、prompt、verifier 和测试。在一个 task 上的成功不授权在另一个 task 上做 OOD，且一个 task 的数值阈值不是通用真理。保留早先的输出和失败证据，绝不通过改写现有证书来伪造对新策略的合规。

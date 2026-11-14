@@ -1,49 +1,47 @@
-# Pipeline run ledger
+# Pipeline 运行台账
 
-## What it records
+## 它记录什么
 
-The ledger gives every requested invocation one **pipeline run** with a fixed item denominator and a status that is **derived**, not self-reported. An operator asks for a full pass ("generate the white episodes through to a trained checkpoint") or a partial pass ("take this cohort from render to admission"), and a supervisor's own `running` state may outlive its process.
+台账为每次被请求的调用赋予一个 **pipeline run**，带有固定的 item 分母和一个**推导而来**而非自报的状态。操作员可能要求一次完整通过（“生成 white episodes 直到训练好的 checkpoint”），或一次部分通过（“把这个 cohort 从 render 带到 admission”），而 supervisor 自己的 `running` 状态可能比它的进程存活得更久。
 
-| Question | Where the answer comes from |
+| 问题 | 答案来自何处 |
 |---|---|
-| What was requested, by whom, over which items and stages? | `run.json` (fixed at creation) |
-| Which item stopped at which stage, and why? | `matrix.json` (item × stage/substage cells) |
-| Which processes/GPU leases work on it, and are they alive? | `workers.json` + live PID/lease probes + progress-file ages |
-| What happened, in order? | `events.jsonl` (append-only) |
+| 请求了什么、由谁请求、涉及哪些 item 和阶段？ | `run.json`（创建时固定） |
+| 哪个 item 停在哪个阶段，为什么？ | `matrix.json`（item × 阶段/子阶段单元格） |
+| 哪些进程/GPU 租约在处理它，它们是否存活？ | `workers.json` + 实时 PID/租约探测 + 进度文件年龄 |
+| 按顺序发生了什么？ | `events.jsonl`（仅追加） |
 
-Runs live under `runs/ledger/<run-id>/` (git-ignored, like all run output). Run IDs are `PRUN-YYYYMMDD-HHMM-<slug>` in local time.
+run 位于 `runs/ledger/<run-id>/` 下（与所有 run 输出一样被 git 忽略）。Run ID 为本地时间下的 `PRUN-YYYYMMDD-HHMM-<slug>`。
 
-## Stages: two levels
+## 阶段：两个层级
 
-Columns are the pipeline stages, in order:
-`grounding → task → episode → render → admission → training`. A run covers a
-contiguous range (`--from render --to admission`). Any stage may be split into
-adapter-specific substages (`--substages render=global-style,guided-render,verify`),
-which become columns `render/global-style`, … . The last column is the *exit column*.
-An item is complete only when it has **passed** that column.
+列是 pipeline 阶段，按顺序：
+`grounding → task → episode → render → admission → training`。一次 run 覆盖一个
+连续范围（`--from render --to admission`）。任何阶段都可以拆分为
+adapter 专属的子阶段（`--substages render=global-style,guided-render,verify`），
+这些子阶段成为列 `render/global-style`、… 。最后一列是*出口列*。
+只有当一个 item **通过**了该列，它才算完成。
 
-Cell states: `pending`, `running`, `passed`, `rejected` (verifier said no; may still
-be repaired), `failed` (given up), `skipped`.
+单元格状态：`pending`、`running`、`passed`、`rejected`（verifier 说不；仍可能被修复）、`failed`（放弃）、`skipped`。
 
-## Run states (derived by `status`)
+## Run 状态（由 `status` 推导）
 
-| State | Meaning |
+| 状态 | 含义 |
 |---|---|
-| `running` | at least one worker alive with fresh progress |
-| `running_stalled` | workers alive but no progress file changed within `stale_seconds` (default 900) |
-| `lost` | no live worker, and a worker died **without** an exit record: an unexpected exit |
-| `exited_with_error` | a worker recorded a non-zero exit code |
-| `blocked` / `failed` | the supervisor itself declared it (e.g. residual rejects need repair) |
-| `idle_incomplete` | every worker ended cleanly but items remain unpassed |
-| `idle_awaiting_finalize` | all items passed, no final verification recorded yet |
-| `complete` / `complete_with_gaps` | finalized with a hashed verification report |
-| `superseded` / `cancelled` | replaced by another run / stopped on purpose |
-| `registered` | created, no worker yet |
+| `running` | 至少一个 worker 存活且有新鲜进度 |
+| `running_stalled` | worker 存活，但在 `stale_seconds`（默认 900）内没有进度文件变化 |
+| `lost` | 没有存活的 worker，且某个 worker **没有**退出记录就死亡：意外退出 |
+| `exited_with_error` | 某个 worker 记录了非零退出码 |
+| `blocked` / `failed` | supervisor 自身声明的（例如残留的拒绝需要修复） |
+| `idle_incomplete` | 所有 worker 都干净结束，但仍有 item 未通过 |
+| `idle_awaiting_finalize` | 所有 item 都通过，但尚未记录最终验证 |
+| `complete` / `complete_with_gaps` | 已用带哈希的验证报告定稿 |
+| `superseded` / `cancelled` | 被另一次 run 取代 / 被有意停止 |
+| `registered` | 已创建，尚无 worker |
 
-A later worker registration (relaunch) overrides an earlier `blocked`/`failed`
-declaration. Liveness of workers on other hosts is probed over SSH. A process that cannot be probed falls back to progress-file age.
+较晚的 worker 注册（relaunch）会覆盖先前的 `blocked`/`failed` 声明。其他主机上的 worker 存活性通过 SSH 探测。无法被探测的进程回退到进度文件年龄。
 
-## Operator workflow
+## 操作员工作流
 
 ```bash
 cd /path/to/datafarm
@@ -62,45 +60,31 @@ tools/datafarm_runs.py status            # all open runs
 tools/datafarm_runs.py status PRUN-... --gaps -v   # every missing item and where it stopped
 ```
 
-`launch` is the persistence-checked way to start a worker.
-Its first check is recorded as a `persistence_check` event. `check` records the
-second one. A repair or partial rerun of some items is a **child run**
-(`--parent PRUN-...`) with its own item list, so the parent shows its children.
+`launch` 是启动 worker 的、经过持久性检查的方式。它的第一次检查记录为 `persistence_check` event。`check` 记录第二次检查。对部分 item 的修复或部分重跑是一个 **child run**（`--parent PRUN-...`），带有自己的 item 列表，因此父 run 会显示其子 run。
 
-Supervisors started through `launch` see `DATAFARM_LEDGER_RUN_DIR` and
-`DATAFARM_LEDGER_WORKER`. `datafarm.ledger.ledger.attach_from_env()` lets them write item
-cells directly.
+通过 `launch` 启动的 supervisor 会看到 `DATAFARM_LEDGER_RUN_DIR` 和 `DATAFARM_LEDGER_WORKER`。`datafarm.ledger.ledger.attach_from_env()` 让它们直接写入 item 单元格。
 
-Manual interventions go into the log: `event --kind note --message ...`,
-`close-worker RUN WORKER --reason ...` (e.g. a process replaced by hand),
-`declare --status blocked|failed|cancelled --reason ...`, `supersede --by ...`, and
-`finalize --verification <report>` (refuses unpassed items unless `--allow-gaps`).
+人工干预会写入日志：`event --kind note --message ...`、`close-worker RUN WORKER --reason ...`（例如手工替换的进程）、`declare --status blocked|failed|cancelled --reason ...`、`supersede --by ...`，以及 `finalize --verification <report>`（除非 `--allow-gaps`，否则拒绝未通过的 item）。
 
-## Native-state sync for other supervisors
+## 面向其他 supervisor 的原生状态同步
 
-A supervisor may keep its own state files. A run can declare `--sync
-module:function@{json args}`. `status` then calls that function first, and it
-translates native files into cells and workers. No sync functions ship; they are task code.
+supervisor 可以保有自己的状态文件。一次 run 可以声明 `--sync
+module:function@{json args}`. `status` 随后会先调用该函数，由它把原生文件转换为单元格和 worker。不随附任何同步函数；它们属于任务代码。
 
-Sync functions only read native files. A sync error is shown in `status` and never
-hides the rest of the report.
+同步函数只读取原生文件。同步错误会显示在 `status` 中，并且绝不会隐藏报告的其余部分。
 
-## Guarantees
+## 保证
 
-- The item denominator is fixed at creation. Duplicate IDs, empty requests and updates outside the denominator or column plan are refused.
-- Run status is derived: a worker that vanished without an exit record is `lost`, a non-zero exit is `exited_with_error`, and a relaunch overrides an earlier `blocked` or `failed`.
-- `launch` runs the worker under a sentinel that records the exit code, and records the first persistence check.
-- `finalize` needs an existing verification file and no gaps, unless `--allow-gaps`.
+- item 分母在创建时固定。重复的 ID、空请求以及在分母或列计划之外的更新都会被拒绝。
+- run 状态是推导出来的：没有退出记录就消失的 worker 是 `lost`，非零退出是 `exited_with_error`，而 relaunch 会覆盖先前的 `blocked` 或 `failed`。
+- `launch` 在 sentinel 下运行 worker，由 sentinel 记录退出码，并记录第一次持久性检查。
+- `finalize` 需要已存在的验证文件且没有缺口，除非使用 `--allow-gaps`。
 
-Code: `src/datafarm/ledger/`, `tools/datafarm_runs.py`.
+代码：`src/datafarm/ledger/`、`tools/datafarm_runs.py`。
 
-## Known limits
+## 已知限制
 
-- The ledger does not verify outputs. It records the verdicts that verifiers produce.
-  `passed` means the owning verifier said so.
-- Workers that were not started through `launch` have no exit code. When one
-  disappears, the run shows `lost` until a native terminal state or an operator
-  `close-worker` explains it.
-- An unprobeable worker with stale progress is `unknown_stale` and counted as lost. Remote PID probes need
-  `DATAFARM_SSH_CONFIG`; without it remote workers fall back to progress age.
-- Ledger and batch locks use `flock`, whose coherence across hosts on a shared filesystem is not guaranteed.
+- 台账不验证输出。它记录 verifier 产生的判定。`passed` 意味着拥有它的 verifier 如此判定。
+- 未通过 `launch` 启动的 worker 没有退出码。当其中一个消失时，run 会显示 `lost`，直到原生终态或操作员的 `close-worker` 加以解释。
+- 进度陈旧且无法探测的 worker 是 `unknown_stale`，并计为丢失。远程 PID 探测需要 `DATAFARM_SSH_CONFIG`；没有它，远程 worker 回退到进度年龄。
+- 台账和 batch 锁使用 `flock`，其在共享文件系统上跨主机的一致性不被保证。

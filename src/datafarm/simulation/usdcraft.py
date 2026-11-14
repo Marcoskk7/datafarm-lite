@@ -1,4 +1,4 @@
-"""USDCraft (https://github.com/NVlabs/USDCraft) CLI bridge. No upstream imports or credentials are required to plan."""
+"""USDCraft（https://github.com/NVlabs/USDCraft）CLI 桥接。制定计划时无需上游导入或凭据。"""
 from __future__ import annotations
 import fcntl
 import json
@@ -30,7 +30,7 @@ def evidence(path):
 
 
 def upstream_version(root, source):
-    """Record the checkout's commit. A different commit may work, so it is reported rather than refused."""
+    """记录检出目录的 commit。不同 commit 也许仍能工作，因此只报告而不拒绝。"""
     assets = read(source / 'configs/external-assets.json')
     tested = next(r['upstream_commit'] for r in assets['repositories'] if r.get('binding') == 'USDCRAFT')
     result = subprocess.run(['git', '-C', str(root), 'rev-parse', 'HEAD'], capture_output=True, text=True)
@@ -71,7 +71,7 @@ def plan(config, observation, output):
         argv += [obs['description']]
     argv += ['--image', refs[0]['path'], '--model', model, '--reasoning', reasoning,
              '--label', obs['object_id'], '--repo-root', str(root), '--keep-workspace', '--json', '--direct']
-    # Hash all additional evidence but do not pretend the single-image upstream CLI consumed it.
+    # 对全部额外证据做哈希，但不要假装单图像的上游 CLI 消费了它。
     refs += [evidence(p) for p in obs.get('context_files', [])]
     refs += [evidence(config), evidence(observation), evidence(root / 'usdcraft/cli.py'), evidence(root / 'pyproject.toml')]
     result = {'schema':'datafarm.usdcraft-plan/1', 'object_id':obs['object_id'], 'mode':mode,
@@ -95,7 +95,7 @@ def check_inputs(p):
 
 
 def collect(p, payload):
-    """Bind export bytes without executing model.py or claiming simulator qualification."""
+    """绑定导出字节，不执行 model.py，也不声称已通过仿真器资格验证。"""
     if payload.get('status') != p['mode'] + '_ready' or payload.get('provider') != 'codex-cli':
         raise ValueError('USDCraft did not return a ready native Codex record')
     rid = payload['record_id']
@@ -107,7 +107,7 @@ def collect(p, payload):
     if not record.is_relative_to(root/'data/records') or not material.is_relative_to(root/'data/cache/record_materialization'):
         raise ValueError('record escapes data root')
     model = Path(payload['model_path'])
-    # Upstream reports paths relative to its own data root, not to this process.
+    # 上游报告的路径相对于它自己的 data 根，而不是相对于本进程。
     model = (model if model.is_absolute() else root / model).resolve(strict=True)
     if not model.is_relative_to(record):
         raise ValueError('model outside canonical record')
@@ -116,7 +116,7 @@ def collect(p, payload):
     if tree.tag != 'robot' or not tree.findall('link'):
         raise ValueError('missing URDF robot links')
     artifacts = [evidence(model)]
-    # Preserve all export dependencies, not just a URDF with broken relative meshes.
+    # 保留所有导出依赖，而不仅是带相对网格的 URDF。
     for base in (record, material):
         for f in sorted(base.rglob('*')):
             if f.is_file():
@@ -142,7 +142,7 @@ def collect(p, payload):
 
 
 class BuildLocked(BlockingIOError):
-    """Another process holds this asset build; nothing was submitted or settled."""
+    """另一个进程正持有该资产构建；未提交或结算任何内容。"""
 
 
 def build_lock(out):
@@ -162,7 +162,7 @@ def run(directory):
 
 
 def _run_locked(out):
-    # A dead/unknown worker is not permission to create a duplicate asset or incur a second charge.
+    # worker 已死或状态未知，并不意味着可以创建重复资产或产生第二笔费用。
     if (out/'execution.json').exists():
         return read(out/'execution.json')
     p = read(out/'plan.json');check_inputs(p)
@@ -197,25 +197,25 @@ def _run_locked(out):
 
 
 def run_for_task(directory, task_work):
-    """Attach an asset execution to the existing task budget/job/review lifecycle.
+    """把一次资产执行挂接到已有的任务预算/作业/审查生命周期上。
 
-    An exported asset stays unqualified. The author queues simulator qualification
-    evidence for an independent review before adopting it in a task scene.
+    导出的资产保持未资格验证（unqualified）状态。作者会排队提交仿真器资格
+    验证证据，供独立审查，之后才会在任务场景中采用该资产。
     """
     from datafarm.agent.cost_budget import budget_for_work
     work = Path(task_work).resolve(strict=True)
     out = Path(directory).resolve(strict=True)
     if not out.is_relative_to(work):
         raise ValueError('task asset build must live inside its task workspace')
-    # The build lock covers job registration, budget reservation and status writes, so a
-    # concurrent second call fails before it can overwrite the status or settle the charge.
+    # 构建锁覆盖作业登记、预算预留与状态写入，因此并发的第二次调用会在它能够
+    # 覆盖状态或结算费用之前失败。
     with build_lock(out):
         return _run_for_task_locked(out, work, budget_for_work)
 
 
 def _run_for_task_locked(out, work, budget_for_work):
     identifier = 'asset-' + sha256_file((out / 'plan.json'))[:24]
-    # Existing attempts are observed, never submitted again or charged as a new ID.
+    # 已存在的尝试只做观察，绝不再提交，也不以新 ID 计费。
     if (out / 'execution.json').exists():
         return read(out / 'execution.json')
     budget = budget_for_work(work)

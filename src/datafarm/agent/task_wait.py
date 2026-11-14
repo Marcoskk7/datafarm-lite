@@ -1,4 +1,4 @@
-"""Wait for a task transition without invoking a model or reacting to heartbeats."""
+"""等待任务状态迁移，既不调用模型，也不响应心跳。"""
 import json
 import math
 from pathlib import Path
@@ -6,10 +6,10 @@ import time
 
 
 def model_wait_status(state):
-    """An explicit dependency wait suppresses model launches, not job monitoring.
+    """显式依赖等待会抑制模型启动，但不会抑制作业监控。
 
-    The supervisor owns job status/liveness. Unknown statuses remain pending;
-    a timeout or an old heartbeat is never interpreted as permission to retry.
+    作业状态与存活性由 supervisor 负责。未知状态一律视为待处理；
+    超时或陈旧心跳绝不会被解释为允许重试。
     """
     ids = state.get('model_wait_for', [])
     if not isinstance(ids, list) or any(not isinstance(i, str) or not i for i in ids):
@@ -25,7 +25,7 @@ def model_wait_status(state):
         if len(matches) != 1 or not isinstance(matches[0].get('status'), str):
             raise ValueError('waiting dependency missing, ambiguous or lacks status: ' + identifier)
         selected.append(matches[0])
-    # Failure is actionable even while another dependency is still running.
+    # 即使另一个依赖仍在运行，失败也是可处理的。
     if any(j['status'] in {'failed', 'error', 'cancelled', 'needs-input'} for j in selected):
         return None
     pending = [j['id'] for j in selected

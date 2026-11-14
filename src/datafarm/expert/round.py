@@ -1,18 +1,18 @@
-"""Round orchestration: prepare a round, run its session loop, report its status.
+"""Round 编排：准备 round、运行其 session 循环、报告其状态。
 
-``prepare_round`` renders and lints the brief (fail closed), copies the holdout seeds into
-the harness-private area, installs the ``xh`` tool, seeds the workspace from a handoff
-bundle and writes ``round.json``. ``RoundRunner.run`` then:
+``prepare_round`` 渲染并 lint brief（fail closed），把 holdout seeds 复制到
+harness 私有区域，安装 ``xh`` 工具，从 handoff bundle 播种 workspace，
+并写入 ``round.json``。随后 ``RoundRunner.run``：
 
-1. verifies the adapter is the one the round was prepared with, records the tamper
-   baseline and runs an isolation probe inside the agent sandbox (fail closed on a leak);
-2. loops over agent sessions (first with the brief, then ``--resume`` with a status
-   prompt), ticking the broker while each session runs;
-3. stops on: final submission, flag for a human, wall / USD / session / rollout budget,
-   too many infrastructure failures, idle sessions, tampering, or a fatal agent error;
-   pauses (exit 75, resumable, not charged) after >= 10 minutes of provider outage;
-4. drains rollouts in flight, snapshots an automatic final submission if the agent made
-   none, re-checks the manifest and writes the round result.
+1. 校验 adapter 正是准备该 round 时所用者，记录篡改基线，并在 agent sandbox
+   内运行 isolation 探测（一旦泄露即 fail closed）；
+2. 循环运行 agent session（先带 brief，再用 ``--resume`` 带状态提示语），
+   每个 session 运行期间持续 tick broker；
+3. 以下情况停止：最终提交、请求人工介入、wall / USD / session / rollout 预算、
+   基础设施失败过多、session 空闲、篡改或致命的 agent 错误；
+   provider 中断持续 >= 10 分钟后暂停（退出码 75，可续跑，不计费）；
+4. 排空在途 rollout，若 agent 未做最终提交则自动快照一份，复检 manifest，
+   并写入 round 结果。
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def harness_code_sha256() -> str:
 
 
 def make_round_id(task_id: str, now: float) -> str:
-    stamp = utc_now(now).replace("-", "").replace(":", "")[:13]  # YYYYMMDDTHHMM
+    stamp = utc_now(now).replace("-", "").replace(":", "")[:13]  # YYYYMMDDTHHMM 格式
     return f"XR-{task_id}-{stamp}-{uuid.uuid4().hex[:4]}"
 
 
@@ -75,11 +75,11 @@ def _round_info(paths: RoundPaths, round_id: str, agent_cfg: Mapping[str, Any]) 
             "backend": agent_cfg.get("backend")}
 
 
-# --------------------------------------------------------------------------- prepare
+# --------------------------------------------------------------------------- 准备
 
 
 def load_round_adapter(paths: RoundPaths, adapter_path: str | None = None) -> TaskAdapter:
-    """The adapter a round was prepared with (recorded path + recorded overrides), verified by digest."""
+    """准备该 round 时所用的 adapter（记录的路径 + 记录的 overrides），按摘要校验。"""
 
     round_json = read_json(paths.round_json)
     recorded = round_json["adapter"]
@@ -184,7 +184,7 @@ def prepare_round(adapter: TaskAdapter, round_dir: str | Path, *, clock: Clock, 
             "brief_warnings": report.warnings, "status": state.status}
 
 
-# --------------------------------------------------------------------------- run
+# --------------------------------------------------------------------------- 运行
 
 
 @contextlib.contextmanager
@@ -216,9 +216,8 @@ def manifest_entries(adapter: TaskAdapter, paths: RoundPaths) -> list[str]:
 
 
 def rollout_masks(adapter: TaskAdapter, paths: RoundPaths, *, purpose: str = "dev") -> list[str]:
-    """Paths hidden from agent code while it runs in a rollout. Development rollouts hide the
-    whole harness-private directory; holdout rollouts (whose run directories live there)
-    hide its sensitive entries individually."""
+    """在 rollout 中运行时对 agent 代码隐藏的路径。开发 rollout 隐藏整个
+    harness 私有目录；holdout rollout（其运行目录就在该目录内）则逐项隐藏其中的敏感条目。"""
 
     from datafarm.expert.holdout import holdout_masks
 
@@ -288,7 +287,7 @@ class RoundRunner:
         self.budgets = adapter.budgets
         self._last_state_save = float("-inf")
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ 辅助函数
 
     def _now(self) -> float:
         return self.clock.now()
@@ -316,7 +315,7 @@ class RoundRunner:
     def _handle_signal(self, signum: int, _frame: Any) -> None:
         self.interrupted = True
 
-    # ------------------------------------------------------------------ run
+    # ------------------------------------------------------------------ 运行
 
     def run(self) -> dict[str, Any]:
         with round_lock(self.paths):
@@ -353,7 +352,7 @@ class RoundRunner:
             if state.status == "paused_model_down":
                 if state.data.get("paused_at") is not None:
                     state.data["paused_s"] = float(state.data.get("paused_s") or 0.0) + (now - float(state.data["paused_at"]))
-                    state.data["last_tick_at"] = now  # pause already covers downtime
+                    state.data["last_tick_at"] = now  # 暂停已涵盖停机时间
                 state.data["paused_at"] = None
                 state.data["outage"] = None
                 state.status = "running"
@@ -400,7 +399,7 @@ class RoundRunner:
             self.state.violation("isolation", "agent ran without OS isolation", utc_now(self._now()))
             self.state.save()
             self.events.emit("isolation_probe", sandbox="agent", mode="none", ok=False)
-            return True  # explicitly configured; recorded as a violation
+            return True  # 显式配置；记录为一次违规
         masked = [str(paths.harness), str(paths.holdout_seeds)]
         masked += [p for p in self.adapter.protected_paths() if os.path.exists(p)][:60]
         readonly = [str(paths.rollouts), str(paths.ledger)]
@@ -434,13 +433,13 @@ class RoundRunner:
         env.update(self.agent_backend.env())
         return env
 
-    # ------------------------------------------------------------------ loop
+    # ------------------------------------------------------------------ 循环
 
     def _tick(self) -> None:
         self.broker.tick()
         now = self._now()
         self.state.data["last_tick_at"] = now
-        if now - self._last_state_save > 30:  # heartbeat for downtime accounting after a crash
+        if now - self._last_state_save > 30:  # 心跳，用于崩溃后的停机时间统计
             self._last_state_save = now
             self.state.save()
 
@@ -480,7 +479,7 @@ class RoundRunner:
                 and not self.broker.in_flight_ids())
 
     def _session_stop(self) -> str | None:
-        """Checked every tick while a session runs."""
+        """session 运行期间每个 tick 都会检查。"""
 
         if self.interrupted:
             return "interrupted"
@@ -621,7 +620,7 @@ class RoundRunner:
         record = {"index": index, "started_at": utc_now(now), "started_at_ts": now,
                   "planned_session_id": resume_id or new_id, "resumed": bool(resume_id),
                   "final_call": final_call, "prompt_sha256": sha256_text(prompt), "ended_at": None}
-        # an outage that ends here is not charged to the round
+        # 在此结束的中断不计入该 round 的费用
         outage = state.data.get("outage")
         state.data["sessions"].append(record)
         state.save()
@@ -691,7 +690,7 @@ class RoundRunner:
         else:
             state.data["sessions_unknown_cost"] = int(state.data.get("sessions_unknown_cost", 0)) + 1
         if no_conversation:
-            state.data["agent_session_id"] = None  # start a fresh conversation next time
+            state.data["agent_session_id"] = None  # 下次开启新的对话
         elif parsed.session_id or record["planned_session_id"]:
             if parsed.events > 0 or resume_id:
                 state.data["agent_session_id"] = parsed.session_id or record["planned_session_id"]
@@ -713,7 +712,7 @@ class RoundRunner:
         return result
 
     def _close_dangling_session(self) -> None:
-        """A harness crash can leave a started session without a ledger record."""
+        """harness 崩溃可能留下一个已启动但缺少 ledger 记录的 session。"""
 
         sessions = self.state.data["sessions"]
         if sessions and sessions[-1].get("ended_at") is None:
@@ -735,7 +734,7 @@ class RoundRunner:
             self.state.save()
             self.events.emit("session_closed_after_restart", index=record["index"])
 
-    # ------------------------------------------------------------------ finalize
+    # ------------------------------------------------------------------ 收尾
 
     def _auto_final(self) -> None:
         if any(s.get("final") for s in self.state.data["submissions"]):
@@ -803,7 +802,7 @@ def _ts(utc: str, default: float) -> float:
 
 
 def round_status(paths: RoundPaths, *, exit_code: int = 0, now: float | None = None) -> dict[str, Any]:
-    """Operator view (may include private facts such as holdout presence, never seeds)."""
+    """操作员视图（可能包含 holdout 是否存在等私有事实，但绝不包含 seeds）。"""
 
     state = RoundState.load(paths.state)
     data = state.data

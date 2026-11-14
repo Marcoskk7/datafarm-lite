@@ -1,7 +1,7 @@
-"""Persistent control for pipeline_agent drive; task state remains the authority.
+"""pipeline_agent drive 的持久化控制；任务状态仍是权威来源。
 
-The run ledger owns daemon launch/liveness. This module owns bounded continuation,
-not simulation or physical success. Same-UID agents are not a security boundary.
+run ledger 负责 daemon 的启动与存活。本模块负责有界续跑，
+不负责仿真或物理层面的成功。同 UID 的 agent 不构成安全边界。
 """
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def heartbeat(work, **fields):
 
 
 def host_identity():
-    """Where a PID is meaningful. /proc liveness checks are only valid on the same boot."""
+    """PID 在何处有意义。/proc 存活检查仅在同一个 boot 内有效。"""
     try:
         boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     except OSError:
@@ -74,10 +74,10 @@ def host_identity():
 
 
 def foreign_host(record):
-    """Name the host of a record written elsewhere; None for this host or a record without a host.
+    """给出在别处写入的记录所属主机名；本机或记录无主机名时返回 None。
 
-    On a shared filesystem a supervisor on another node sees no such PID and would
-    otherwise treat a live worker as dead and resume its provider session twice.
+    在共享文件系统上，另一节点上的 supervisor 看不到这样的 PID，
+    否则会把存活的 worker 当作已死，并重复恢复其 provider session 两次。
     """
     host = record.get('host')
     if host and host != socket.gethostname():
@@ -87,7 +87,7 @@ def foreign_host(record):
 
 def process_identity(pid):
     try:
-        # starttime disambiguates recycled PIDs; zombie is not an active worker.
+        # starttime 用于区分被回收复用的 PID；zombie 不是活跃 worker。
         parts = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()
         return None if parts[0] == 'Z' else parts[19]
     except (OSError, IndexError):
@@ -106,7 +106,7 @@ def group_alive(pgid):
 
 
 def terminate_group(pgid, timeout=5):
-    """Stop the entire local group, including TERM-resistant orphan children."""
+    """终止整个本地进程组，包括抗拒 TERM 的孤儿子进程。"""
     if pgid == os.getpgrp():
         raise ValueError('refusing to terminate supervisor process group')
     for sig, duration in ((signal.SIGTERM, timeout), (signal.SIGKILL, 2)):
@@ -123,7 +123,7 @@ def terminate_group(pgid, timeout=5):
 
 
 def recover_inflight(work):
-    """Reconcile persisted execution before permitting any new model call."""
+    """在允许任何新的模型调用前，重整已持久化的执行状态。"""
     from datafarm.agent.cost_budget import budget_for_work
     for path in sorted((Path(work) / 'sessions').glob('*/execution.json')):
         record = json.loads(path.read_text())
@@ -159,7 +159,7 @@ def recover_inflight(work):
             else:
                 return {'status': 'recovery-required', 'session': str(path.parent),
                         'reason': 'Interrupted launch without a saved session ID; reconcile before resubmitting.'}
-        # A crash may occur after process return but before settlement/review finalization.
+        # 崩溃可能发生在进程返回之后、settlement/review 定稿之前。
         budget = budget_for_work(work)
         if budget and record.get('cost_reservation_id'):
             with budget.transaction() as data:
@@ -183,7 +183,7 @@ def recover_inflight(work):
 
 
 def register_identity(work, session, key, role, native=False):
-    """Bind the trusted driver's provider identity to a single role namespace."""
+    """把受信任 driver 的 provider 身份绑定到单一角色命名空间。"""
     origin_verified = False
     if native:
         result = json.loads((session / 'native-result.json').read_text())
@@ -217,7 +217,7 @@ def register_identity(work, session, key, role, native=False):
     if previous and previous['session_key'] != key:
         raise ValueError('driver reused author/reviewer session identity across roles')
     if native and previous is None and not identity.get('fresh'):
-        # An interrupted first turn may have saved thread.started before any result.
+        # 被中断的首个回合可能已在任何结果前保存了 thread.started。
         for origin in (Path(work) / 'sessions').iterdir():
             if origin == session or not (origin / 'native-command.json').exists():
                 continue
@@ -302,7 +302,7 @@ def validate_completion(work, folder):
 
 
 def review_request(work):
-    """Freeze each review once; producer-controlled status fields cannot certify it."""
+    """每个 review 只冻结一次；由生产者控制的状态字段无法为其背书。"""
     work = Path(work)
     state = json.loads((work / 'state.json').read_text())
     for request in state.get('review_requests', []):
@@ -343,7 +343,7 @@ def finish_review(work, request, folder, session):
         path = (Path(work) / ref['path']).resolve(strict=True)
         if not path.is_relative_to(Path(work).resolve()) or sha256_file(path) != ref['sha256']:
             raise ValueError('review evidence changed or escaped workspace')
-    # Host-generated execution provenance, not a reviewer_id supplied by the author.
+    # 由宿主生成的执行来源信息，而非作者提供的 reviewer_id。
     execution = json.loads((session / 'execution.json').read_text())
     if execution.get('role') != 'task-verifier' or execution.get('status') != 'returned':
         raise ValueError('review requires a returned independent verifier execution')
@@ -370,7 +370,7 @@ def failure_result(folder, status):
 
 
 def supervise(args, drive):
-    """Reuse drive, deterministic waits, persistent counters and ledger sentinel."""
+    """复用 drive，确定性等待，持久化计数器与 ledger 哨兵。"""
     import fcntl
     from types import SimpleNamespace
     work = args.work.resolve(strict=True)
@@ -444,7 +444,7 @@ def supervise(args, drive):
                 state = refresh_external_jobs(work)
                 if recovered_result is None and model_wait_status(state) and state.get('status') == 'working' and not review_request(work):
                     control['status'] = 'waiting-external-jobs'
-                    # task_wait ignores heartbeat-only updates; bounded slices keep stop responsive.
+                    # task_wait 会忽略仅含心跳的更新；有界切片使 stop 保持可响应。
                     wait_for_task(work, timeout=min(config['poll_seconds'], config['heartbeat_seconds']),
                                   interval=min(config['poll_seconds'], 1))
                     continue
@@ -462,7 +462,7 @@ def supervise(args, drive):
                     time.sleep(min(delay, config['heartbeat_seconds'], 1))
                     continue
                 if recovered_result is None:
-                    # Reserve before launch: a crash cannot reset limits or hide a failed attempt.
+                    # 启动前先预定：崩溃无法重置限额或掩盖失败的尝试。
                     control['sessions'] += 1
                     control.update(status='driving', dispatch_after=time.time_ns())
                     save(path, control)

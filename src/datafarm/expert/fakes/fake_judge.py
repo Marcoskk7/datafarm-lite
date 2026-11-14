@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Stand-in judge for dry runs (runs outside the rollout sandbox, like the real verifier).
+"""用于 dry run 的替身 judge（像真正的 verifier 一样，在 rollout sandbox 之外运行）。
 
-Reads ``<run>/native/trace.json`` and writes ``<run>/verdict.json``: success iff the
-deterministic score is below the expert's quality. Protected paths the simulator could
-read are reported in ``leaked_paths`` (the dry run checks them separately).
+读取 ``<run>/native/trace.json`` 并写出 ``<run>/verdict.json``：当确定性分数
+低于专家质量时判定为成功。模拟器可读取的受保护路径会记录在 ``leaked_paths`` 中
+（dry run 会单独检查它们）。
 """
 
 import json

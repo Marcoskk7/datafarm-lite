@@ -1,75 +1,42 @@
-# Data mode and real-world style
+# 数据模式与真实世界风格
 
-Video integrity and action alignment do not show that the data is what the user wants. Table-height randomization is a
-simulation geometry design and cannot by itself authorize changing the table texture, the wall or the lighting. The
-rendering service's model does not choose the data mode.
+视频完整性与动作对齐并不能表明数据就是用户想要的。桌面高度随机化是一种仿真几何设计，本身不能授权更改桌面纹理、墙壁或光照。渲染服务的模型不会选择数据模式。
 
-## The mode must be explicit
+## 模式必须显式
 
-- `sim2real` means non-OOD: restore the appearance of this task's real target scene.
-- `ood` means a change, relative to the recorded real baseline, that the user explicitly approved.
-- `unresolved` is a state awaiting a question; submitting a render is forbidden.
+- `sim2real` 表示非 OOD：还原本任务真实目标场景的外观。
+- `ood` 表示相对已记录的真实基线、经用户明确批准的一处变化。
+- `unresolved` 是一个等待提问的状态；禁止提交渲染。
 
-If the user's current or standing instruction makes the mode of this task explicit, record the exact words and scope and
-continue. Otherwise ask: "Should this batch be non-OOD (match the real scene) or OOD (please state the scope of change
-explicitly)? Both will reference real images and keep real-world style." While waiting, continue observing, scene and
-expert coding, and authorized small-sample validation that does not depend on the mode. Do not pick a mode and run it first.
+如果用户当前或常设的指令已明确了本任务的模式，记录确切措辞与作用域并继续。否则询问：“这批数据应当是非 OOD（匹配真实场景）还是 OOD（请明确说明变化范围）？两者都会引用真实图像并保持真实世界风格。”在等待期间，继续观察、场景与 expert 编码，以及不依赖该模式的、已获授权的小样本验证。不要先选定一个模式再运行。
 
-An OOD run records the baseline, the axes of change, the value ranges, and the identities and relations that stay unchanged.
-Allowing a change of table material does not allow a change of arm colour, object count or camera layout. An approved
-axis allows only physically plausible changes that still look like real footage starting from the real baseline, not an
-appearance detached from the real episode. Lighting diversity and hard shadows are not defects in themselves, but style
-axes that were not approved must not be added. The absence of a general lighting constraint does not extend this task's scope.
+一次 OOD 运行会记录基线、变化轴、取值范围，以及保持不变的身份与关系。允许更改桌面材质并不允许更改机械臂颜色、物体数量或相机布局。一条被批准的轴只允许从真实基线出发、仍然看起来像真实素材的物理上合理的变化，而不是脱离真实 episode 的外观。光照多样性与硬阴影本身不是缺陷，但未获批准的风格轴不得添加。缺少一般性光照约束并不会扩展本任务的作用域。
 
-## The inputs have different roles
+## 输入具有不同的角色
 
-- The white-mesh video provides the action, camera, timing, object presence, contact and terminal-state relations.
-- The real images provide the whole-scene appearance baseline: the robot body, the attached cameras/cables and task
-  objects that actually exist, the table/background, real materials and shapes, and the photographic feel of every view
-  the task declares (all three for a head/left-wrist/right-wrist episode). A reasonable shape correction of a real object
-  relative to its simulation proxy is not an action error.
-- Pasting one wrist texture onto a scene that still looks like a white mesh does not count as adopting the real reference.
-- A reference image has appearance authority only. It provides no object positions, action progress or camera layout.
-  Never copy the action or layout from a reference, copy its arm or gripper into an empty area, or add entities absent from the source.
+- 白模视频提供动作、相机、时机、物体在场、接触与终止状态关系。
+- 真实图像提供整场景的外观基线：机器人本体、实际存在的附属相机/线缆与任务物体、桌面/背景、真实材质与形状，以及任务所声明的每个视角的摄影质感（对头部/左腕/右腕 episode 为全部三者）。真实物体相对其仿真代理的合理形状修正不是动作错误。
+- 把一个腕部纹理贴到一个看起来仍像白模的场景上，不算采用了真实参考。
+- 参考图像只具有外观权威性。它不提供物体位置、动作进度或相机布局。绝不要从参考复制动作或布局、把它的机械臂或夹爪复制到空白区域，或添加源中不存在的实体。
 
-Each real reference has a source type, an acquisition note, a file hash, readability and a role. The white-mesh first
-frame, generated images and continuity frames may be added but cannot pass for real images. A real-source claim needs an
-auditable provenance record; a hash only proves the content is unchanged, not that the photo comes from the real world.
+每个真实参考都有来源类型、采集说明、文件哈希、可读性与角色。白模首帧、生成图像与连续性帧可以被添加，但不能冒充真实图像。真实来源的主张需要一条可审计的出处记录；哈希只能证明内容未变，不能证明照片来自真实世界。
 
-## Submission and review
+## 提交与审查
 
-Before submission, freeze the mode, the confirmation basis, the reference mapping, the prompt version and the provider.
-The actual request must carry at least one valid real reference consistent with the frozen mapping; a path in a local
-config does not count. Save credential-free submission metadata, the mapping from asset hashes to provider resource
-identifiers, the final prompt and the request hash. Never save URLs with signed credentials.
+提交之前，冻结模式、确认依据、参考映射、prompt 版本与 provider。实际请求必须携带至少一个与冻结映射一致的有效真实参考；本地配置中的路径不算。保存不含凭据的提交元数据、从 asset 哈希到 provider 资源标识符的映射、最终 prompt 与请求哈希。绝不要保存带签名凭据的 URL。
 
-After submission, review separately:
+提交之后，分别审查：
 
-1. whether the real references were really submitted with the request;
-2. whether the final video adopts the real appearance and has real-world style;
-3. whether the action, topology and timing are preserved.
+1. 真实参考是否真的随请求一起提交；
+2. 最终视频是否采用真实外观并具有真实世界风格；
+3. 动作、拓扑与时机是否被保留。
 
-Both the executing agent and the independent reviewer personally open or decode the real image or episode frames and the
-generated video, and compare them side by side. The prompt, hashes, the producer's summary or an earlier VLM text cannot
-replace looking. Write `unverified` for any item lacking evidence, and do not borrow a pass from another item. Keep the
-reviewer, frame ranges, evidence and judge version. A static three-frame preview is only a first screen and cannot show
-that the timing of the whole video is normal.
+执行 agent 与独立审查者都要亲自打开或解码真实图像/episode 帧与生成视频，并并排对比。prompt、哈希、生产方的摘要或更早的 VLM 文本都不能替代亲眼查看。对任何缺少证据的项写 `unverified`，不要从另一项借用通过。保留审查者、帧范围、证据与 judge 版本。静态三帧预览只是一个初筛，不能表明整段视频的时机正常。
 
-The style check covers at least the real baseline, the material and shape of the arm body, the attached cameras/cables
-and task objects that actually exist, the table/background, the photographic consistency of all declared views, and
-reference-layout leakage. A component that does not exist is `not_applicable` with evidence and a reason, and must not be
-invented. Every style pass saves a comparison image bound to the real reference and the generated video, the view and the
-generated frame numbers. Whole-scene items use full-view evidence; a local texture or crop cannot claim full-scene
-coverage. Judge against the real reference and the approved OOD changes: a reasonable real size, hard shadow or directional
-light that deviates from the white mesh is not a defect. The default exposure threshold of 60/255 is a coarse guard and
-cannot declare "real enough".
+风格检查至少覆盖真实基线、机械臂本体的材质与形状、实际存在的附属相机/线缆与任务物体、桌面/背景、所有声明视角的摄影一致性，以及参考布局泄漏。一个不存在的组件记为 `not_applicable` 并附证据与原因，不得凭空捏造。每次风格通过都保存一张与真实参考和生成视频绑定的对比图、视角与生成帧编号。整场景项使用全视角证据；局部纹理或裁剪不能声称覆盖全场景。对照真实参考与已批准的 OOD 变化来评判：一个偏离白模的合理真实尺寸、硬阴影或方向光不是缺陷。默认曝光阈值 60/255 是一个粗粒度守卫，不能宣告“足够真实”。
 
-## No automatic downgrade
+## 不得自动降级
 
-A missing mode, an OOD beyond authorization, a missing, unreadable or not-uploaded real reference, a source-only switch, a
-reference replaced by a white-mesh frame, or an unverified review must never let production continue silently. Diagnostics
-cannot waive the real reference either. If the user explicitly changes this requirement, first update the specification,
-configuration, prompts and verification, and only then run.
+缺失模式、超出授权范围的 OOD、缺失/不可读/未上传的真实参考、仅用源帧的切换、被白模帧替换的参考，或未经核实的审查，都绝不能任由生产静默继续。诊断也不能豁免真实参考。如果用户明确更改此要求，先更新规范、配置、prompt 与验证，然后才运行。
 
-Never backfill authorization into existing data: it keeps its evidence, a missing contract is unknown or needs-review, and
-a re-check or re-capture produces a new version and certificate.
+绝不把授权回填进已有数据：它保留其证据，缺失的契约是 unknown 或 needs-review，重新检查或重新采集会产生新版本与证书。

@@ -1,1 +1,1 @@
-"""Artifacts, their schema and store, and admission certificates."""
+"""产物、其 schema 与存储，以及准入证书。"""

@@ -1,4 +1,4 @@
-"""Wall-clock bounded carrier upload and remote byte verification."""
+"""按 wall-clock 限时的 carrier 上传，以及远端字节校验。"""
 
 import hashlib
 import json
@@ -16,7 +16,7 @@ class UploadError(RuntimeError):
 def curl(args, url, remaining):
     if remaining <= 0:
         raise UploadError("upload exchange deadline")
-    # URLs/proxy credentials stay in stdin, not process arguments or logs.
+    # URL 与代理凭据只留在 stdin，不进入进程参数或日志。
     config = "url = " + json.dumps(url) + "\n"
     proxy = os.environ.get("SEEDANCE_API_PROXY")
     if proxy:
@@ -47,7 +47,7 @@ def curl(args, url, remaining):
 
 
 def exchange(path, expected, folder, host, timeout=90):
-    """Upload to a tempfile.org-compatible host (POST /api/upload/local, GET /<id>/download)."""
+    """上传到兼容 tempfile.org 的主机（POST /api/upload/local，GET /<id>/download）。"""
     deadline = time.monotonic() + timeout
     host = host.rstrip("/")
     response = curl(

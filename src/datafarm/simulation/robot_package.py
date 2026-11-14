@@ -1,10 +1,10 @@
-"""Robot description packages supplied with a task input: safe extraction and URDF checks.
+"""随任务输入提供的机器人描述包：安全解包与 URDF 检查。
 
-A robot that is not among the deployment's hardware assets arrives as a URDF package (a .zip or folder with the .urdf
-and its meshes, sometimes with a hand-eye calibration).  This module unpacks it without trusting the archive and
-reports what an agent needs before grounding the scene: the main URDF, its links and joints, actuated joints without
-limits, the kinematic root, joints that name undefined links, and mesh files that do not resolve inside the package.
-The report is evidence about the package, not about the robot: grounding still verifies it against the real views.
+不属于部署硬件资产的机器人会以 URDF 包的形式到达（.zip 或文件夹，内含 .urdf
+及其网格，有时还带手眼标定）。本模块在不信任归档内容的前提下解包它，并
+报告 agent 在 grounding 场景之前所需的信息：主 URDF、其 link 与 joint、无
+限位的驱动 joint、运动学根、引用了未定义 link 的 joint，以及无法在包内解析的网格文件。
+该报告是对包本身的证据，而不是对机器人的证据：grounding 仍会对照真实视图进行验证。
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ class PackageError(ValueError):
 
 
 def safe_extract(archive: Path, dest: Path) -> list[str]:
-    """Unpack a zip into dest: no absolute or parent paths, no symlinks, bounded size and entry count."""
+    """将 zip 解包到 dest：不允许绝对路径或父目录路径，不允许符号链接，大小与条目数有界。"""
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
     written, total = [], 0
@@ -46,7 +46,7 @@ def safe_extract(archive: Path, dest: Path) -> list[str]:
             if not parts or parts[0] in SKIPPED or parts[-1] == ".DS_Store":
                 continue
             if stat.S_ISLNK(info.external_attr >> 16):
-                continue   # a symlink could point outside the package
+                continue   # 符号链接可能指向包外部
             total += info.file_size
             if total > MAX_UNPACKED_BYTES:
                 raise PackageError(f"{archive}: unpacks to more than {MAX_UNPACKED_BYTES // 1024 ** 3} GB")
@@ -62,7 +62,7 @@ def safe_extract(archive: Path, dest: Path) -> list[str]:
 
 
 def _resolve_mesh(uri: str, urdf: Path, root: Path, files: list[Path]) -> Path | None:
-    """A mesh URI resolved inside the package root, or None."""
+    """在包根内解析得到的网格 URI，若无法解析则为 None。"""
     if uri.startswith("package://"):
         rest = uri[len("package://"):]
         package, _, tail = rest.partition("/")
@@ -72,7 +72,7 @@ def _resolve_mesh(uri: str, urdf: Path, root: Path, files: list[Path]) -> Path |
             cand = d / tail
             if cand.is_file():
                 return cand
-        hits = [f for f in files if f.as_posix().endswith("/" + tail)]   # package folder renamed when zipped
+        hits = [f for f in files if f.as_posix().endswith("/" + tail)]   # 打包成 zip 时包文件夹被重命名
         return hits[0] if len(hits) == 1 else None
     if uri.startswith("file://"):
         name = Path(uri[len("file://"):]).name
@@ -83,7 +83,7 @@ def _resolve_mesh(uri: str, urdf: Path, root: Path, files: list[Path]) -> Path |
 
 
 def urdf_summary(urdf: Path, root: Path) -> dict:
-    """Links, joints, root link, missing limits and mesh resolution of one URDF; `problems` lists what blocks use."""
+    """单个 URDF 的 link、joint、根 link、缺失限位与网格解析情况；`problems` 列出阻碍使用的问题。"""
     urdf, root = Path(urdf), Path(root)
     if urdf.stat().st_size > MAX_URDF_BYTES:
         return {"urdf": str(urdf.relative_to(root)), "problems": [f"larger than {MAX_URDF_BYTES >> 20} MB"]}
@@ -129,7 +129,7 @@ def urdf_summary(urdf: Path, root: Path) -> dict:
 
 
 def check_package(path: Path, extract_to: Path | None = None) -> dict:
-    """Report on a URDF package (.zip, folder or single .urdf).  A zip is unpacked into extract_to first."""
+    """报告一个 URDF 包（.zip、文件夹或单个 .urdf）。zip 会先解包到 extract_to。"""
     path = Path(path)
     if path.suffix.lower() == ".zip":
         if extract_to is None:

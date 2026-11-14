@@ -1,20 +1,20 @@
-# Troubleshooting
+# 故障排查
 
-| Symptom | Check and recovery |
+| 症状 | 检查与恢复 |
 |---|---|
-| cost-budget-blocked | Run `cost-status`. Enforced mode needs a real cap and complete receipts, and the native Codex driver is refused for it. Do not delete the ledger or rewrite the pin. A new task may choose advisory mode. |
-| Native dollar cost unknown | Check `native-result.json` and the JSONL token evidence. This tool does not confirm a per-task dollar amount for a ChatGPT login, and missing usage is not zero. |
-| capacity/429/502/503 | `supervise` applies bounded exponential backoff and persists `retry_at` and the retry count. Reaching the cap reports failure and keeps the same thread ID and all attempts. |
-| session-budget-exhausted | Check the cumulative author, review and retry records. If necessary, raise the total cap in the configuration by hand, then start. Do not delete the control state. |
-| waiting-external-jobs | Check the real status of the original `external_jobs` ID, which the job supervisor updates in state. A heartbeat alone does not wake the model. |
-| waiting-worker | Check the process identity in `runtime-status` and the session logs. Do not start again while the worker is alive. |
-| recovery-required | The last launch did not save a thread ID. First check the process, logs and the original external ID. Do not guess or submit anew after a failure. |
-| Lock conflict | A `drive` or `supervise` controller already exists. Check the real PID: the existence of the file does not mean the lock is still held. Do not delete the file to bypass the lock. |
-| Review not resumed | `state.review_requests` must have a unique ID, instructions and hashes of the actual subjects. Check the independent reviewer execution and its report, and use a new ID for a revision. |
-| `complete` rejected by `verify` | `verify` needs a fully source-bound delivery and an independent review. Exit 0, model text or a state string does not certify success. |
-| GPU/provider jobs remain after stop | `stop` only stops the local model group. Remote jobs continue to be monitored under their original IDs. Check them before resuming and do not resubmit. |
-| ImportError/numpy/cv2 | The main runtime does not need these packages. The full tests and the image stages need the corresponding extras installed in a virtual environment with Python 3.11 or newer. |
+| cost-budget-blocked | 运行 `cost-status`。enforced 模式需要真实的上限与完整的 receipt，且原生 Codex driver 会被拒绝。不要删除 ledger 或重写 pin。新任务可以选择 advisory 模式。 |
+| 原生美元成本未知 | 检查 `native-result.json` 与 JSONL token 证据。此工具不会为 ChatGPT 登录确认每任务的美元金额，缺失的用量也不是零。 |
+| capacity/429/502/503 | `supervise` 施加有界指数退避，并持久化 `retry_at` 与重试次数。达到上限会报告失败，并保留同一 thread ID 与所有尝试。 |
+| session-budget-exhausted | 检查累计的 author、review 与重试记录。如有必要，手工在配置中提高总上限，然后启动。不要删除控制状态。 |
+| waiting-external-jobs | 检查原始 `external_jobs` ID 的真实状态，job supervisor 会在 state 中更新它。仅凭心跳不会唤醒模型。 |
+| waiting-worker | 检查 `runtime-status` 中的进程身份与会话日志。worker 存活期间不要再次启动。 |
+| recovery-required | 上一次启动未保存 thread ID。先检查进程、日志与原始 external ID。失败后不要猜测或重新提交。 |
+| 锁冲突 | 已存在一个 `drive` 或 `supervise` 控制器。检查真实 PID：文件存在并不意味着锁仍被持有。不要删除文件来绕过锁。 |
+| 审查未恢复 | `state.review_requests` 必须有一个唯一 ID、指令以及实际对象的哈希。检查独立审查者的执行及其报告，修订时使用新 ID。 |
+| `complete` 被 `verify` 拒绝 | `verify` 需要完全 source-bound 的交付与独立审查。退出 0、模型文本或某个状态字符串都不能证明成功。 |
+| GPU/provider 作业在停止后仍在 | `stop` 只停止本地模型组。远程作业会继续按原始 ID 被监控。恢复前检查它们，不要重新提交。 |
+| ImportError/numpy/cv2 | 主运行时不需要这些包。完整测试与图像阶段需要在一个装有 Python 3.11 或更新版本的虚拟环境中安装相应的 extras。 |
 
-Continuous running needs two ledger checks separated in time, together with evidence that the worker is actually alive and making progress. If a log does not advance for a long time, check the worker rather than trusting a sentinel. Quality acceptance also needs independent physical and visual evidence.
+持续运行需要两次在时间上分开的 ledger 检查，以及 worker 确实存活并在推进的证据。如果日志长时间不前进，应检查 worker 而不是信任某个哨兵。质量验收还需要独立的物理与视觉证据。
 
-When the state JSON written by the model is invalid, the runtime stops and saves the error, and does not treat the model's exit 0 as success. First save the invalid original file and the repair record, fix only the control metadata and revalidate the JSON, then resume the original thread. The original actions, images and metrics must not be changed.
+当模型写入的 state JSON 无效时，运行时会停止并保存该错误，不会把模型的退出 0 当作成功。先保存无效的原始文件与修复记录，只修复控制元数据并重新校验 JSON，然后恢复原始 thread。原始动作、图像与指标不得被更改。

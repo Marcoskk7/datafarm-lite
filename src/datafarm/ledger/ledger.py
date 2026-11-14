@@ -1,21 +1,20 @@
-"""Pipeline run ledger: one tracked record per requested pipeline invocation.
+"""流水线运行 ledger：每次请求的流水线调用对应一条受跟踪记录。
 
-A *run* is created whenever an operator requests a full pipeline pass or a
-partial pass (a cohort of items from an entry stage to an exit stage). The run
-directory is the single operational authority for that request:
+当操作者请求一次完整流水线执行或一次部分执行（从入口阶段到退出阶段的一组
+item）时，就会创建一个 *run*。run 目录是该请求唯一的操作权威：
 
 ``run.json``
-    Immutable request and plan: who asked for what, the stage range, the fixed
-    item denominator, code/config fingerprints, and optional native-state sync.
+    不可变的请求与计划：谁请求了什么、阶段范围、固定的
+    item 分母、代码/配置指纹，以及可选的 native 状态同步。
 ``matrix.json``
-    Item x stage(/substage) status table. Gaps are read from here.
+    item x 阶段(/子阶段) 状态表。缺口从这里读取。
 ``workers.json``
-    Every process or scheduler lease that works on the run, with liveness hints.
+    处理该 run 的每个进程或调度器 lease，附活性提示。
 ``events.jsonl``
-    Append-only history: creation, launches, exits, declarations, finalization.
+    仅追加的历史：创建、启动、退出、声明、定稿。
 
-Run status is *derived* from these files plus live probes; a process claiming
-``running`` is never trusted on its own. The module is standard-library only.
+run 状态由这些文件加上实时探测*派生*而来；声称自己
+``running`` 的进程绝不单独采信。本模块只依赖标准库。
 """
 
 from __future__ import annotations
@@ -68,7 +67,7 @@ def make_run_id(slug: str, *, now: dt.datetime | None = None) -> str:
 
 
 def git_fingerprint(root: str | Path) -> dict[str, Any]:
-    """Record the code version. A repo without commits is recorded, not hidden."""
+    """记录代码版本。没有 commit 的仓库也会被记录，而不是隐藏。"""
 
     def git(*args: str) -> str:
         result = subprocess.run(
@@ -146,8 +145,8 @@ class CellUpdate:
 
 
 # ---------------------------------------------------------------------------
-# Liveness probes. Hosts may differ from the one running the status check, so
-# remote PIDs are probed over SSH only when an SSH config is supplied.
+# 活性探针。宿主可能与执行状态检查的宿主不同，因此只有提供了 SSH 配置时，
+# 才通过 SSH 探测远程 PID。
 
 
 def local_host_names() -> set[str]:
@@ -156,7 +155,7 @@ def local_host_names() -> set[str]:
 
 
 def probe_pid(host: str | None, pid: int | None) -> bool | None:
-    """Return True/False when the PID state is known, None when it cannot be probed."""
+    """当 PID 状态已知时返回 True/False，无法探测时返回 None。"""
 
     if not pid:
         return None
@@ -224,7 +223,7 @@ class RunLedger:
         if not (self.directory / "run.json").is_file():
             raise LedgerError(f"no pipeline run at {self.directory}")
 
-    # -- construction -----------------------------------------------------
+    # -- 构造 -----------------------------------------------------
     @classmethod
     def create(
         cls,
@@ -315,7 +314,7 @@ class RunLedger:
                 cls(Path(root).resolve() / parent_run).record_event("child_run", run_id=run_id)
         return ledger
 
-    # -- basic io ---------------------------------------------------------
+    # -- 基础 IO ---------------------------------------------------------
     @property
     def run_id(self) -> str:
         return self.directory.name
@@ -353,9 +352,9 @@ class RunLedger:
             os.fsync(out.fileno())
         return event
 
-    # -- item matrix ------------------------------------------------------
+    # -- item 矩阵 ------------------------------------------------------
     def set_cells(self, updates: Iterable[CellUpdate], *, source: str) -> int:
-        """Apply cell updates; returns how many cells changed status."""
+        """应用 cell 更新；返回有多少个 cell 改变了状态。"""
 
         updates = list(updates)
         changes: list[list[Any]] = []
@@ -388,7 +387,7 @@ class RunLedger:
             self.record_event("cells", source=source, changes=changes)
         return len(changes)
 
-    # -- workers ----------------------------------------------------------
+    # -- worker ----------------------------------------------------------
     def register_worker(
         self,
         *,
@@ -444,7 +443,7 @@ class RunLedger:
             atomic_write_json(self.directory / "workers.json", data)
 
     def close_worker(self, worker_id: str, *, reason: str, exit_code: int | None = None) -> bool:
-        """End a worker whose own process no longer reports (native terminal state)."""
+        """结束一个自身进程不再上报的 worker（native 终止状态）。"""
 
         for worker in self.workers():
             if worker["worker_id"] == worker_id and not worker.get("ended_at"):
@@ -464,14 +463,14 @@ class RunLedger:
         path.parent.mkdir(exist_ok=True)
         path.write_text(utc_now() + "\n", encoding="utf-8")
 
-    # -- declarations -----------------------------------------------------
+    # -- 声明 -----------------------------------------------------
     def declare(self, status: str, *, reason: str, source: str) -> None:
         if status not in DECLARABLE:
             raise LedgerError(f"declared status must be one of {DECLARABLE}")
         self.record_event("declared", status=status, reason=reason, source=source)
 
     def mirror_declaration(self, status: str, *, reason: str, source: str) -> bool:
-        """Declare only when the native state changed; keeps the event log quiet."""
+        """仅在 native 状态变化时声明；保持事件日志安静。"""
 
         current = effective_declaration(self.events())
         if current and (current["status"], current.get("reason")) == (status, reason):
@@ -498,12 +497,12 @@ class RunLedger:
     def supersede(self, by_run: str, *, reason: str) -> None:
         self.record_event("superseded", by_run=by_run, reason=reason)
 
-    # -- derived views ----------------------------------------------------
+    # -- 派生视图 ----------------------------------------------------
     def exit_column(self) -> str:
         return self.matrix()["columns"][-1]
 
     def gaps(self) -> dict[str, dict[str, Any]]:
-        """Items that have not passed the final column, with where they stopped."""
+        """尚未通过最终列的 item，以及它们停在哪一列。"""
 
         matrix = self.matrix()
         columns = matrix["columns"]
@@ -527,7 +526,7 @@ class RunLedger:
         return counts
 
     def sync(self) -> list[dict[str, Any]]:
-        """Run the run's native-state sync callables; errors are recorded, not raised."""
+        """运行该 run 的 native 状态同步 callable；错误会被记录，而不抛出。"""
 
         results = []
         for entry in self.run().get("sync", []):
@@ -539,7 +538,7 @@ class RunLedger:
                 )
                 outcome = function(self, **dict(entry.get("args", {}))) or {}
                 results.append({"callable": target, "ok": True, **outcome})
-            except Exception as exc:  # noqa: BLE001 - a broken probe must not hide status
+            except Exception as exc:  # noqa: BLE001 - 损坏的探针不能掩盖状态
                 results.append({"callable": target, "ok": False, "error": f"{type(exc).__name__}: {exc}"[:500]})
         return results
 
@@ -646,7 +645,7 @@ class RunLedger:
 
 
 def effective_declaration(events: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
-    """Latest declaration, unless a worker was registered after it (a relaunch)."""
+    """最新的声明，除非其后又注册了 worker（一次重启）。"""
 
     current = None
     for event in events:
@@ -665,7 +664,7 @@ def list_runs(root: str | Path) -> list[RunLedger]:
 
 
 def attach_from_env() -> tuple[RunLedger, str] | None:
-    """Supervisors launched through ``tools/datafarm_runs.py launch`` can report cells directly."""
+    """通过 ``tools/datafarm_runs.py launch`` 启动的 supervisor 可以直接上报 cell。"""
 
     directory = os.environ.get("DATAFARM_LEDGER_RUN_DIR")
     worker = os.environ.get("DATAFARM_LEDGER_WORKER")

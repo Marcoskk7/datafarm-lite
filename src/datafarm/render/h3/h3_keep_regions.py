@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
-"""Keep regions: task states the video model cannot infer from the white are kept from real pixels, not regenerated.
+"""Keep regions：video model 无法从 white 推断出的任务状态，直接保留自真实像素而非重新生成。
 
-Some task states are visible only as a small detail the generator does not follow from the white carrier, e.g. a
-kitchen scale's display that the task switches on: H3 renders it lit too early, too late or not at all.  A keep-region
-spec (a task product, schema h3.keep-regions/1) declares
+有些任务状态只表现为生成器无法从 white carrier 推导出的小细节，例如任务会点亮的厨房秤显示屏：H3 会把它
+点亮得过早、过晚或完全不亮。keep-region spec（任务产物，schema h3.keep-regions/1）声明
 
-  states    render-only state colours for the white replay ("@states" of datafarm.simulation.white_replay), so the
-            white carrier shows the state as a distinctive near-white rectangle exactly in the frames it holds;
-  regions   per region: how to find it in a white chunk frame (`white`: a bright, unsaturated, wide rectangle) and
-            which real pixels to keep there (`texture`: the largest component matching `rule` inside `box` of real
-            head frame `frame` of `source`, a real video whose sha256 is `source_sha256`).
+  states    用于 white replay 的仅渲染状态颜色（datafarm.simulation.white_replay 的 "@states"），使 white
+            carrier 只在状态持续的那些帧中，以显眼的近白矩形显示该状态；
+  regions   逐区域声明：如何在 white chunk 帧中找到它（`white`：一个明亮、低饱和、较宽的矩形），以及在
+            那里保留哪些真实像素（`texture`：在 `source` 的真实 head 帧 `frame` 的 `box` 内，匹配 `rule`
+            的最大连通分量；`source` 是 sha256 为 `source_sha256` 的真实视频）。
 
-Wherever a chunk's white shows the region, the real texture is written into that chunk's inpaint video and the repaint
-mask is 0 (keep) there; everything else is untouched.  `h3_package.py build` applies it when the bundle episode names
-`keep_regions`, before the manifest is written and audited, so no worker can render an unpatched chunk.  Patched inputs
-are cached by (spec sha256, white chunk sha256) under <run>/cache/keep, so every seed of an episode shares them.
+只要某个 chunk 的 white 显示该区域，就把真实纹理写入该 chunk 的 inpaint 视频，并把 repaint mask 在该处
+置 0（保留）；其余部分不动。`h3_package.py build` 会在 bundle episode 指定 `keep_regions` 时应用它，且
+在 manifest 写入并审计之前完成，因此任何 worker 都无法渲染未打补丁的 chunk。打过补丁的输入按
+(spec sha256, white chunk sha256) 缓存在 <run>/cache/keep 下，因此同一 episode 的每个 seed 共享它们。
 
-Measured (weigh-apple, 2026-11-09/10): the display was lit in 100 % of the frames the white shows it lit, and the
-render passed independent blind review 4/4/5/4; the kept display renders whiter than the real one and loses its digits.
+实测（weigh-apple，2026-11-09/10）：在 white 显示其点亮的帧中，显示屏 100 % 处于点亮状态，且渲染通过了
+独立盲审 4/4/5/4；保留的显示屏比真实的更白，并丢失了数字。
 
   python h3_keep_regions.py check <spec.json>
 """
@@ -73,7 +72,7 @@ def load(path) -> dict:
 
 
 def texture(region: dict, out_dir: Path):
-    """Real texture of a region (BGR array), cached as <out_dir>/keep-<name>-texture.png."""
+    """某个区域的真实纹理（BGR 数组），缓存为 <out_dir>/keep-<name>-texture.png。"""
     import cv2
     import numpy as np
     t = region["texture"]
@@ -108,7 +107,7 @@ def texture(region: dict, out_dir: Path):
 
 
 def white_rects(frame, white: dict | None) -> list[tuple[int, int, int, int]]:
-    """Rectangles (x, y, w, h) of a white frame where the replayed state shows: bright, unsaturated, wide, filled."""
+    """white 帧中显示 replay 状态的矩形 (x, y, w, h)：明亮、低饱和、较宽、填充度高。"""
     import cv2
     w = {**WHITE_DEFAULTS, **(white or {})}
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -139,7 +138,7 @@ def encode(path: Path, frames, gray: bool = False, crf: int = 12) -> None:
 
 
 def patch_job(job: dict, spec: dict, spec_sha: str, textures: dict, cache: Path) -> dict:
-    """Patched inpaint video + repaint mask of one chunk job; returns the job fields to update."""
+    """某个 chunk job 打补丁后的 inpaint 视频 + repaint mask；返回需要更新的 job 字段。"""
     import cv2
     key = f"{spec_sha[:16]}-{job['white_sha256'][:16]}"
     rec_path = cache / f"{key}.json"
@@ -176,8 +175,8 @@ def patch_job(job: dict, spec: dict, spec_sha: str, textures: dict, cache: Path)
 
 
 def apply(jobs: list, spec_path, cache: Path) -> dict:
-    """Patch every chunk job in place.  Raises when the regions are found in no white frame at all (is the state
-    replayed into the white?).  Returns {spec, spec_sha256, frames per region}."""
+    """就地给每个 chunk job 打补丁。若这些区域在任何 white 帧中都找不到则抛出异常（该状态是否已 replay
+    进 white？）。返回 {spec, spec_sha256, 每个区域的帧数}。"""
     spec_path = Path(spec_path).resolve()
     spec = load(spec_path)
     spec_sha = sha256(spec_path)

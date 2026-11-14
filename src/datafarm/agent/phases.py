@@ -1,8 +1,8 @@
-"""Phase-by-phase task creation: one fresh agent session per phase, with USD caps the host enforces.
+"""逐阶段的任务创建：每个阶段一个全新的 agent session，USD 上限由 host 强制执行。
 
-The host renders a brief from ``prompts/phases/``, runs one harness session on it, and records the
-outcome. Producers and independent reviewers never share a session, and capture attempts run with no
-model at all. See docs/reference/phased-runs.md.
+host 从 ``prompts/phases/`` 渲染一份 brief，在其上运行一个 harness session，并记录结果。
+生产者与独立评审者从不共享 session，采集尝试则完全不使用 model。参见
+docs/reference/phased-runs.md。
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ TEMPLATES = ROOT / 'prompts/phases'
 PRODUCER_ID = 'phase-producer'
 TERMINATE_GRACE_S = 10
 ROLE_KEYS = {'model', 'extra_args', 'env'}
-# a stderr line that means the model API refused the credentials: the session did no work
+# 一行表示 model API 拒绝了凭据的 stderr 输出：该 session 没有做任何工作
 AUTH_FAILURE = re.compile(r'\b(401|403)\b.*(unauthori[sz]ed|forbidden|api key|authentication)|no api key found|'
                           r'invalid api key|authentication[_ ]error', re.IGNORECASE)
 
@@ -34,7 +34,7 @@ class PhaseError(ValueError):
 
 
 def price_for(model, prices):
-    """Prices match by substring because harnesses prefix model IDs with a provider route."""
+    """价格按子串匹配，因为 harness 会用 provider 路由作为 model ID 的前缀。"""
     matches = [name for name in prices if name in (model or '')]
     return prices[max(matches, key=len)] if matches else None
 
@@ -63,7 +63,7 @@ def read_events(path):
 
 
 class Harness:
-    """One headless agent CLI: its command, how it reports usage, and how a session ended."""
+    """一个无头 agent CLI：其命令、如何报告用量、以及 session 如何结束。"""
 
     def __init__(self, config):
         self.extra = list(config.get('extra_args', []))
@@ -79,13 +79,13 @@ class Harness:
 
 
 class PiHarness(Harness):
-    """Pi, with SoL-Pi when `pi install` has added it. Usage comes from the session files, which also
-    hold compaction and reducer calls that the JSON stream does not show."""
+    """Pi，当 `pi install` 添加了 SoL-Pi 时即使用它。用量来自 session 文件，其中还包含
+    压缩与 reducer 调用，而 JSON 流不会显示这些。"""
 
     name = 'pi'
 
     def compact(self, stream):
-        # Each token delta repeats the partial message; the finished messages are kept.
+        # 每个 token 增量都会重复部分消息；只保留已完成的消息。
         kept = stream.with_suffix('.tmp')
         with stream.open(errors='ignore') as lines, kept.open('w') as out:
             out.writelines(line for line in lines if not line.startswith('{"type":"message_update"'))
@@ -120,9 +120,9 @@ class PiHarness(Harness):
                     model = entry_model or model
                 elif kind == 'usage':
                     entry, entry_model = event.get('usage'), event.get('model')
-                elif kind in ('compaction', 'branch_summary'):  # these run on the session model
+                elif kind in ('compaction', 'branch_summary'):  # 这些调用发生在 session 的 model 上
                     entry, entry_model = event.get('usage'), event.get('model') or model
-                elif data.get('kind') == 'provider_response':  # SoL-Pi reducer
+                elif data.get('kind') == 'provider_response':  # SoL-Pi 的 reducer
                     entry, entry_model = data.get('usage'), data.get('model')
                 else:
                     continue
@@ -139,8 +139,8 @@ class PiHarness(Harness):
         return usd, unpriced
 
     def outcome(self, stream):
-        # Pi exits 0 after a provider error, so the last assistant message decides. No assistant message at all
-        # (a missing or rejected API key ends Pi before the first response) is a failure too.
+        # Pi 在 provider 出错后仍以 0 退出，因此由最后一条 assistant 消息决定。完全没有 assistant 消息
+        # （缺少或被拒绝的 API key 会让 Pi 在首次响应前结束）也算失败。
         session_id, text, failed = None, '', True
         for event in read_events(stream):
             if event.get('type') == 'session':
@@ -182,8 +182,8 @@ class ClaudeHarness(Harness):
 
 
 class CodexHarness(Harness):
-    """Codex reports usage in the stream only when a turn ends, and one phase is one turn. While the
-    phase runs, usage comes from the rollout file of the thread."""
+    """Codex 只在回合结束时才在流中报告用量，而一个阶段就是一个回合。阶段运行期间，
+    用量来自该 thread 的 rollout 文件。"""
 
     name = 'codex'
 
@@ -261,7 +261,7 @@ def load_config(path):
 
 
 def harness_config(config, template, model=None):
-    """The harness settings of one phase: the base config, then its role's `roles` entry, then a --model override."""
+    """一个阶段的 harness 设置：基础配置，然后是其角色的 `roles` 条目，然后是 --model 覆盖。"""
     merged = {**config, **(config.get('roles') or {}).get(role_of(template), {})}
     if model:
         merged['model'] = model
@@ -345,7 +345,7 @@ def stop_group(process):
 
 
 def write_execution(task, phase, transcript_source):
-    """Host-written record that a review ran as its own session; verify_delivery checks it."""
+    """host 写入的记录，表明某次评审作为独立 session 运行；verify_delivery 会检查它。"""
     work = Path(task) / 'work'
     folder = work / 'reviews' / 'executions' / phase
     folder.mkdir(parents=True, exist_ok=True)
@@ -458,7 +458,7 @@ def run_phase(task, config, phase, template, brief, *, source, resume_from=None,
 
 
 def gate_decision(output):
-    """The `decision` of the last top-level JSON object a gate printed; empty if there is none."""
+    """gate 打印的最后一个顶层 JSON 对象的 `decision`；若无则为空字符串。"""
     starts = [i for i, char in enumerate(output) if char == '{' and (i == 0 or output[i - 1] == '\n')]
     for start in reversed(starts):
         try:
@@ -470,7 +470,7 @@ def gate_decision(output):
 
 
 def capture(task, review):
-    """Run the reviewer-frozen capture one attempt at a time, with no model, until the gate stops it."""
+    """逐个尝试运行评审者冻结的采集，不使用 model，直到 gate 将其停止。"""
     work = Path(task).resolve() / 'work'
     folder = work / 'reviews' / review
     for name in ('capture_attempt.sh', 'attempt_gate.py'):

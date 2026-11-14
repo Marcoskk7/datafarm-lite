@@ -1,6 +1,6 @@
-"""Native Codex JSONL adapter. Uses the deployment's existing login unchanged.
+"""原生 Codex JSONL 适配器。原样使用部署中已有的登录状态。
 
-Token usage is evidence, never a dollar cap or an invented billing receipt.
+Token 用量只是证据，绝不是美元上限或凭空编造的计费凭证。
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def command(config, session_id=None):
     argv += ['--json', '--skip-git-repo-check']
     if config.get('model'):
         argv += ['--model', config['model']]
-    # Resume accepts sandbox_mode as a config setting, not --sandbox.
+    # resume 把 sandbox_mode 当作配置项接受，而不是 --sandbox 参数。
     sandbox = config.get('sandbox', 'workspace-write')
     if sandbox not in {'read-only', 'workspace-write', 'danger-full-access'}:
         raise ValueError('invalid native sandbox')
@@ -34,7 +34,7 @@ def command(config, session_id=None):
     for key, value in config.get('settings', {}).items():
         if not key.startswith(('features.', 'model_', 'service_tier')):
             raise ValueError('unsupported native setting: ' + key)
-        # JSON scalars are also valid TOML values (except null, rejected here).
+        # JSON 标量同样是合法的 TOML 值（null 除外，此处直接拒绝）。
         if value is None or not isinstance(value, (str, bool, int, float)):
             raise ValueError('native settings must be scalar')
         argv += ['-c', key + '=' + json.dumps(value)]
@@ -57,7 +57,7 @@ def run(config, prompt, state_path, folder, cwd):
         state.update(status='running', pid=p.pid,
                      process_identity=Path(f'/proc/{p.pid}/stat').read_text().rsplit(')', 1)[1].split()[19])
         save(state_path, state)
-        # stdin may exceed pipe capacity; a writer avoids stdout/stdin deadlock.
+        # stdin 可能超出管道容量；由独立写入线程避免 stdout/stdin 死锁。
         import threading
         def feed():
             try:
@@ -89,7 +89,7 @@ def run(config, prompt, state_path, folder, cwd):
               'cost_status': 'unknown', 'includes_descendants': False, 'errors': errors,
               'evidence': str(folder / 'stdout.log')}
     save(folder / 'native-result.json', result)
-    # This is deliberately NOT a complete session-cost/1 receipt.
+    # 这里刻意不是完整的 session-cost/1 凭证。
     if os.environ.get('DATAFARM_COST_RECEIPT'):
         save(Path(os.environ['DATAFARM_COST_RECEIPT']), result)
     return code

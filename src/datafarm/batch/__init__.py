@@ -1,1 +1,1 @@
-"""The batch supervisor: bounded per-item attempts, retries and verification."""
+"""批处理监督器：有界的单项尝试次数、重试与验证。"""

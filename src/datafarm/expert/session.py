@@ -1,15 +1,15 @@
-"""Headless agent sessions: command construction, event parsing, wall caps, outages.
+"""无头 agent session：命令构建、事件解析、wall cap、服务中断。
 
-A round is a sequence of sessions of one conversation: the first starts the agent with
-the brief, later ones resume it (``--resume <session id>``) with a short status prompt.
-Each session is capped in wall-clock time (SIGTERM, then SIGKILL, to the whole process
-group), its stdout event stream is appended to a transcript file as it arrives, and its
-final ``result`` event supplies ``total_cost_usd``, ``usage``, ``num_turns`` and the
-session id -- so cost comes from the provider's own accounting instead of being
-reconstructed from transcripts by hand.
+一轮（round）是同一段对话的多个 session 序列：第一个 session 用 brief 启动 agent，
+后续 session 用简短的状态 prompt 恢复它（``--resume <session id>``）。
+每个 session 都以 wall-clock 时间设上限（先 SIGTERM，再对整个进程组
+SIGKILL），其 stdout 事件流在到达时即追加到 transcript 文件，其
+最终 ``result`` 事件提供 ``total_cost_usd``、``usage``、``num_turns`` 和
+session id —— 因此成本来自 provider 自己的记账，而不是
+手工从 transcript 重建。
 
-Backends: ``claude`` (``claude -p --output-format stream-json --verbose``), ``codex``
-(``codex exec --json``), ``fake`` (a scripted stand-in used by tests and the dry run).
+后端：``claude``（``claude -p --output-format stream-json --verbose``）、``codex``
+（``codex exec --json``）、``fake``（测试与 dry run 使用的脚本化替身）。
 """
 
 from __future__ import annotations
@@ -39,12 +39,12 @@ AUTH_ERROR_PATTERNS = ("Invalid API key", "authentication_error", "Please run /l
                        "Credit balance is too low", "permission_error")
 
 
-# --------------------------------------------------------------------------- pricing
+# --------------------------------------------------------------------------- 定价
 
 
 def estimate_cost(model: str | None, usage: Mapping[str, int | None], prices: Mapping[str, Any]
                   ) -> float | None:
-    """Price-table estimate in USD (per-million-token prices), or ``None`` if unpriced."""
+    """按价格表估算 USD 成本（每百万 token 价格），若无法定价则返回 ``None``。"""
 
     if not model:
         return None
@@ -67,7 +67,7 @@ def estimate_cost(model: str | None, usage: Mapping[str, int | None], prices: Ma
     return round(total / 1_000_000.0, 6)
 
 
-# --------------------------------------------------------------------------- parsing
+# --------------------------------------------------------------------------- 解析
 
 
 @dataclasses.dataclass
@@ -99,7 +99,7 @@ class ParsedSession:
 
 
 class ClaudeStreamParser:
-    """Parses ``claude -p --output-format stream-json --verbose`` output."""
+    """解析 ``claude -p --output-format stream-json --verbose`` 的输出。"""
 
     def __init__(self, prices: Mapping[str, Any] | None = None) -> None:
         self.prices = dict(prices or {})
@@ -197,7 +197,7 @@ class ClaudeStreamParser:
 
 
 class CodexJsonParser:
-    """Parses ``codex exec --json`` JSONL events (thread/turn/item)."""
+    """解析 ``codex exec --json`` 的 JSONL 事件（thread/turn/item）。"""
 
     TOOL_ITEMS = ("command_execution", "file_change", "mcp_tool_call", "web_search")
 
@@ -262,10 +262,10 @@ class CodexJsonParser:
 
 def classify_errors(parsed: ParsedSession, stderr_tail: str, exit_code: int | None
                     ) -> tuple[bool, bool, str | None]:
-    """Classify outages from zero-tool errors or authoritative metered receipts.
+    """根据零工具调用错误或权威的计量回执分类服务中断。
 
-    A metered transport interruption can follow useful tools; resume its same
-    conversation without replaying tools, retaining all costs and trial records.
+    经计量的传输中断可能发生在有用的工具调用之后；可在不重放工具调用的前提下
+    恢复同一段对话，保留所有成本与试验记录。
     """
 
     texts = "\n".join(parsed.error_texts + [stderr_tail[-4000:]])
@@ -284,7 +284,7 @@ def classify_errors(parsed: ParsedSession, stderr_tail: str, exit_code: int | No
     return False, False, None
 
 
-# --------------------------------------------------------------------------- backends
+# --------------------------------------------------------------------------- 后端
 
 
 @dataclasses.dataclass
@@ -358,9 +358,9 @@ class ClaudeCliBackend(AgentBackend):
 
 
 class CodexExecBackend(AgentBackend):
-    """``codex exec --json``; the prompt goes through stdin (``-``), so it is neither in the
-    process list nor appended to an empty ``<stdin>`` block. Codex's own sandbox is bypassed
-    because the harness sandbox already confines it."""
+    """``codex exec --json``；prompt 通过 stdin（``-``）传入，因此既不出现在
+    进程列表中，也不会被追加到空的 ``<stdin>`` 块。Codex 自带的 sandbox 被绕过，
+    因为 harness sandbox 已经限制了它。"""
 
     name = "codex"
     call_backend = "codex-exec"
@@ -380,10 +380,10 @@ class CodexExecBackend(AgentBackend):
 
 
 class MeteredCodexBackend(CodexExecBackend):
-    """Gateway and credentials stay in the trusted harness, outside author mounts.
+    """Gateway 与凭据留在受信任的 harness 中，位于作者挂载之外。
 
-    The author sees only a loopback endpoint. Costs come from upstream usage,
-    never author stdout. Unknown usage blocks the round rather than freeing debt.
+    作者只看到 loopback 端点。成本来自上游用量，
+    绝不来自作者的 stdout。未知用量会阻塞该轮，而不是释放债务。
     """
     name = "codex-metered"
     call_backend = "codex-metered"
@@ -394,7 +394,7 @@ class MeteredCodexBackend(CodexExecBackend):
         from datafarm.agent.metered_provider import Meter, MeteredGateway, load_pricing
         if spec.max_budget_usd is None or spec.max_budget_usd <= 0:
             raise ConfigError('metered backend requires a finite positive session budget')
-        try:  # agent.pricing: JSON object or file naming the metered model and its prices; no default
+        try:  # agent.pricing：JSON 对象或文件，指定计量 model 及其价格；无默认值
             pricing = load_pricing(self.cfg.get('pricing'))
         except (ValueError, OSError) as exc:
             raise ConfigError(f'codex-metered agent.pricing: {exc}') from None
@@ -411,7 +411,7 @@ class MeteredCodexBackend(CodexExecBackend):
         try:
             yield
         finally:
-            gateway.close()  # Finish charging requests even if the CLI was killed.
+            gateway.close()  # 即使 CLI 被杀死，也要完成请求计费。
             self.receipt = {'schema':'datafarm.session-cost/1', 'complete':not self.meter.unknown,
                             'includes_descendants':True, 'cost_usd':float(self.meter.spent),
                             'cost_basis':'api-equivalent', 'provider_calls':self.meter.calls-self.meter.not_sent_calls,
@@ -421,7 +421,7 @@ class MeteredCodexBackend(CodexExecBackend):
             path.write_text(json.dumps(self.receipt, indent=2)+'\n')
 
     def command(self, spec: SessionSpec) -> list[str]:
-        # No arbitrary config overrides that could reroute the metered provider.
+        # 不允许任何可能重定向计量 provider 的任意配置覆盖。
         if self.cfg.get('extra_args'):
             raise ConfigError('metered backend does not accept arbitrary CLI overrides')
         argv = super().command(spec)
@@ -463,7 +463,7 @@ class MeteredCodexBackend(CodexExecBackend):
 
 
 class FakeAgentBackend(AgentBackend):
-    """Runs ``fakes/fake_agent.py`` (Claude stream-json output) with a JSON plan."""
+    """用 JSON 计划运行 ``fakes/fake_agent.py``（Claude stream-json 输出）。"""
 
     name = "fake"
     call_backend = "fake"
@@ -492,7 +492,7 @@ def make_agent_backend(agent_cfg: Mapping[str, Any], prices: Mapping[str, Any]) 
         cfg = {**agent_cfg, **{k: v for k, v in codex.items() if k != "model"}}
         model = agent_cfg.get("model")
         if not model or str(model).startswith("claude"):
-            model = codex.get("model")  # a Claude default is not a Codex model
+            model = codex.get("model")  # Claude 的默认值不是 Codex 的 model
         if not model:
             raise ConfigError("codex backend needs an explicit model: set agent.codex.model or pass --model")
         cfg["model"] = model
@@ -502,21 +502,21 @@ def make_agent_backend(agent_cfg: Mapping[str, Any], prices: Mapping[str, Any]) 
     raise ConfigError(f"unknown agent backend {kind!r}")
 
 
-# --------------------------------------------------------------------------- runner
+# --------------------------------------------------------------------------- 运行器
 
 
 @dataclasses.dataclass
 class RunInfo:
     exit_code: int | None
     wall_s: float
-    stop_reason: str  # completed | wall_cap | <stop callback reason>
+    stop_reason: str  # completed | wall_cap | <stop 回调返回的原因>
     killed: bool
     stderr_tail: str
 
 
 class SessionRunner:
-    """Run one agent process: stream stdout into the transcript and the parser, tick the
-    broker while it runs, enforce the wall cap, terminate the process group on demand."""
+    """运行一个 agent 进程：把 stdout 流入 transcript 与 parser，运行期间按 tick 驱动
+    broker，执行 wall cap，按需终止进程组。"""
 
     def __init__(self, *, tick: Callable[[], None] = lambda: None,
                  should_stop: Callable[[], str | None] = lambda: None,
@@ -576,7 +576,7 @@ class SessionRunner:
                         try:
                             proc.wait(timeout=self.term_grace_s)
                         except subprocess.TimeoutExpired:
-                            # stdout closed but the process lingers
+                            # stdout 已关闭但进程仍在滞留
                             stop_reason = stop_reason or "stdout_closed"
                             killed = True
                             _signal_group(proc, signal.SIGKILL)
@@ -596,7 +596,7 @@ class SessionRunner:
                         killed = True
                         _signal_group(proc, signal.SIGKILL)
             finally:
-                _signal_group(proc, signal.SIGKILL)  # reap stragglers left in the group
+                _signal_group(proc, signal.SIGKILL)  # 清理进程组中残留的进程
                 reader.join(timeout=5)
                 if proc.poll() is None:
                     proc.wait()
@@ -609,8 +609,8 @@ class SessionRunner:
 
 
 def _die_with_parent() -> None:
-    """Runs in the child before exec: if the harness dies, the agent gets SIGKILL
-    (Linux ``PR_SET_PDEATHSIG``; a no-op elsewhere). bwrap adds its own --die-with-parent."""
+    """在 exec 前于子进程中运行：若 harness 死亡，agent 会收到 SIGKILL
+    （Linux ``PR_SET_PDEATHSIG``；其他平台为无操作）。bwrap 会自行添加 --die-with-parent。"""
 
     try:
         import ctypes

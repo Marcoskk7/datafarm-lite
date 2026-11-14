@@ -1,10 +1,9 @@
-"""Task adapter configuration: everything task-specific the harness needs, in one JSON file.
+"""Task adapter 配置：harness 所需的全部任务特定内容，都放在一个 JSON 文件里。
 
-A task adapter says what the agent is asked to build (task/IR, verifier and its exact
-pass criteria, runtime facts), what it may read and what it must never see, how the
-harness runs a rollout of an agent-written expert on a development seed, how the harness
-alone evaluates hidden holdout seeds, and the round budgets. Absolute paths live only in
-adapter files (``configs/expert-harness/*.json``), never in the harness code.
+task adapter 说明要求 agent 构建什么（task/IR、verifier 及其精确通过标准、runtime facts）、
+它可以读取什么以及绝不可见什么、harness 如何在一个 development seed 上运行 agent 编写的
+expert 的 rollout、harness 如何独自评估隐藏的 holdout seeds，以及轮次预算。绝对路径只出现在
+adapter 文件（``configs/expert-harness/*.json``）中，绝不出现在 harness 代码里。
 """
 
 from __future__ import annotations
@@ -37,7 +36,7 @@ _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 @dataclasses.dataclass(frozen=True)
 class SeedSet:
-    """Development seeds the agent may run: inclusive ranges plus explicit seeds."""
+    """agent 可以运行的 development seeds：闭区间范围加上显式列出的 seeds。"""
 
     ranges: tuple[tuple[int, int], ...] = ()
     explicit: frozenset[int] = frozenset()
@@ -86,7 +85,7 @@ class HoldoutSeed:
 
 
 def load_holdout_seeds(path: str | Path) -> list[HoldoutSeed]:
-    """Holdout seeds: JSON (``holdout-seeds/1``) or operator text lines ``<seed> [family]``."""
+    """Holdout seeds：JSON（``holdout-seeds/1``）或 operator 的文本行 ``<seed> [family]``。"""
 
     text = Path(path).read_text(encoding="utf-8")
     seeds: list[HoldoutSeed] = []
@@ -123,7 +122,7 @@ def write_holdout_seeds(path: str | Path, seeds: Sequence[HoldoutSeed], *, note:
                              "seeds": [s.to_dict() for s in seeds]}, mode=0o600)
 
 
-# --------------------------------------------------------------------------- budgets
+# --------------------------------------------------------------------------- 预算
 
 
 @dataclasses.dataclass(frozen=True)
@@ -183,7 +182,7 @@ class Budgets:
 
 
 class TaskAdapter:
-    """A validated task adapter. ``raw`` is the JSON as written; accessors expand ``{vars}``."""
+    """经过校验的 task adapter。``raw`` 是原样写入的 JSON；各访问器会展开 ``{vars}``。"""
 
     def __init__(self, raw: Mapping[str, Any], path: str | Path | None = None) -> None:
         self.raw: dict[str, Any] = copy.deepcopy(dict(raw))
@@ -192,7 +191,7 @@ class TaskAdapter:
         self._vars = self._resolve_vars(self.raw.get("vars", {}))
         self.validate()
 
-    # ------------------------------------------------------------------ loading
+    # ------------------------------------------------------------------ 加载
 
     @classmethod
     def load(cls, path: str | Path, overrides: Mapping[str, Any] | None = None) -> "TaskAdapter":
@@ -226,7 +225,7 @@ class TaskAdapter:
                 break
         raise ConfigError(f"unresolvable adapter vars: {sorted(pending)}")
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ 辅助
 
     @property
     def sha256(self) -> str:
@@ -237,7 +236,7 @@ class TaskAdapter:
         return dict(self._vars)
 
     def x(self, value: Any, *, keep_env: bool = False, **extra: Any) -> Any:
-        """Expand ``{placeholders}`` from adapter vars plus ``extra``."""
+        """用 adapter vars 加上 ``extra`` 展开 ``{placeholders}``。"""
 
         return expand_all(value, {**self._vars, **{k: str(v) for k, v in extra.items()}},
                           keep_env=keep_env)
@@ -248,7 +247,7 @@ class TaskAdapter:
             raise ConfigError(f"adapter section {name!r} must be an object")
         return value
 
-    # ------------------------------------------------------------------ fields
+    # ------------------------------------------------------------------ 字段
 
     @property
     def task_id(self) -> str:
@@ -333,8 +332,8 @@ class TaskAdapter:
         return [os.path.normpath(p) for p in out]
 
     def shell_paths(self, patterns: Iterable[str]) -> list[str]:
-        """Paths for a generated job script: ``{env:NAME}`` stays ``${NAME}`` (expanded on the
-        GPU node), other globs are expanded here (all GPU nodes share the filesystem)."""
+        """为生成的 job script 提供路径：``{env:NAME}`` 保持为 ``${NAME}``（在 GPU 节点上展开），
+        其他 glob 在此处展开（所有 GPU 节点共享同一文件系统）。"""
 
         out: list[str] = []
         for pattern in patterns:
@@ -348,7 +347,7 @@ class TaskAdapter:
         return out
 
     def display_paths(self, patterns: Iterable[str]) -> list[str]:
-        """Patterns expanded with adapter vars but not globbed (for the brief)."""
+        """用 adapter vars 展开但不做 glob 的模式（用于 brief）。"""
 
         return [self.x(p, keep_env=True) for p in patterns]
 
@@ -360,7 +359,7 @@ class TaskAdapter:
     def brief_template_sha256(self) -> str:
         return sha256_file(self.brief_template_path)
 
-    # ------------------------------------------------------------------ validation
+    # ------------------------------------------------------------------ 校验
 
     def validate(self) -> None:
         raw = self.raw
@@ -393,8 +392,8 @@ class TaskAdapter:
             raise ConfigError("verifier.criteria must state the exact pass criteria")
         task_ir = raw.get("task_ir")
         if isinstance(task_ir, Mapping) and task_ir.get("profile") == STAGE_GRAPH_PROFILE:
-            # A typed task contract must be structurally sound and map onto the frozen judge
-            # before any round is prepared; summary-form task_ir (older adapters) is unchanged.
+            # 有类型标注的 task contract 必须在准备任何轮次之前结构正确，并映射到冻结的 judge 上；
+            # summary 形式的 task_ir（较旧的 adapter）保持不变。
             ids = verifier.get("criterion_ids")
             problems = validate_stage_graph(task_ir, judge_criteria=list(ids) if isinstance(ids, list) else None)
             if problems:

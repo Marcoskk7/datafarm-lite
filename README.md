@@ -1,6 +1,6 @@
 <div align="center">
 
-# PyRUA-DataFarm: LLM Agent as a Cost-Efficient Teleoperator for Real-Ready Robot Data
+# PyRUA-DataFarm：LLM Agent 作为高性价比遥操作者，产出可直接用于真机的机器人数据
 
 Kewei Zhang<sup>1,*</sup>, Juncheng Ma<sup>1,*</sup>, Guodong Lv<sup>1</sup>, Duomin Wang<sup>2,†</sup>, Feixiang Ruan<sup>1</sup>, Ruiyang Si<sup>1</sup>, Chuanrui Zhang<sup>2</sup>,
 Yuxuan Chen<sup>1</sup>, Hao Chen<sup>1</sup>, Yichen Liu<sup>1</sup>, Yintianrun Zhang<sup>1</sup>, Yufan Deng<sup>1</sup>, Enze Xie<sup>2,†</sup>, Daquan Zhou<sup>1,†</sup>
@@ -14,11 +14,7 @@ Yuxuan Chen<sup>1</sup>, Hao Chen<sup>1</sup>, Yichen Liu<sup>1</sup>, Yintianru
 
 </div>
 
-> **datafarm-lite** — fork of [PyRUA-DataFarm](https://github.com/DAGroup-PKU/PyRUA-Lean) at
-> commit `d788388` (MIT). This fork takes a YAML request instead of a real calibration episode,
-> builds the scene in Isaac Sim and renders with Isaac RTX. It produces HDF5 episodes and is
-> **not real-ready data**. The upstream documentation below is kept for reference; where it
-> describes real-episode grounding, video-model rendering or pi0.5 export, it no longer applies.
+> **datafarm-lite** —— [PyRUA-DataFarm](https://github.com/DAGroup-PKU/PyRUA-Lean) 在提交 `d788388`（MIT）处的 fork。本 fork 接收 YAML 请求而非真实标定 episode，在 Isaac Sim 中构建场景并使用 Isaac RTX 渲染。它产出 HDF5 episodes，**并非可直接用于真机的数据**。下方保留上游文档以供参考；其中描述真实 episode grounding、视频模型渲染或 pi0.5 导出的部分已不再适用。
 
 <p align="center">
   <picture>
@@ -28,126 +24,100 @@ Yuxuan Chen<sup>1</sup>, Hao Chen<sup>1</sup>, Yichen Liu<sup>1</sup>, Yintianru
   </picture>
 </p>
 
-**DataFarm** lets a coding agent do the teleoperator's job. From a data request and **one
-calibration episode** of the robot in its scene, the agent rebuilds the task in simulation, and a
-video model conditioned on real images renders each rollout as photographic video. The result is
-*real-ready data*: synchronized camera views labelled with exact actions, which a policy can train
-on directly.
+**DataFarm** 让编码 agent 承担遥操作者的工作。根据一个数据请求以及机器人在其场景中的**一个标定 episode**，agent 在仿真中重建任务，再由一个以真实图像为条件的视频模型将每次 rollout 渲染为照片级视频。其结果就是*可直接用于真机的数据*：同步的多相机视角，用精确动作打标，策略可直接在其上训练。
 
 
 https://github.com/user-attachments/assets/e8ea2b91-7e17-48fe-b9a8-e1ebeccad789
 
 
 
-## Contents
+## 目录
 
-- [How it works](#how-it-works)
-- [Results](#results)
-- [Design principles](#design-principles)
-- [Installation](#installation)
-- [Quickstart](#quickstart)
-- [Reproducing the paper](#reproducing-the-paper)
-- [Repository layout](#repository-layout)
-- [Documentation](#documentation)
-- [Limitations](#limitations)
-- [Citation](#citation)
-- [License and acknowledgements](#license-and-acknowledgements)
+- [工作原理](#工作原理)
+- [结果](#结果)
+- [设计原则](#设计原则)
+- [安装](#安装)
+- [快速开始](#快速开始)
+- [复现论文](#复现论文)
+- [仓库结构](#仓库结构)
+- [文档](#文档)
+- [限制](#限制)
+- [引用](#引用)
+- [许可证与致谢](#许可证与致谢)
 
-## How it works
+## 工作原理
 
 <p align="center"><img src="assets/paper/overview.png" alt="Overview of DataFarm: survey the field from one calibration episode, build the task in simulation, render real appearance, then inspect and harvest the dataset" width="100%"></p>
 
 <p align="center"><img src="assets/paper/pipeline.png" alt="The DataFarm pipeline on one episode: grounding G, task contract T and expert C, episode E, render O, admission q, on top of the shared capability layer K" width="100%"></p>
 
-The agent builds five intermediate representations: the grounding *G*, whose quantities are each
-labelled by how they are known; the task contract *T* and the expert *C*, written against a hidden
-judge *J*; the simulated episodes *E*; the rendered observations *O*; and the admission record *q*.
-Code enforces the frozen judge, the checks on every provider request, content-bound review records at
-delivery and the certificate before training. Role separation in authoring, and returning a rejection to
-the stage that caused it, are required by instruction. The capability layer *K* is shared by all tasks; everything above it is
-written for the task at hand.
+agent 构建五个中间表示：grounding *G*，其中每个量都按其已知方式标注；任务契约 *T* 与专家 *C*，它们针对一个隐藏的 judge *J* 编写；仿真 episodes *E*；渲染观测 *O*；以及准入记录 *q*。代码强制冻结 judge、对每次 provider 请求的检查、交付时内容绑定的评审记录以及训练前的证书。编写时的角色分离，以及把拒绝返回到引起它的阶段，是指令要求的。能力层 *K* 由所有任务共享；其上的全部内容都是为当前任务编写的。
 
-| Stage | What it produces | Notes |
+| 阶段 | 产出 | 说明 |
 |---|---|---|
-| Capability layer | Role instructions, skills and rules shared by all tasks, compiled into explicit, hash-pinned agent context | [capability-layer](docs/reference/capability-layer.md) |
-| Agent runtime | Persistent orchestration, independent review sessions, crash recovery | [agent-runtime](docs/reference/agent-runtime.md) |
-| Grounding | Scene, cameras, real references, and a ledger that labels every physical quantity as measured, fitted, assumed or unknown; missing object assets can be generated with [USDCraft](https://github.com/NVlabs/USDCraft) | [grounding](docs/reference/grounding.md), [usdcraft](docs/reference/usdcraft.md) |
-| Simulator qualification | A simulator variant certified for the task's skills | [simulator-qualification](docs/reference/simulator-qualification.md) |
-| Task contract and expert | Contract, a judge frozen before the expert exists, and an expert developed in a sandbox and scored on held-out initial states | [expert-harness](docs/reference/expert-harness.md) |
-| Render contract | Sim-to-real or out-of-distribution intent, real references, and checks on every request sent to a video model | [render-contract](docs/reference/render-contract.md) |
-| Rendering | Photographic video from the MiniMax-H3 control hybrid (default) or Seedance. | [rendering](docs/reference/rendering.md) |
-| Verification and admission | Render verifier, mutation calibration, independent review, delivery check, admission certificate | [render-verifier](docs/reference/render-verifier.md), [delivery and admission](docs/reference/delivery-and-admission.md) |
-| Policy training | pi0.5 training from admitted data with EEF or delta-EEF actions; absolute-joint mode exists in the launcher but needs a dataset with a joint contract and receipts that no shipped tool builds | [policy-training](docs/reference/policy-training.md) |
-| Cost control | A whole-task budget ledger that keeps unknown costs unknown | [cost-control](docs/reference/cost-control.md) |
-| Capability evolution | Feedback-driven improvement of the capability layer, judged by a frozen evaluator | [capability-evolution](docs/reference/capability-evolution.md) |
-| Run ledger and batch supervisor | Durable records of every requested run, and bounded per-item attempts | [run-ledger](docs/reference/run-ledger.md), [batch-supervisor](docs/reference/batch-supervisor.md) |
+| 能力层 | 所有任务共享的角色指令、skills 和规则，编译为显式、哈希固定的 agent 上下文 | [capability-layer](docs/reference/capability-layer.md) |
+| Agent 运行时 | 持久编排、独立评审会话、崩溃恢复 | [agent-runtime](docs/reference/agent-runtime.md) |
+| Grounding | 场景、相机、真实参考，以及一个把每个物理量标注为 measured、fitted、assumed 或 unknown 的台账；缺失的物体资产可以用 [USDCraft](https://github.com/NVlabs/USDCraft) 生成 | [grounding](docs/reference/grounding.md), [usdcraft](docs/reference/usdcraft.md) |
+| 仿真器资格认证 | 为任务 skills 认证的仿真器变体 | [simulator-qualification](docs/reference/simulator-qualification.md) |
+| 任务契约与专家 | 契约、在专家存在之前冻结的 judge，以及在沙箱中开发并在 held-out 初始状态上评分的专家 | [expert-harness](docs/reference/expert-harness.md) |
+| 渲染契约 | Sim-to-real 或 out-of-distribution 意图、真实参考，以及对每个发往视频模型的请求的检查 | [render-contract](docs/reference/render-contract.md) |
+| 渲染 | 来自 MiniMax-H3 control hybrid（默认）或 Seedance 的照片级视频。 | [rendering](docs/reference/rendering.md) |
+| 验证与准入 | Render verifier、突变校准、独立评审、交付检查、准入证书 | [render-verifier](docs/reference/render-verifier.md), [delivery and admission](docs/reference/delivery-and-admission.md) |
+| 策略训练 | 使用 EEF 或 delta-EEF 动作、从已准入数据进行的 pi0.5 训练；absolute-joint 模式存在于 launcher 中，但需要一个带有 joint 契约和 receipt 的数据集，而随附工具都不构建这类数据集 | [policy-training](docs/reference/policy-training.md) |
+| 成本控制 | 一个让未知成本保持未知的全任务预算台账 | [cost-control](docs/reference/cost-control.md) |
+| 能力演化 | 由冻结 evaluator 评判的、反馈驱动的能力层改进 | [capability-evolution](docs/reference/capability-evolution.md) |
+| 运行台账与批量 supervisor | 每次被请求 run 的持久记录，以及有界的逐项尝试 | [run-ledger](docs/reference/run-ledger.md), [batch-supervisor](docs/reference/batch-supervisor.md) |
 
-## Results
+## 结果
 
-Policies are trained with π<sub>0.5</sub> on 100 episodes from each source and tested in 20 trials per task
-and condition. Policies trained only on farm data match teleoperated data in the original scene
-and hold up under appearance they have not seen.
+策略用 π<sub>0.5</sub> 在每个来源的 100 个 episodes 上训练，并在每个任务和条件的 20 次试验中测试。只在 farm 数据上训练的策略在原始场景中与遥操作数据相当，并且在他们未见过的外观下依然稳健。
 
-| On five real-robot tasks | Teleoperated data | DataFarm data |
+| 在五个真实机器人任务上 | 遥操作数据 | DataFarm 数据 |
 |---|---:|---:|
-| Successes in the original scene (of 100 trials) | 84 | **93** |
-| Successes under an unseen tablecloth and coloured light (of 100 trials) | 46 | **87** |
-| Cost per further episode | robot and operator time | **$0.80** of simulation, rendering and review |
+| 原始场景中的成功次数（100 次试验） | 84 | **93** |
+| 未见过的桌布和彩色灯光下的成功次数（100 次试验） | 46 | **87** |
+| 每个后续 episode 的成本 | 机器人和操作员时间 | 仿真、渲染和评审的 **$0.80** |
 
 <p align="center"><img src="assets/paper/real-robot-results.png" alt="Real-robot successes per task for teleoperated data, Sim + DR and DataFarm, in the original scene and under an unseen tablecloth and coloured light" width="100%"></p>
 <p align="center"><img src="assets/paper/real-robot-trials.jpg" alt="Unseen-scene trials: the policy trained on teleoperated data fails, the policy trained only on farm data succeeds" width="100%"></p>
-<p align="center"><em>Unseen-scene trials in which the policy trained on teleoperated data fails (top) and the policy trained only on farm data succeeds (bottom).</em></p>
+<p align="center"><em>未见场景中的试验：仅在遥操作数据上训练的策略失败（上），而仅在 farm 数据上训练的策略成功（下）。</em></p>
 
 <p align="center"><img src="assets/paper/data-comparison.jpg" alt="Real, simulated, domain-randomized and DataFarm episodes at the same task phase, head view, for the five tasks" width="100%"></p>
-<p align="center"><em>Real, simulated and farm episodes at the same task phase (head view). Sim + DR adds domain-randomized textures and lighting to the simulator frame; ours renders the simulator frame. Real and simulated frames come from different episodes, so object placements differ.</em></p>
+<p align="center"><em>同一任务阶段的真实、仿真和 farm episodes（头部视角）。Sim + DR 在仿真器帧上加入域随机化的纹理和光照；我们的方法则渲染仿真器帧。真实帧和仿真帧来自不同的 episodes，因此物体摆放不同。</em></p>
 
-Adapting a task is fully automatic and costs $21 of API usage on average, paid once per task, plus $5
-for a render contract. One hour of synchronized three-view data for a task costs $107 on average,
-these costs included, slightly below a quote of $117 for teleoperation in China and below $290 in
-labour alone in North America.
+适配一个任务完全自动，平均花费 $21 的 API 用量，按任务一次性支付，另加 $5 的渲染契约费用。一个任务一小时的同步三视角数据平均花费 $107（已含这些成本），略低于中国遥操作 $117 的报价，也低于北美仅人工成本 $290。
 
 <p align="center"><img src="assets/paper/cost.png" alt="Average farm cost per episode against the number of episodes of one task, approaching the marginal cost of $0.80, with flat lines for teleoperation in North America and China" width="60%"></p>
-<p align="center"><em>The farm pays once per task, then only for rendering and review: the average cost per episode falls towards the marginal cost as the dataset grows. Flat lines: teleoperation at the farm's mean episode length.</em></p>
+<p align="center"><em>farm 按任务支付一次，之后只为渲染和评审付费：随着数据集增长，每个 episode 的平均成本向边际成本下降。平直线：以 farm 的平均 episode 长度计的遥操作成本。</em></p>
 
-## Design principles
+## 设计原则
 
-- **Task code is an output, not an input.** The adapter, task brief, judge, scene, camera fit
-  and video prompts of a new task are generated by the agent. A new task needs no prior
-  registration, and this repository ships no per-task artifacts: only the method, the shared
-  capability layer and templates.
-- **No self-certification.** Enforced by code: the judge is frozen by hash before the expert is
-  written and scores it on hidden held-out seeds, and the delivery check accepts only content-bound
-  records of a separate review execution. Required by instruction: a separate role writes the judge.
-- **Every attempt is kept.** Failures, seeds, provider job IDs, budgets and input hashes are
-  recorded. Paid jobs are resumed by their recorded IDs instead of being resubmitted.
-- **Fail closed.** Simulators, models, data and credentials are runtime bindings. A missing
-  binding stops the tool with a message naming it; nothing falls back to a guess.
+- **任务代码是输出，不是输入。** 新任务的 adapter、任务 brief、judge、场景、相机拟合和视频 prompts 都由 agent 生成。新任务不需要事先注册，本仓库不随附任何逐任务产物：只有方法、共享能力层和模板。
+- **无自我认证。** 由代码强制：judge 在专家被编写之前就按哈希冻结，并在隐藏的 held-out seeds 上给专家评分；交付检查只接受独立评审执行的内容绑定记录。由指令要求：一个单独的角色编写 judge。
+- **保留每一次尝试。** 失败、seeds、provider 作业 ID、预算和输入哈希都会被记录。付费作业按其记录的 ID 恢复，而不是重新提交。
+- **失败即关闭。** 仿真器、模型、数据和凭据都是运行时绑定。缺少绑定会以指名它的消息停止工具；绝不回退到猜测。
 
-## Installation
+## 安装
 
-DataFarm needs Linux and Python 3.11 or newer. Media checks use `ffmpeg`, and the sandbox that
-isolates the expert author uses `bubblewrap`.
+DataFarm 需要 Linux 和 Python 3.11 或更新版本。媒体检查使用 `ffmpeg`，隔离专家编写者的沙箱使用 `bubblewrap`。
 
 ```bash
 git clone --branch DataFarm --single-branch https://github.com/DAGroup-PKU/PyRUA-Lean.git && cd PyRUA-Lean
 pip install -e '.[dev,workflow]'
 ```
 
-The core runtime needs only the standard library and Pillow. The `workflow` extra adds the
-imaging and scientific packages used by the verifiers and dataset tools.
+核心运行时只需要标准库和 Pillow。`workflow` extra 增加了 verifiers 和数据集工具使用的图像与科学计算包。
 
-The default H3 renderer needs one GPU with at least 172 GB free per worker.
+默认的 H3 渲染器需要一块 GPU，每个 worker 至少 172 GB 可用显存。
 
-The repository does **not** contain simulators, video models, robot assets, data or
-credentials. Install the components you need (see [NOTICE.md](NOTICE.md)) and point DataFarm
-at them with runtime bindings:
+本仓库**不**包含仿真器、视频模型、机器人资产、数据或凭据。安装你需要的组件（参见 [NOTICE.md](NOTICE.md)），并用运行时绑定让 DataFarm 指向它们：
 
 ```bash
 $EDITOR bindings.json                           # or point DATAFARM_BINDINGS at the file, or set DATAFARM_<KEY>
 datafarm doctor --profile core                  # check prerequisites, no API or GPU calls
 ```
 
-`bindings.json` maps binding names to paths; [docs/deployment.md](docs/deployment.md) lists them all:
+`bindings.json` 把绑定名映射到路径；[docs/deployment.md](docs/deployment.md) 列出了全部：
 
 ```json
 {
@@ -159,33 +129,27 @@ datafarm doctor --profile core                  # check prerequisites, no API or
 }
 ```
 
-## Quickstart
+## 快速开始
 
-**1. Check the installation.** Run the CPU test suite, the standing-rules lint and the
-instruction-layer audit:
+**1. 检查安装。** 运行 CPU 测试套件、standing-rules lint 和指令层审计：
 
 ```bash
 make test lint audit
 ```
 
-**2. Connect a coding agent.** DataFarm does not include a model or an agent. `supervise` runs the
-agent you choose through a runtime config:
+**2. 接入一个编码 agent。** DataFarm 不包含模型或 agent。`supervise` 通过一个运行时配置运行你选择的 agent：
 
-| Harness | Runtime config | Before the first run |
+| Harness | 运行时配置 | 首次运行前 |
 |---|---|---|
-| SoL-Pi | [`pi-solpi.json`](examples/runtime/pi-solpi.json) | Install Pi and SoL-Pi and configure a model, as below |
-| Claude Code | [`claude-code.json`](examples/runtime/claude-code.json) | Install Claude Code and log in |
-| Codex | [`native-codex.json`](examples/runtime/native-codex.json) | Install Codex and run `codex login` |
+| SoL-Pi | [`pi-solpi.json`](examples/runtime/pi-solpi.json) | 安装 Pi 和 SoL-Pi 并如下配置模型 |
+| Claude Code | [`claude-code.json`](examples/runtime/claude-code.json) | 安装 Claude Code 并登录 |
+| Codex | [`native-codex.json`](examples/runtime/native-codex.json) | 安装 Codex 并运行 `codex login` |
 
-These are the supported harnesses. To connect another CLI, add a profile to
-[`agent_cli_driver.py`](examples/runtime/agent_cli_driver.py).
+这些是受支持的 harness。要接入其他 CLI，向 [`agent_cli_driver.py`](examples/runtime/agent_cli_driver.py) 添加一个 profile。
 
-For SoL-Pi and Claude Code, replace `/path/to/PyRUA-Lean` in the config with the absolute path of
-this checkout. To choose a model, add `"--model", "<model>"` to the end of the driver's `argv`.
-[`claude-code.json`](examples/runtime/claude-code.json) runs Claude Code with `bypassPermissions`, so
-use a dedicated machine or container, and adjust the mode if you need approval prompts.
+对于 SoL-Pi 和 Claude Code，把配置中的 `/path/to/PyRUA-Lean` 替换为此 checkout 的绝对路径。要选择模型，把 `"--model", "<model>"` 添加到 driver 的 `argv` 末尾。[`claude-code.json`](examples/runtime/claude-code.json) 以 `bypassPermissions` 运行 Claude Code，因此请使用专用机器或容器，并在需要审批提示时调整该模式。
 
-To set up SoL-Pi (tested with Pi 1.3.0 and SoL-Pi commit `2195680`):
+设置 SoL-Pi（已用 Pi 1.3.0 和 SoL-Pi 提交 `2195680` 测试）：
 
 ```bash
 npm install --global @earendil-works/pi-coding-agent@1.3.0
@@ -194,15 +158,11 @@ pi install ~/SoL-Pi
 cp examples/runtime/sol-pi.template.json ~/.pi/agent/sol-pi.json
 ```
 
-Configure your model provider in Pi (`~/.pi/agent/models.json` and `settings.json`). In `sol-pi.json`,
-set `<provider>` and `<model>` to a small model for the log reducer, and set `cacheWriteReadRatio` to
-your main model's cache-write price divided by its cache-read price. SoL-Pi's mechanisms stay off
-unless this file enables them; see the [SoL-Pi configuration](https://github.com/NVlabs/SoL-Pi/blob/main/docs/configuration.md).
+在 Pi 中配置你的模型 provider（`~/.pi/agent/models.json` 和 `settings.json`）。在 `sol-pi.json` 中，把 `<provider>` 和 `<model>` 设置为用于日志归约器的小模型，并把 `cacheWriteReadRatio` 设置为主模型的缓存写入价格除以其缓存读取价格。除非此文件启用它们，否则 SoL-Pi 的机制保持关闭；参见 [SoL-Pi configuration](https://github.com/NVlabs/SoL-Pi/blob/main/docs/configuration.md)。
 
-[examples/runtime](examples/runtime/README.md) covers how sessions and costs differ between these harnesses.
+[examples/runtime](examples/runtime/README.md) 介绍了这些 harness 之间会话和成本的差异。
 
-**3. Start a new task.** Save the user's request verbatim in a text file; everything
-task-specific is generated by the agent.
+**3. 启动一个新任务。** 把用户的请求逐字保存在一个文本文件中；所有任务专属内容都由 agent 生成。
 
 ```bash
 # Bind the episode and the request to a new task workspace
@@ -220,38 +180,28 @@ python tools/pipeline_agent.py supervise --work /data/task --config examples/run
 python tools/pipeline_agent.py verify --work /data/task
 ```
 
-A task counts as complete only when `verify` accepts its delivery. The
-[quickstart](docs/quickstart.md) covers stopping and resuming a run.
+只有当 `verify` 接受其交付时，任务才算完成。[quickstart](docs/quickstart.md) 涵盖停止和恢复一次 run。
 
-To control cost, run a task phase by phase with [`tools/pipeline_phases.py`](docs/reference/phased-runs.md):
-each phase is one fresh agent session with a USD cap, and independent reviewers decide the contract, the expert
-and each episode. The flow ends at the white delivery.
+为控制成本，可用 [`tools/pipeline_phases.py`](docs/reference/phased-runs.md) 分阶段运行任务：每个阶段是一个带 USD 上限的全新 agent 会话，独立评审者决定契约、专家和每个 episode。流程结束于 white 交付。
 
-To work interactively instead, start any coding agent in the repository root, ask it to read
-[AGENTS.md](AGENTS.md), and give it the episode and the request. This skips `supervise`, so there is
-no crash recovery, and `verify` reports reviews as declared rather than verified.
+若要改为交互式工作，可在仓库根目录启动任意编码 agent，让它阅读 [AGENTS.md](AGENTS.md)，并把 episode 和请求交给它。这样会跳过 `supervise`，因此没有崩溃恢复，且 `verify` 会把评审报告为 declared 而非 verified。
 
-## Reproducing the paper
+## 复现论文
 
-The paper evaluates five tasks on PiPER arms. This release ships the method and templates, not
-per-task artifacts: for each task, the adapter, judge, scene, expert and prompts are outputs the agent
-produces from that task's calibration episode and request, so reproducing a result means running the
-agent on a task. It needs the external components above, GPUs for simulation and rendering, and a
-coding agent. Task code, rendered data and checkpoints from the paper's runs are not included.
+论文在 PiPER 机械臂上评估五个任务。本次发布提供方法和模板，而非逐任务产物：对每个任务，adapter、judge、场景、专家和 prompts 都是 agent 根据该任务的标定 episode 和请求生成的输出，因此复现结果意味着在某个任务上运行 agent。它需要上述外部组件、用于仿真和渲染的 GPU，以及一个编码 agent。论文运行中的任务代码、渲染数据和 checkpoint 不包含在内。
 
-| What ships | Location |
+| 随附内容 | 位置 |
 |---|---|
-| H3 control-hybrid and OOD render recipes | [`configs/render/`](configs/render/) |
-| Frozen render evaluation | [`evaluations/render-h3/`](evaluations/render-h3/) |
-| Expert-harness adapter and brief templates | [`configs/expert-harness/`](configs/expert-harness/) |
-| Batch, render-verifier and training templates | [`configs/batch/`](configs/batch/), [`configs/render-verifier/`](configs/render-verifier/), [`configs/training/`](configs/training/) |
-| Role instructions and stage skills | [`prompts/`](prompts/), [`.agents/skills/`](.agents/skills/) |
-| Phase-by-phase task creation | [`prompts/phases/`](prompts/phases/), [`tools/pipeline_phases.py`](tools/pipeline_phases.py), [phased-runs](docs/reference/phased-runs.md) |
+| H3 control-hybrid 和 OOD 渲染 recipe | [`configs/render/`](configs/render/) |
+| 冻结的渲染评估 | [`evaluations/render-h3/`](evaluations/render-h3/) |
+| Expert-harness adapter 和 brief 模板 | [`configs/expert-harness/`](configs/expert-harness/) |
+| Batch、render-verifier 和训练模板 | [`configs/batch/`](configs/batch/), [`configs/render-verifier/`](configs/render-verifier/), [`configs/training/`](configs/training/) |
+| 角色指令和阶段 skills | [`prompts/`](prompts/), [`.agents/skills/`](.agents/skills/) |
+| 分阶段任务创建 | [`prompts/phases/`](prompts/phases/), [`tools/pipeline_phases.py`](tools/pipeline_phases.py), [phased-runs](docs/reference/phased-runs.md) |
 
-Policies are trained with pi0.5, a 50-step action horizon, batch size 128 and 50k steps; see
-[policy-training](docs/reference/policy-training.md).
+策略用 pi0.5 训练，动作时域 50 步，batch size 128，训练 50k 步；参见 [policy-training](docs/reference/policy-training.md)。
 
-## Repository layout
+## 仓库结构
 
 ```text
 .agents/skills/        skills the agents load (orchestration, grounding, expert authoring, rendering, delivery, ...)
@@ -278,30 +228,28 @@ evaluations/           frozen evaluations
 tests/                 CPU test suite
 ```
 
-## Documentation
+## 文档
 
-| Read this | For |
+| 阅读 | 用途 |
 |---|---|
-| [docs/README.md](docs/README.md) | Index of all documentation |
-| [docs/quickstart.md](docs/quickstart.md), [docs/troubleshooting.md](docs/troubleshooting.md) | Running a task, and recovering from runtime statuses |
-| [docs/deployment.md](docs/deployment.md) | Runtime bindings and the external components the code expects |
-| [docs/architecture.md](docs/architecture.md) | How the stages, records and runtimes fit together |
-| [docs/reference/](docs/README.md#reference) | One note per component: guarantees, data model, entry points, configuration, failure behaviour, limitations |
-| [docs/development.md](docs/development.md) | Rules for changing this code |
-| [AGENTS.md](AGENTS.md), [prompts/instructions/](prompts/instructions) | Instructions for the coding agent that operates the farm |
+| [docs/README.md](docs/README.md) | 所有文档的索引 |
+| [docs/quickstart.md](docs/quickstart.md), [docs/troubleshooting.md](docs/troubleshooting.md) | 运行任务，以及从运行时状态中恢复 |
+| [docs/deployment.md](docs/deployment.md) | 运行时绑定，以及代码所期望的外部组件 |
+| [docs/architecture.md](docs/architecture.md) | 各阶段、记录和运行时如何协同 |
+| [docs/reference/](docs/README.md#参考) | 每个组件一篇说明：保证、数据模型、入口点、配置、失败行为、限制 |
+| [docs/development.md](docs/development.md) | 修改本代码的规则 |
+| [AGENTS.md](AGENTS.md), [prompts/instructions/](prompts/instructions) | 操作 farm 的编码 agent 的指令 |
 
-## Limitations
+## 限制
 
-The CPU tests show that the software behaves as specified. They do not show that a new task
-will succeed physically or visually; that takes a real run and independent review. Each feature
-note lists what its component does not guarantee, for example:
+CPU 测试表明软件按规范运行。它们不表明新任务在物理或视觉上会成功；那需要一次真实的 run 和独立评审。每篇功能说明都列出其组件不保证的内容，例如：
 
-- processes running as the same user are not a security boundary;
-- the shipped simulator-qualification evaluators cover cloth only, and a task's probe runner is task code;
-- the H3 route selects among pre-rendered seeds rather than re-rendering flagged chunks;
-- MiniMax-H3's licence restricts using its outputs to train other AI models, so check it for your use.
+- 以同一用户运行的进程不是安全边界；
+- 随附的仿真器资格认证 evaluator 只覆盖布料，而任务的 probe runner 属于任务代码；
+- H3 路线在预渲染的 seeds 中选择，而不是重新渲染被标记的块；
+- MiniMax-H3 的许可证限制将其输出用于训练其他 AI 模型，因此请针对你的用途检查它。
 
-## Citation
+## 引用
 
 ```bibtex
 @misc{datafarm2026,
@@ -316,11 +264,8 @@ note lists what its component does not guarantee, for example:
 }
 ```
 
-## License and acknowledgements
+## 许可证与致谢
 
-DataFarm is released under the [MIT License](LICENSE). Code derived from third-party projects
-keeps its upstream license; see [NOTICE.md](NOTICE.md).
+DataFarm 以 [MIT License](LICENSE) 发布。源自第三方项目的代码保留其上游许可证；参见 [NOTICE.md](NOTICE.md)。
 
-DataFarm builds on [openpi](https://github.com/Physical-Intelligence/openpi),
-[VideoX-Fun](https://github.com/aigc-apps/VideoX-Fun), RoboTwin 2.0, SAPIEN, Isaac Sim,
-MiniMax-H3, Seedance and USDCraft. We thank their authors.
+DataFarm 构建于 [openpi](https://github.com/Physical-Intelligence/openpi)、[VideoX-Fun](https://github.com/aigc-apps/VideoX-Fun)、RoboTwin 2.0、SAPIEN、Isaac Sim、MiniMax-H3、Seedance 和 USDCraft 之上。我们感谢它们的作者。

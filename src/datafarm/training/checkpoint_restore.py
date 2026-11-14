@@ -1,4 +1,4 @@
-"""Restore the frozen trainer's state onto the requested device mesh."""
+"""把冻结 trainer 的状态恢复到请求的 device mesh 上。"""
 
 
 def with_target_sharding(state, sharding):
@@ -14,7 +14,7 @@ def with_target_sharding(state, sharding):
 
 
 def restore_state(checkpoint_manager, state, data_loader, step=None):
-    """Keep parameters/optimizer/counters intact, overriding saved device layout."""
+    """保持参数/optimizer/计数器不变，覆盖保存的 device 布局。"""
     del data_loader
     import jax
     import orbax.checkpoint as ocp
@@ -41,7 +41,7 @@ def restore_state(checkpoint_manager, state, data_loader, step=None):
 
 
 def install(trainer_globals):
-    """Patch only runtime hooks; the pinned trainer source stays read-only."""
+    """只修补运行时钩子；锁定版本的 trainer 源码保持只读。"""
     original_init = trainer_globals["init_train_state"]
 
     def init_train_state(config, init_rng, mesh, *, resume):

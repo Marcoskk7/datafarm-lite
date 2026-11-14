@@ -1,0 +1,5 @@
+{
+  "work_root": "runs/my-task/codex-decisions",
+  "executable": "codex",
+  "timeout_s": 300
+}

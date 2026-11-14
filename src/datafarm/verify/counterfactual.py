@@ -1,12 +1,11 @@
-"""Counterfactual calibration: inject known defects into an accepted render.
+"""反事实校准：向一个已通过的渲染中注入已知缺陷。
 
-A verifier is only trusted after it (a) passes a render that a reviewer has
-accepted and (b) fails each synthetic defect in the family that owns it.  The
-defects below cover common failure modes (extra or missing
-objects, scaled objects, time lag, frozen or flickering frames, swapped panels,
-aspect distortion, relighting, seam jumps, wrong material, a plain carrier copy).
+verifier 只有在 (a) 通过评审者已接受的渲染，且 (b) 在拥有该缺陷的族中
+让每个合成缺陷都失败之后，才被信任。以下缺陷覆盖常见失败模式（多余或缺失
+物体、缩放物体、时间滞后、冻结或闪烁帧、面板互换、
+长宽比失真、重新打光、接缝跳变、错误材质、carrier 的纯复制）。
 
-All generators work on full-rate work-scale frames and return a new ``Clip``.
+所有生成器都在全速率、工作尺度帧上操作，并返回一个新的 ``Clip``。
 """
 
 from __future__ import annotations
@@ -47,7 +46,7 @@ def clip_from_full(base: Clip, full: np.ndarray) -> Clip:
 @dataclass
 class Counterfactual:
     name: str
-    expected: tuple[str, ...]  # check names (or prefixes) that must fail
+    expected: tuple[str, ...]  # 必须失败的 check 名称（或前缀）
     make: Callable[..., np.ndarray | None]
     description: str
 
@@ -59,7 +58,7 @@ def _panel(spec, name):
 
 
 def _pick_instance(full, carrier_full, spec, entity, panel="head", window=60, avoid=None):
-    """Find a window where one carrier instance is clearly visible and isolated."""
+    """找一个 carrier 实例清晰可见且孤立的窗口。"""
 
     rows, cols = _panel(spec, panel)
     height, width = rows.stop - rows.start, cols.stop - cols.start
@@ -106,7 +105,7 @@ def make_entity_duplicate(full, carrier_full, spec, entity, robot):
     start, (x, y, w, h), (rows, cols) = found
     out = full.copy()
     height, width = rows.stop - rows.start, cols.stop - cols.start
-    # paste on the emptiest table area: lower-middle of the panel, away from the source
+    # 粘贴到最空的桌面区域：面板中下部，远离源位置
     ty = min(height - h - 4, int(height * 0.72))
     tx = (x + width // 2) % max(1, width - w - 4)
     for t in range(start, min(len(out), start + 60)):
@@ -118,13 +117,13 @@ def make_entity_duplicate(full, carrier_full, spec, entity, robot):
 
 
 def make_entity_scale(full, carrier_full, spec, entity, robot, factor=1.5):
-    """Render one whole object 1.5x larger (uniformly, anchored at its base)."""
+    """将整个物体均匀放大 1.5 倍渲染（以其底部为锚点）。"""
 
     found = _pick_instance(full, carrier_full, spec, entity, avoid=robot)
     if found is None:
         return None
     start, (x, y, w, h), (rows, cols) = found
-    lift = int(0.35 * h)  # include the rim/opening above the coloured body
+    lift = int(0.35 * h)  # 包括彩色本体上方的边缘/开口
     y0, y1 = max(0, y - lift), y + h
     x0, x1 = max(0, x - int(0.05 * w)), x + w + int(0.05 * w)
     out = full.copy()
@@ -136,7 +135,7 @@ def make_entity_scale(full, carrier_full, spec, entity, robot, factor=1.5):
         nh, nw = int(ph * factor), int(pw * factor)
         big = cv2.resize(patch, (nw, nh), interpolation=cv2.INTER_LINEAR)
         cx = (x0 + x1) // 2
-        ty0, tx0 = y1 - nh, cx - nw // 2          # unclipped placement
+        ty0, tx0 = y1 - nh, cx - nw // 2          # 未裁剪的放置位置
         ty, tx = max(0, ty0), max(0, tx0)
         by, bx = min(height, ty0 + nh), min(width, tx0 + nw)
         crop[ty:by, tx:bx] = big[ty - ty0:by - ty0, tx - tx0:bx - tx0]
@@ -184,7 +183,7 @@ def make_squeeze(full, *_args, factor=0.89):
 
 
 def make_relight(full, carrier_full, spec, *_args, amount=28.0):
-    """Gradual brightening of the head panel's upper wall, far from motion."""
+    """让 head 面板上部的墙面逐渐变亮，远离运动区域。"""
 
     out = full.astype(np.float32)
     rows, cols = _panel(spec, "head")
@@ -219,7 +218,7 @@ def make_seam_jump(full, carrier_full, spec, *_args, skip=12):
 
 
 def make_recolor(full, carrier_full, spec, entity, *_args):
-    """Paint the entity blue: presence and geometry intact, appearance wrong."""
+    """将实体涂成蓝色：存在性与几何保留，外观错误。"""
 
     out = full.copy()
     masks = key_masks(carrier_full, entity.carrier_keys)
@@ -233,7 +232,7 @@ def make_recolor(full, carrier_full, spec, entity, *_args):
 
 
 def make_robot_ghost(full, carrier_full, spec, entity, robot, window=45):
-    """Show the arm where it was a while ago: a hallucinated arm on empty workcell."""
+    """在手臂先前所在的位置显示它：空工作台上一个幻觉手臂。"""
 
     if robot is None:
         return None
@@ -250,7 +249,7 @@ def make_robot_ghost(full, carrier_full, spec, entity, robot, window=45):
             continue
         box = np.zeros((height, width), bool)
         box[y:y + h, x:x + w] = True
-        # a later window in which the carrier shows no robot inside this box
+        # 稍后的一个窗口，其中 carrier 在该 box 内不显示机器人
         for j in range(i + 20, len(masks) - window // 3):
             if not any((masks[t] & box).any() for t in range(j, j + window // 3)):
                 src_t, dst_t = i * 3, j * 3

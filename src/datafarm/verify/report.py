@@ -1,9 +1,8 @@
-"""Human review page: every failing or abstaining check with visual evidence.
+"""人工审查页面：每个失败或弃权的 check 及其视觉证据。
 
-The page exists so a reviewer (human or agent) can confirm each verdict by
-looking, which is how verifier calibration errors were caught before.  Evidence
-tiles show carrier | generated | overlay at the evidence frame, cropped to the
-evidence box (with margin) or to the whole panel.
+该页面让评审者（人或 agent）通过查看即可确认每个结论，此前的 verifier
+校准错误正是这样被发现的。证据瓦片在证据帧上展示 carrier | generated | overlay，
+裁剪到证据框（含边距）或整个面板。
 """
 
 from __future__ import annotations
@@ -53,7 +52,7 @@ def _tile(spec, receipt, item: dict[str, Any], out: Path, name: str) -> str | No
     frames = [frame]
     if item.get("kind") in ("jump", "luma_step", "freeze", "seam_jump", "seam_photometric_step",
                             "seam_structural_jump"):
-        frames = [max(0, frame - 1), frame]  # a transition needs both sides
+        frames = [max(0, frame - 1), frame]  # 一次转换需要两侧的帧
     elif item.get("end_frame") and item["end_frame"] != frame:
         frames.append(int((frame + item["end_frame"]) // 2))
     rows = []
@@ -83,7 +82,7 @@ def _tile(spec, receipt, item: dict[str, Any], out: Path, name: str) -> str | No
 
 
 def _diverse(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
-    """Round-robin over (panel, kind) so every defect type gets a tile."""
+    """按 (panel, kind) 轮转，使每种缺陷类型都能得到一块瓦片。"""
 
     groups: dict[tuple, list] = {}
     for item in items:

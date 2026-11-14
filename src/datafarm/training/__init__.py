@@ -1,4 +1,4 @@
-"""Admission-bound PI0.5 training contracts."""
+"""与准入绑定的 PI0.5 训练契约。"""
 
 from datafarm.training.launch_contract import (
     ADMISSION_MODE_CERTIFICATE,

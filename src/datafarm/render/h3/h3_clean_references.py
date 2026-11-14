@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Object-free real scene reference from the real episode itself (references only).
+"""从真实 episode 本身生成无物体的真实场景参考图（仅用于 references）。
 
-Assumes a dark robot and saturated warm task objects; adjust the colour masks for other scenes.
+假设机器人是深色的、任务物体是饱和暖色；其他场景需调整颜色掩码。
 
-A single-frame inpainted plate leaves smeared blocks where the objects were.  Every task object moves during the real
-episode, so each head-view table pixel is visible as plain table in some frames: the head view of the scene reference is
-the per-pixel temporal median of the real frames in which that pixel is neither robot (dark), task object (saturated warm,
-grown 30 px) nor in a shadow (darker than the pixel's own bright cluster).  Wrist views are single real frames chosen from
-the episode where the view shows only table / wall / fingertips (`--wrist-frames`); small object remnants listed in
-`--wrist-erase` boxes are Telea-filled (labelled in the provenance).  The robot sheet keeps the base bundle's robot sheet
-with task-object-coloured fragments set to the neutral sheet grey.
+单帧 inpaint 后的底图会在物体原位置留下涂抹块。每个任务物体在真实
+episode 中都会移动，因此每个 head view 的桌子像素在某些帧中可见为普通桌面：场景参考图的 head view 是
+真实帧的逐像素时间中值，这些帧中该像素既不是机器人（深色）、任务物体（饱和暖色，
+向外生长 30 px），也不在阴影中（比该像素自身亮簇更暗）。Wrist view 是单张真实帧，从
+episode 中选出，要求该视图只显示桌面 / 墙 / 指尖（`--wrist-frames`）；`--wrist-erase` 框列出的
+少量物体残留会用 Telea 填充（并在 provenance 中标注）。机器人 sheet 保留基础 bundle 的机器人
+sheet，仅将任务物体颜色的碎片设为中性 sheet 灰色。
 
-The default recipe's references_policy uses no isolated object sheets, because they make the generator re-insert the
-object on the table.  A spec with `"object_sheet": true` also crops whole real objects from given real frames with a
-background-deviation matte and adds that sheet to the references.
+默认配方的 references_policy 不使用孤立的物体 sheet，因为它们会让生成器把
+物体重新插入桌面。带 `"object_sheet": true` 的 spec 还会用
+背景偏差 matte 从给定的真实帧中裁剪出完整的真实物体，并把该 sheet 加入 references。
 
   python h3_clean_references.py <task> --base bundle.json --variant clean --spec <run>/tasks/<task>/clean-references.json
-  (reads/writes <run>/tasks/<task>/; run directory = --run-dir or env H3_RUN)
+  （读写 <run>/tasks/<task>/；run 目录 = --run-dir 或环境变量 H3_RUN）
 """
 from __future__ import annotations
 
@@ -33,11 +33,11 @@ import h3_paths
 from h3_media import sha256
 
 GREY = 128
-RIM_REACH_PX = 90  # pale rims and openings of a warm-coloured object sit up to this far above its coloured part
+RIM_REACH_PX = 90  # 暖色物体的浅色边缘与开口最多高出其着色部分这么多
 
 
 def read_frames(path: str, crop: list[int] | None, step: int = 1, only: list[int] | None = None) -> dict[int, np.ndarray]:
-    """Frames of a real source video; `crop` = [x, y, w, h] of the real picture inside letterboxed source frames."""
+    """真实源视频的帧；`crop` = [x, y, w, h]，表示带黑边的源帧中真实画面的区域。"""
     out = h3_media.read_frames(path, step=step, only=only)
     if crop:
         x, y, w, h = crop
@@ -56,7 +56,7 @@ def poly_features(h: int, w: int, deg: int = 3) -> np.ndarray:
 
 
 def robust_fit(img: np.ndarray, m: np.ndarray, deg: int = 3) -> np.ndarray:
-    """Per-channel polynomial colour field fitted on m, 3 reweighting rounds (residual < 6 levels)."""
+    """在 m 上拟合的逐通道多项式颜色场，3 轮重加权（残差 < 6 个色阶）。"""
     h, w = m.shape
     A = poly_features(h, w, deg)
     out = np.zeros(img.shape, np.float32)
@@ -75,7 +75,7 @@ def robust_fit(img: np.ndarray, m: np.ndarray, deg: int = 3) -> np.ndarray:
 
 
 def table_edge_rows(gray: np.ndarray) -> np.ndarray:
-    """Row of the wall->table step per column (largest positive vertical step of the smoothed image)."""
+    """每列的墙->桌面台阶行（平滑图像中最大的正向竖直台阶）。"""
     g = cv2.GaussianBlur(gray.astype(np.float32), (0, 0), 3)
     dy = g[6:] - g[:-6]
     rows = np.argmax(dy[: int(gray.shape[0] * 0.8)], axis=0) + 3
@@ -101,11 +101,11 @@ def temporal_plate(frames: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
         up = np.zeros_like(w)
         up[:-RIM_REACH_PX] = w[RIM_REACH_PX:]
         obj = (w | up | cv2.dilate(up, k)) > 0
-        dark = cv2.dilate((gray[t] < 110).astype(np.uint8), kd) > 0  # robot, cable, deep shadow
+        dark = cv2.dilate((gray[t] < 110).astype(np.uint8), kd) > 0  # 机器人、线缆、深阴影
         excl[t] = obj | dark
     g = np.where(excl, np.nan, gray)
     hi = np.nanpercentile(g, 85, axis=0)
-    use = ~excl & (gray >= hi[None] - 6)                          # bright (unshadowed) background cluster
+    use = ~excl & (gray >= hi[None] - 6)                          # 明亮的（无阴影）背景簇
     cnt = use.sum(0)
     st[~use] = np.nan
     plate = np.nanmedian(st, axis=0)
@@ -117,10 +117,10 @@ def temporal_plate(frames: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
 
 
 def swap_plate(base: np.ndarray, fill: np.ndarray, check_fill: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Base frame with its task objects (+ rims above, + contact shadow) replaced by the same pixels of a fill frame in
-    which that area is plain table; per-channel gain matched on a ring around the region, 15 px feather; region = objects
-    + rims above + 120 px right/40 px down shadow, clipped below the straight table edge.
-    Returns (plate, swapped region, table mask)."""
+    """带任务物体的底帧（加上方边缘、接触阴影）用填充帧中对应位置的像素替换，该区域在填充帧中是普通桌面；
+    逐通道增益按区域周围环带匹配，15 px 羽化；区域 = 物体
+    + 上方边缘 + 右侧 120 px / 下方 40 px 阴影，裁剪到直桌面边缘以下。
+    返回 (plate, swapped region, table mask)。"""
     w0 = cv2.morphologyEx(warm_mask(base).astype(np.uint8), cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
     n, lab, st, _ = cv2.connectedComponentsWithStats(w0)
     w = np.isin(lab, [i for i in range(1, n) if st[i, cv2.CC_STAT_AREA] >= 2000]).astype(np.uint8)
@@ -129,20 +129,20 @@ def swap_plate(base: np.ndarray, fill: np.ndarray, check_fill: bool = True) -> t
         up[:-d] |= w[d:]
     reg = cv2.dilate(w | up, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (81, 81)))
     sh = np.zeros_like(reg)
-    for d in range(10, 130, 10):                                # contact shadow falls right / below
+    for d in range(10, 130, 10):                                # 接触阴影落在右侧 / 下方
         sh[:, d:] |= reg[:, :-d]
     sh[40:] |= reg[:-40]
     reg = (reg | sh) > 0
     edge = table_edge_rows(cv2.cvtColor(base, cv2.COLOR_BGR2GRAY)).astype(np.float64)
     xs = np.arange(edge.size)
     keep = np.ones(edge.size, bool)
-    for _ in range(4):                                          # the wall/table edge is a straight line
+    for _ in range(4):                                          # 墙/桌面边缘是一条直线
         k, b0 = np.polyfit(xs[keep], edge[keep], 1)
         r = np.abs(edge - (k * xs + b0))
         keep = r <= max(3.0, np.percentile(r[keep], 60))
     edge = k * xs + b0
     table = np.arange(base.shape[0])[:, None] > (edge[None, :] + 8)
-    reg &= table                                                # never repaint the wall / table edge
+    reg &= table                                                # 绝不重绘墙 / 桌面边缘
     fw = cv2.morphologyEx(warm_mask(fill).astype(np.uint8), cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
     n, lab, st, _ = cv2.connectedComponentsWithStats(fw)
     big = np.isin(lab, [i for i in range(1, n) if st[i, cv2.CC_STAT_AREA] >= 300])
@@ -157,8 +157,8 @@ def swap_plate(base: np.ndarray, fill: np.ndarray, check_fill: bool = True) -> t
 
 
 def polyfill_plate(base: np.ndarray, reg: np.ndarray, table: np.ndarray, seed: int = 0) -> np.ndarray:
-    """Region filled with a robust quadratic colour field fitted to the surrounding real table pixels of the same
-    frame (window = region bbox + 120 px, excluding robot/object/shadow outliers) plus matched sensor noise."""
+    """区域用同一帧周围真实桌面像素拟合出的稳健二次颜色场填充
+    （窗口 = 区域 bbox + 120 px，排除机器人/物体/阴影像素点），并叠加匹配的传感器噪声。"""
     ys, xs = np.nonzero(reg)
     y0, y1 = max(0, ys.min() - 120), min(base.shape[0], ys.max() + 121)
     x0, x1 = max(0, xs.min() - 120), min(base.shape[1], xs.max() + 121)
@@ -180,7 +180,7 @@ def polyfill_plate(base: np.ndarray, reg: np.ndarray, table: np.ndarray, seed: i
 def object_crop(im: np.ndarray, box: list[int], matte: str = "deviation") -> np.ndarray:
     x0, y0, x1, y1 = box
     crop = im[y0:y1, x0:x1].copy()
-    if matte == "warm":  # large close-up objects: the median background is itself the object, use its colour instead
+    if matte == "warm":  # 大型特写物体：中值背景本身就是物体，改用其颜色
         dev = warm_mask(crop).astype(np.uint8)
     else:
         bg = cv2.medianBlur(im, 151)[y0:y1, x0:x1]
@@ -198,9 +198,9 @@ def object_crop(im: np.ndarray, box: list[int], matte: str = "deviation") -> np.
 
 
 def head_plate(spec: dict, source: str, crop) -> tuple[np.ndarray, np.ndarray, int, str]:
-    """Head view of the scene sheet: (plate, never-visible pixels, provenance frame, provenance description)."""
+    """场景 sheet 的 head view：(plate, 从未可见的像素, provenance 帧, provenance 描述)。"""
     hp = spec.get("head_plate", {"mode": "temporal"})
-    if hp["mode"] == "frame":  # an unmodified real frame that shows no task object and no robot in the head view
+    if hp["mode"] == "frame":  # 一张未经修改的真实帧，head view 中不含任务物体和机器人
         frame = int(hp["frame"])
         plate = read_frames(source, crop, only=[frame])[frame]
         return plate, np.zeros(plate.shape[:2], bool), frame, \
@@ -233,8 +233,8 @@ def wrist_frame(spec: dict, view: str, source: str, crop) -> tuple[int, np.ndarr
     index = int(spec["wrist_frames"][view])
     im = read_frames(source, crop, only=[index])[index]
     if view in spec.get("wrist_poly", []):
-        # task object removed like the head plate: object (+ rims, contact shadow) region, clipped below the
-        # straight table edge, filled with a robust colour field fitted to the surrounding real table pixels
+        # 像 head plate 一样移除任务物体：物体（+ 边缘、接触阴影）区域，裁剪到
+        # 直桌面边缘以下，用围绕区域真实桌面像素拟合的稳健颜色场填充
         _, region, table = swap_plate(im, im, check_fill=False)
         im = polyfill_plate(im, region, table)
     boxes = spec.get("wrist_erase", {}).get(view, [])
@@ -242,7 +242,7 @@ def wrist_frame(spec: dict, view: str, source: str, crop) -> tuple[int, np.ndarr
         m = np.zeros(im.shape[:2], np.uint8)
         for x0, y0, x1, y1 in boxes:
             m[y0:y1, x0:x1] = 255
-        m[cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) < 60] = 0      # keep the dark fingertips
+        m[cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) < 60] = 0      # 保留深色的指尖
         m = cv2.dilate(m, np.ones((5, 5), np.uint8))
         im = cv2.inpaint(im, m, 15, cv2.INPAINT_TELEA)
     return index, im
@@ -272,8 +272,8 @@ def robot_sheet(spec: dict, rob_ref: dict | None) -> np.ndarray:
     rob[frag] = GREY
     if spec.get("robot_drop_thin"):
         kd = 25 if spec["robot_drop_thin"] is True else int(spec["robot_drop_thin"])
-        # drop loose cables / stray fragments: keep only the thick robot bodies (opening with a 25 px disc by default,
-        # components >= 0.3 % of the sheet), grown back by 6 px so link edges are not eroded
+        # 去掉松散的线缆 / 零散碎片：只保留粗壮的机器人主体（默认用 25 px 圆盘开运算，
+        # 连通分量 >= sheet 的 0.3 %），再向外生长 6 px，以免连接边缘被侵蚀
         fg = (np.abs(rob.astype(np.int16) - GREY).max(axis=2) > 6).astype(np.uint8)
         body = cv2.morphologyEx(fg, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kd, kd)))
         n, lab, st, _ = cv2.connectedComponentsWithStats(body)
@@ -294,7 +294,7 @@ def main() -> int:
     tdir = h3_paths.run_dir(args.run_dir) / "tasks" / args.task
     spec = json.loads(Path(args.spec).read_text())
     crop = spec.get("source_crop")
-    src = spec["sources"]                                         # view -> real mp4
+    src = spec["sources"]                                         # view -> 真实 mp4
     refs = tdir / "refs"
     plate, hole, head_frame, head_desc = head_plate(spec, src["head"], crop)
     wrist = {v: wrist_frame(spec, v, src[v], crop) for v in ("left_wrist", "right_wrist")}

@@ -1,47 +1,28 @@
 ---
 name: sim-grounding
-description: Reconstruct and validate the task-relevant robot, cameras, scene and physical model from real evidence, iterating without requiring a prebuilt task scene.
+description: 从真实证据重建并验证任务相关的机器人、相机、场景和物理模型，无需预建任务场景即可迭代。
 ---
 
-# Automatic scene and physics adaptation
+# 场景与物理的自动适配
 
-First read the complete input, and list the parameters that have evidence and the items that cannot be identified. Prefer reusing verifiable robot URDF/mesh,
-joint order/limits, gripper dimensions and existing calibration; these are device assets, not a requirement for the user to write a task adapter.
-A robot that is not among the deployment's assets arrives with the input as a URDF package: run `tools/check_robot_package.py` (links, joints,
-root, joints without limits, unresolved meshes, calibration files), then verify the joint mapping and calibration against the real views with
-overlays at several instants. A package or vendor note is evidence to check, not an accepted device fact; disclose every assumption.
+先阅读完整输入，列出有证据的参数和无法识别的项目。优先复用可验证的机器人 URDF/mesh、关节顺序/限位、夹爪尺寸和现有标定；这些是设备资产，不是要求用户编写任务 adapter。
+不在部署资产中的机器人会随输入以 URDF 包形式提供：运行 `tools/check_robot_package.py`（links、joints、root、无限制的关节、未解析的 mesh、标定文件），然后用多个时刻的叠加图对真实视角核实关节映射与标定。包或厂商说明是待核实的证据，不是已接受的设备事实；公开每一项假设。
 
-- Establish a metric baseline and the world/base/camera coordinate relations from the real robot / known object scales. Fit the tabletop, object layout,
-  end-effector pose and the camera intrinsics/extrinsics; validate by projecting at multiple times and from multiple views, and do not let a single-image alignment mask a scale error.
-  A wrist camera follows its corresponding end-effector; distinguish RGB, depth, EEF and visual estimates. A candidate calibration is not an accepted device fact.
-- Before the first complete white-model collection, use a few real simulator images to check each camera: the initial state, the holding/manipulation pose,
-  and the place/retreat pose. The author and the independent reviewer must actually open the corresponding real reference and the simulated image, and confirm the camera identity,
-  orientation, task region and self-occlusion; the existence of a matrix, a decodable image or a passing physics probe cannot replace this check.
-  When a single real camera is genuinely occluded, keep that fact and do not insist that every camera see all objects throughout; but whole-run self-occlusion caused by a wrong mounting
-  must not be passed off as real camera behavior. Record the config/source hashes and the image evidence before entering complete collection.
-  After changing a camera, redo the small-sample check and recollect matching data; never write new extrinsics onto old images.
-- Build geometry and contact sufficient to express the task. For rigid bodies check stable placement, collision, mass/inertia, friction and gripper contact;
-  for soft bodies check the material, topology / layer identity, tethers or attachments, solver stability and the free evolution after the action is released.
-  A simplified model is usable only after task-relevant validation; do not pursue pixel-level appearance agreement with the coarse white model.
-- Design cheap, discriminating probes: static hold, grasp/lift/release, friction slip, tiny joint/end-effector motions, camera
-  reprojection, and independent randomized initial states. Calibrate against real evidence; do not use rendering to "paint in" a physical success that does not exist.
-- Attribute failures to coordinates/scale, collision/friction, control timing, the observation interface or the soft-body model; change one explainable factor at a time,
-  and compare the same events in real and simulation. Keep the raw traces and failure records. Parameters and physical assumptions carry versions and sources.
-- Randomized initialization must really reset the physical state and wait for it to settle; changing only the image or text is not enough. Check legal contact/penetration, reachability,
-  object count/identity and the task's supported range. Every new round uses independent seeds; reusing a fixed successful animation as data is forbidden.
-  For a `broad_table` placement, record `reachable_tabletop_xy` (`x`, `y` ranges on the table plane that both arms reach within their joint
-  limits minus a margin) in grounding.json with the probe that measured it.
-- For a complete episode, check the limit margins of actions against the actual readback, next-state, and the home/wait/recovery/crop connections; replan
-  and recapture images when necessary. Candidate margins are not hardware limits and do not carry over to a new robot.
+- 根据真实机器人/已知物体尺度建立度量基线以及世界/基座/相机坐标关系。拟合桌面、物体布局、末端执行器位姿以及相机内参/外参；通过多个时刻、多个视角的投影进行验证，不要让单张图像的对齐掩盖尺度错误。腕部相机跟随其对应的末端执行器；区分 RGB、depth、EEF 和视觉估计。候选标定不是已接受的设备事实。
+- 在第一次完整白模采集之前，用少量真实仿真图像检查每个相机：初始状态、夹持/操作位姿，以及放置/退避位姿。作者和独立审查者必须实际打开对应的真实参考和仿真图像，确认相机身份、朝向、任务区域和自遮挡；存在矩阵、图像可解码或物理探针通过都不能替代这一检查。当单个真实相机确实被遮挡时，保留该事实，不要坚持每个相机全程都能看到所有物体；但由错误安装导致的整段自遮挡不得被当作真实相机行为蒙混过关。在进入完整采集前记录配置/源码哈希和图像证据。更改相机后，重做小样本检查并重新采集匹配数据；绝不要把新的外参写到旧图像上。
+- 构建足以表达任务的几何与接触。刚体检查稳定放置、碰撞、质量/惯量、摩擦和夹爪接触；软体检查材质、拓扑/层身份、系绳或附着、求解器稳定性以及动作释放后的自由演化。简化模型只有在通过任务相关验证后才可用；不要追求与粗糙白模在像素级外观上一致。
+- 设计廉价且有判别力的探针：静态保持、抓取/提升/释放、摩擦滑移、微小的关节/末端执行器运动、相机重投影，以及独立的随机初始状态。以真实证据进行校准；不要用渲染去“画出”并不存在的物理成功。
+- 把失败归因到坐标/尺度、碰撞/摩擦、控制时序、观测接口或软体模型；一次只改一个可解释因素，并在真实与仿真中对比同一事件。保留原始轨迹和失败记录。参数与物理假设携带版本和来源。
+- 随机初始化必须真正重置物理状态并等待其稳定；只改图像或文本是不够的。检查合法接触/穿透、可达性、物体数量/身份以及任务支持的范围。每一轮都使用独立 seed；禁止把固定成功的动画当作数据复用。对于 `broad_table` 摆放，在 grounding.json 中记录 `reachable_tabletop_xy`（两个手臂在各自关节限位减去余量后都能触及的桌面平面 `x`、`y` 范围）以及测量它的探针。
+- 对于完整 episode，对照实际回读、下一状态以及 home/wait/recovery/crop 连接检查动作的限位余量；必要时重新规划并重新采集图像。候选余量不是硬件限制，也不会沿用到新机器人。
 
-When a needed new rigid-body/articulated object asset is found to be missing and not reusable, read `.agents/skills/build-observed-object/SKILL.md`
-and, per the deployment config, generate and validate it with USDCraft (`docs/reference/usdcraft.md`); image inference is not a measured reconstruction, and an export is not simulator admission.
+当发现缺少某个需要的新刚体/关节物体资产且无法复用时，阅读 `.agents/skills/build-observed-object/SKILL.md`，并按部署配置用 USDCraft（`docs/reference/usdcraft.md`）生成并验证它；图像推理不是测量式重建，导出也不等于仿真器准入。
 
-grounding.json uses the schema `datafarm.grounding/1`, and physical_quantities lists, item by item, the physical quantities the simulator uses:
-name, unit, value, label (measured/fitted/assumed/unknown). measured/fitted must bind an evidence
-file (path/sha256); assumed/unknown must give a randomization (low/high containing the nominal value, or at least two
-choices), or state not_randomized_reason. Delivery validation checks each item (src/datafarm/core/grounding.py).
+grounding.json 使用 schema `datafarm.grounding/1`，physical_quantities 逐项列出仿真器使用的物理量：
+name、unit、value、label（measured/fitted/assumed/unknown）。measured/fitted 必须绑定证据
+文件（path/sha256）；assumed/unknown 必须给出随机化（包含名义值的 low/high，或至少两个
+choices），或说明 not_randomized_reason。交付验证会逐项检查（src/datafarm/core/grounding.py）。
 
-Output grounding.json/md, the scene/camera/physics config, the probe commands, the raw observations and a qualification report.
-If the scale/calibration cannot be determined from the existing evidence, state clearly which measurement could disambiguate it; do not fake a calibration, and do not vaguely ask
-to "supply more context". Read docs/reference/simulator-qualification.md and configs/joint-margin-requirements.json.
+输出 grounding.json/md、场景/相机/物理配置、探针命令、原始观测和资格报告。
+如果无法从现有证据确定尺度/标定，清楚说明哪种测量可以消除歧义；不要伪造标定，也不要含糊地要求
+“提供更多上下文”。阅读 docs/reference/simulator-qualification.md 和 configs/joint-margin-requirements.json。

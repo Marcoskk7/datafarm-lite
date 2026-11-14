@@ -1,17 +1,17 @@
-"""Subprocess-backed :class:`~datafarm.batch.supervisor.BatchTask` from a JSON task config.
+"""由 JSON 任务配置构建的、由 subprocess 支撑的 :class:`~datafarm.batch.supervisor.BatchTask`。
 
-Used by ``tools/supervise_batch.py`` so a per-task supervisor can become a config file. One attempt
-is one command, run through ``batch_exec.py`` in its own session with its own directory
-``<work_dir>/attempts/<launch_id>/`` (``log.txt``, ``attempt.json``, ``handle.json``,
-``started.json``, ``exit.json`` and whatever the command writes there).
+供 ``tools/supervise_batch.py`` 使用，使每任务 supervisor 可以变成一个配置文件。一次 attempt
+就是一条命令，通过 ``batch_exec.py`` 在其独立 session、独立目录
+``<work_dir>/attempts/<launch_id>/`` 中运行（包含 ``log.txt``、``attempt.json``、``handle.json``、
+``started.json``、``exit.json`` 以及命令自身写入的任何内容）。
 
-Config (JSON, schema ``datafarm.batch-task-config/1.0.0``)::
+配置（JSON，schema ``datafarm.batch-task-config/1.0.0``）：:
 
     {
       "schema": "datafarm.batch-task-config/1.0.0",
       "batch_id": "my-task-seedance100",
-      "items": ["000", "001"],                  # or "items_file": "items.json"
-      "work_dir": "batch",                       # relative paths resolve against the config file
+      "items": ["000", "001"],                  # 或 "items_file": "items.json"
+      "work_dir": "batch",                       # 相对路径相对配置文件所在目录解析
       "launch": {"argv": ["python", "render.py", "--index", "{item}", "--seed", "{seed}",
                           "--out", "{attempt_dir}"], "cwd": ".", "env": {"KEY": "value"}},
       "result": {"path": "{attempt_dir}/result.json", "required_keys": ["verdict"],
@@ -30,11 +30,11 @@ Config (JSON, schema ``datafarm.batch-task-config/1.0.0``)::
       "policy": {"max_attempts_per_item": 8}
     }
 
-Template fields: ``{item} {item_index} {attempt} {seed} {launch_id} {attempt_dir} {work_dir}
-{result_path}`` and per-item variables ``{vars[name]}`` from ``item_vars`` (or
-``item_vars_file``), e.g. a per-variant prompt; literal braces are written ``{{`` and ``}}``. ``verify`` is either
-``result_status`` (map a status field of the result JSON) or ``argv`` (a verifier command whose last
-JSON line on stdout is ``{"decision": "pass|reject|abstain", "reason": ..., "gate": ...}``).
+模板字段：``{item} {item_index} {attempt} {seed} {launch_id} {attempt_dir} {work_dir}
+{result_path}`` 以及来自 ``item_vars``（或 ``item_vars_file``）的逐条目变量 ``{vars[name]}``，
+例如 per-variant prompt；字面大括号写作 ``{{`` 和 ``}}``。``verify`` 要么是
+``result_status``（映射 result JSON 的某个 status 字段），要么是 ``argv``（一个 verifier 命令，
+其 stdout 上最后一行 JSON 为 ``{"decision": "pass|reject|abstain", "reason": ..., "gate": ...}``）。
 """
 
 from __future__ import annotations
@@ -73,7 +73,7 @@ TOP_LEVEL_KEYS = frozenset({"schema", "batch_id", "description", "items", "items
                             "verify", "crash_classes", "lease_probe", "provider_probe", "cost",
                             "seed", "ledger", "policy", "unresolved_submission_marker",
                             "upstream_batch_state"})
-PROVIDER_DOWN_EXIT = 75  # EX_TEMPFAIL, as in the EmbodiedSWE MODEL_DOWN convention
+PROVIDER_DOWN_EXIT = 75  # EX_TEMPFAIL，与 EmbodiedSWE 的 MODEL_DOWN 约定一致
 LOG_TAIL_BYTES = 16384
 
 
@@ -82,7 +82,7 @@ class TaskConfigError(ValueError):
 
 
 def _fields(template: str) -> set[str]:
-    """Root names of the template fields (``{vars[prompt]}`` -> ``vars``)."""
+    """模板字段的根名称（``{vars[prompt]}`` -> ``vars``）。"""
 
     try:
         names = [name for _, name, _, _ in string.Formatter().parse(template) if name is not None]
@@ -123,7 +123,7 @@ def _command_spec(spec: Any, where: str, allowed: frozenset[str] = TEMPLATE_FIEL
 
 
 def load_task_config(path: str | Path) -> tuple[dict[str, Any], Path, list[str]]:
-    """Load and validate a task config; returns (config, base_dir, items)."""
+    """加载并校验任务配置；返回 (config, base_dir, items)。"""
 
     path = Path(path).resolve()
     config = json.loads(path.read_text(encoding="utf-8"))
@@ -228,7 +228,7 @@ def load_task_config(path: str | Path) -> tuple[dict[str, Any], Path, list[str]]
     ledger = config.get("ledger")
     if ledger is not None and (not isinstance(ledger, Mapping) or set(ledger) - {"column"}):
         raise TaskConfigError("ledger accepts only {'column': ...}")
-    BatchPolicy.from_dict(config.get("policy"))  # fail early on bad policy keys
+    BatchPolicy.from_dict(config.get("policy"))  # 对错误的 policy key 尽早失败
     return config, base_dir, items
 
 
@@ -252,7 +252,7 @@ def _proc_state(pid: int) -> str | None:
 
 
 def pid_alive(pid: int | None, start_ticks: int | None = None) -> bool | None:
-    """True/False when known; None when the process cannot be probed."""
+    """已知时返回 True/False；进程无法探测时返回 None。"""
 
     if not pid:
         return None
@@ -267,7 +267,7 @@ def pid_alive(pid: int | None, start_ticks: int | None = None) -> bool | None:
     if start_ticks is not None:
         current = _start_ticks(int(pid))
         if current is not None and current != start_ticks:
-            return False  # the pid was reused by another process
+            return False  # 该 pid 已被另一个进程复用
     if _proc_state(int(pid)) == "Z":
         return False
     return True
@@ -292,7 +292,7 @@ def _last_error_line(tail: str) -> str:
 
 
 class SubprocessTask:
-    """Launch, poll, verify and reconcile attempts as detached subprocesses."""
+    """以分离子进程的方式启动、轮询、校验和调和 attempts。"""
 
     def __init__(self, config: Mapping[str, Any], *, base_dir: str | Path, items: Sequence[str],
                  host: str | None = None, python: str | None = None) -> None:
@@ -309,7 +309,7 @@ class SubprocessTask:
                               for entry in config.get("crash_classes") or []]
         self._children: dict[str, subprocess.Popen] = {}
 
-    # -- BatchTask wiring -------------------------------------------------------------------
+    # -- BatchTask 接线 ----------------------------------------------------------------------
     def task(self) -> BatchTask:
         return BatchTask(
             launch=self.launch, poll=self.poll, verify=self.verify, reconcile=self.reconcile,
@@ -333,7 +333,7 @@ class SubprocessTask:
 
         return seed_for
 
-    # -- templates --------------------------------------------------------------------------
+    # -- 模板 --------------------------------------------------------------------------------
     def attempt_dir(self, launch_id: str) -> Path:
         return self.attempts_dir / launch_id
 
@@ -368,7 +368,7 @@ class SubprocessTask:
                 "pid": pid, "start_ticks": start_ticks, "host": self.host,
                 "result_path": values["result_path"], "values": dict(values)}
 
-    # -- launch / reconcile -----------------------------------------------------------------
+    # -- 启动 / 调和 -------------------------------------------------------------------------
     def launch(self, item: str, attempt: int, seed: int, *, launch_id: str) -> dict[str, Any]:
         values = self.values(item, attempt, seed, launch_id)
         directory = Path(values["attempt_dir"])
@@ -376,8 +376,8 @@ class SubprocessTask:
             raise LaunchOutcomeUnknown(f"attempt directory already populated: {directory}")
         upstream = self.config.get("upstream_batch_state")
         if upstream:
-            # Prerequisite waiting is local to this item, consumes no attempt,
-            # and must not open the provider-wide circuit breaker.
+            # 前置条件等待仅限本条目，不消耗 attempt，
+            # 且不得触发 provider 级熔断。
             state = read_json_or_none(Path(self._path(upstream.format_map(values))))
             slot = (state or {}).get("item_state", {}).get(item, {})
             if slot.get("state") != "admitted":
@@ -424,7 +424,7 @@ class SubprocessTask:
             return self._handle(values, pid, None)
         return "unknown"
 
-    # -- poll -------------------------------------------------------------------------------
+    # -- 轮询 --------------------------------------------------------------------------------
     def _classify(self, tail: str) -> str:
         for pattern, kind in self.crash_classes:
             if pattern.search(tail):
@@ -471,7 +471,7 @@ class SubprocessTask:
             alive = pid_alive(handle.get("pid"), handle.get("start_ticks"))
             if alive:
                 return Poll("running")
-            exit_record = read_json_or_none(directory / "exit.json")  # it may have just been written
+            exit_record = read_json_or_none(directory / "exit.json")  # 它可能刚刚被写入
             if exit_record is None:
                 if alive is None:
                     return Poll("unknown", detail="attempt process cannot be probed")
@@ -495,7 +495,7 @@ class SubprocessTask:
         return Poll("crashed", kind=self._classify(tail),
                     detail=f"exit {code}: {_last_error_line(tail)}")
 
-    # -- verify -----------------------------------------------------------------------------
+    # -- 校验 --------------------------------------------------------------------------------
     def verify(self, item: str, result: Mapping[str, Any]) -> Verdict:
         spec = self.config["verify"]
         if "result_status" in spec:
@@ -525,7 +525,7 @@ class SubprocessTask:
         raise RuntimeError(f"verifier exit {completed.returncode} without a JSON verdict: "
                            f"{_last_error_line(completed.stderr)}")
 
-    # -- optional probes --------------------------------------------------------------------
+    # -- 可选探测 ----------------------------------------------------------------------------
     def _probe(self, spec: Mapping[str, Any], values: Mapping[str, Any]) -> tuple[int, str]:
         argv, cwd, env = self.command(spec, values)
         completed = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, text=True,
@@ -533,13 +533,13 @@ class SubprocessTask:
         return completed.returncode, completed.stdout.strip()
 
     def lease_probe(self, handle: Mapping[str, Any]) -> str:
-        """alive/dead only when the probe command succeeded and said so; otherwise unknown."""
+        """仅当探测命令成功且明确给出时才返回 alive/dead；否则返回 unknown。"""
 
         if self._unresolved_submission(handle):
-            return "unknown"  # no task ID means a negative lease lookup proves nothing
+            return "unknown"  # 没有 task ID 时，lease 查询为否并不能证明什么
         exit_record = read_json_or_none(Path(handle["attempt_dir"]) / "exit.json")
         if isinstance(exit_record, dict) and exit_record.get("timed_out") is True:
-            return "unknown"  # a stopped local child does not prove a remote job stopped
+            return "unknown"  # 本地子进程已停止并不证明远程 job 已停止
         try:
             code, output = self._probe(self.config["lease_probe"], handle["values"])
         except (OSError, subprocess.TimeoutExpired):

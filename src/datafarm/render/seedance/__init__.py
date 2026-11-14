@@ -1,1 +1,1 @@
-"""Seedance candidate generation; does not issue semantic admission receipts."""
+"""Seedance 候选生成；不签发语义准入凭证。"""

@@ -1,7 +1,7 @@
-"""One paid create per source, resume opaque task IDs.
+"""每个 source 一次付费 create，恢复不透明的 task ID。
 
-The run directory holds batch.json: model, jobs, canary_ids, create_interval_seconds, upload_interval_seconds, optional
-upload_host, and clock {transport_fps, canonical_fps, max_transport_frames}.
+run directory 中保存 batch.json：model、jobs、canary_ids、create_interval_seconds、upload_interval_seconds、
+可选的 upload_host，以及 clock {transport_fps, canonical_fps, max_transport_frames}。
 """
 import argparse
 import concurrent.futures as cf
@@ -21,7 +21,7 @@ from datafarm.render.seedance.references import contract as input_contract
 
 
 def verify_resumed_contract(saved, expected):
-    """Reuse an existing task ID only with its original recipe and verified policy."""
+    """仅在原始 recipe 与已验证 policy 一致时才复用已有 task ID。"""
     base = {key: value for key, value in saved.items() if key != 'render_policy'}
     if base != expected:
         raise RuntimeError('submitted recipe changed')
@@ -55,8 +55,8 @@ def run_one(run, job, config):
         return d
     write(folder / 'input-contract.json', contract)
     if not task.exists():
-        # Check prompt and real images against the render contract before the carrier is
-        # published: a refused job must not have uploaded real-scene media anywhere.
+        # 在 carrier 发布之前，按 render contract 检查 prompt 和真实图像：
+        # 被拒绝的 job 绝不能已经把真实场景媒体上传到任何地方。
         policy_path = Path(contract['render_contract']) if contract.get('render_contract') else submission_contract_path()
         check_seedance_payload(client.payload(config['model'], job, 'pending-upload'), policy_path)
         url = client.upload(row['carrier']['path'], run, folder, config['upload_interval_seconds'],
@@ -126,7 +126,7 @@ def main():
                 job = active.pop(future)
                 try:
                     result = future.result(); done.append({'id': job['id'], 'task_id': result['task_id']})
-                except Exception as error:  # noqa: BLE001 - persist any worker failure and continue the fixed batch
+                except Exception as error:  # noqa: BLE001 - 持久化任何 worker 失败并继续固定批次
                     failure = {'id': job['id'], 'type': type(error).__name__, 'reason': str(error), 'at': now()}
                     write(run / 'episodes' / job['id'] / 'failure.json', failure); failures.append(failure)
             tasks = []

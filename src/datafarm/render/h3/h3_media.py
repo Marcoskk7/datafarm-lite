@@ -1,4 +1,4 @@
-"""Media helpers shared by the H3 render tools: hashes, ffprobe, frame reads, hard-link-or-copy."""
+"""H3 渲染工具共用的媒体辅助函数：哈希、ffprobe、帧读取、硬链接或复制。"""
 from __future__ import annotations
 
 import json
@@ -37,7 +37,7 @@ def nframes(path) -> int:
 
 def read_frames(path, lo: int = 0, hi: int | None = None, step: int = 1, only: Iterable[int] | None = None,
                 transform: Callable | None = None) -> dict:
-    """Decoded BGR frames by index: every `step`-th frame of [lo, hi), or exactly the frames in `only`."""
+    """按索引返回解码后的 BGR 帧：取 [lo, hi) 中每隔 `step` 帧的帧，或恰好取 `only` 列出的帧。"""
     import cv2
     cap = cv2.VideoCapture(str(path))
     want = set(only) if only is not None else None
@@ -57,13 +57,13 @@ def read_frames(path, lo: int = 0, hi: int | None = None, step: int = 1, only: I
 
 
 def read_all(path):
-    """All frames of a video as one array (frames, h, w, 3)."""
+    """将视频所有帧作为一个数组返回（frames, h, w, 3）。"""
     import numpy as np
     return np.stack(list(read_frames(path).values()))
 
 
 def link_or_copy(source, target) -> None:
-    """Hard link `target` to `source` (a copy across filesystems); an existing target is left in place."""
+    """将 `target` 硬链接到 `source`（跨文件系统时复制）；已存在的 target 保持不动。"""
     target = Path(target)
     try:
         os.link(source, target)

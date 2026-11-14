@@ -1,4 +1,4 @@
-"""Explicit cohort scope shared by dataset audit and materialization."""
+"""数据集审计与物化共用的显式 cohort 范围。"""
 from datafarm.common import read_json, sha256_file
 
 

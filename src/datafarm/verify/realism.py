@@ -1,29 +1,29 @@
-"""Realism: is the rendered appearance close to the real workcell?
+"""Realism：渲染出的外观是否接近真实 workcell？
 
-The authority is real footage of the same embodiment/workcell (Grounding IR),
-never the appearance reference picture or the prompt.  For each panel the frame
-is split into regions — one per entity plus the background — and simple,
-interpretable statistics are compared with the same region in real frames:
+权威是同一 embodiment/workcell 的真实影像（Grounding IR），
+绝不是外观参考图片或 prompt。对每个 panel，把帧
+划分为若干区域——每个实体一个，加上背景——并将简单、
+可解释的统计量与真实帧中的同一区域比较：
 
-* ``color``      mean CIELAB colour (lighting dependent)
-* ``contrast``   CIELAB lightness spread (lighting dependent)
-* ``chroma``     region colour relative to the frame's mean colour (grey-world
-                 normalised, so a global colour cast cancels)
-* ``texture``    histogram of gradient magnitude
-* ``sharpness``  log Laplacian variance (blur / over-smoothing)
-* ``noise``      log high-frequency residual (sensor grain vs plastic look)
+* ``color``      CIELAB 平均颜色（依赖光照）
+* ``contrast``   CIELAB 亮度扩散（依赖光照）
+* ``chroma``     区域颜色相对于帧平均颜色（grey-world
+                 归一化，因此全局色偏会抵消）
+* ``texture``    梯度幅值直方图
+* ``sharpness``  log Laplacian 方差（模糊/过度平滑）
+* ``noise``      log 高频残差（传感器颗粒 vs 塑料感）
 
-Each distance is divided by a fixed tolerance, so a score of 1 is roughly one
-just-noticeable difference.  A region passes when every active feature is within
-``realism_feature_score_max`` tolerances of the real distribution.
+每个距离都除以固定容差，因此分数 1 大致相当于一个
+刚好可察觉的差异。当每个活跃特征都在
+``realism_feature_score_max`` 个真实分布容差之内时，区域通过。
 
-sim2real cohorts use every feature on every region.  OOD cohorts keep invariant
-entities (robot, task objects) bound to reality but drop what the declared axes
-perturb: lighting drops ``color``/``contrast`` (``chroma`` remains, so the robot
-must still look like itself under the new light); background/table axes drop the
-background region.  No rule prefers soft or hard light: if the real room has hard
-shadows the render should too, and OOD lighting is free as long as invariant
-entities survive it.
+sim2real cohort 对每个区域使用每个特征。OOD cohort 保留不变
+实体（机器人、task 物体）与现实的绑定，但丢弃所声明轴
+所扰动的内容：lighting 丢弃 ``color``/``contrast``（``chroma`` 保留，因此机器人
+在新光照下仍须看起来像它自己）；background/table 轴丢弃
+背景区域。没有任何规则偏好软光或硬光：如果真实房间有硬
+阴影，渲染也应有；只要不变实体能存活，OOD lighting
+就是自由的。
 """
 
 from __future__ import annotations
@@ -75,10 +75,10 @@ def _distance(feature: str, a: np.ndarray, b: np.ndarray) -> float:
 
 def _collect(frames: np.ndarray, masks: dict[str, np.ndarray], rows, cols, indices,
              min_frames: int = 3) -> dict[str, dict[str, np.ndarray]]:
-    """Median feature vector per region over the chosen frames.
+    """在所选帧上按区域计算中位特征向量。
 
-    A region seen in fewer than ``min_frames`` frames is not characterised: a
-    handful of close-ups is not a reliable picture of how the real object looks.
+    在少于 ``min_frames`` 帧中出现的区域不会被刻画：少量
+    特写不足以可靠地反映真实物体看起来的样子。
     """
 
     per_region: dict[str, dict[str, list[np.ndarray]]] = {}
@@ -99,8 +99,8 @@ def _region_masks(ctx: Context, which: str) -> dict[str, np.ndarray]:
     masks: dict[str, np.ndarray] = {}
     union = None
     for entity in ctx.spec.entities:
-        # Rendered regions come from the carrier (geometric authority); real
-        # regions come from the target appearance keys.
+        # 渲染区域来自 carrier（几何权威）；真实
+        # 区域来自目标外观 key。
         mask = ctx.mask("carrier" if which == "generated" else "real", entity)
         masks[entity.role] = mask
         union = mask if union is None else (union | mask)
@@ -167,7 +167,7 @@ def check_realism(ctx: Context) -> CheckResult:
     gen_idx = np.linspace(0, ctx.samples - 1, min(24, ctx.samples)).astype(int)
     generated = score_against_real(ctx, ctx.generated.frames, gen_masks, gen_idx, real_feats)
     carrier = score_against_real(ctx, ctx.carrier.frames, gen_masks, gen_idx, real_feats)
-    # Real-vs-real baseline: first half against second half of the real footage.
+    # Real-vs-real 基线：真实影像的前半段对比后半段。
     half = len(real_idx) // 2
     baseline = {}
     if half >= 3:
@@ -183,9 +183,9 @@ def check_realism(ctx: Context) -> CheckResult:
     for panel, regions in generated.items():
         for region, scores in regions.items():
             judged += 1
-            # The real footage varies by itself (a moving wrist camera sees
-            # different things over time); that natural spread is allowed on
-            # top of the fixed tolerance.
+            # 真实影像本身会变化（移动的腕部相机会随时间看到
+            # 不同的东西）；这种自然散布允许叠加在
+            # 固定容差之上。
             spread = baseline.get(panel, {}).get(region, {})
             allowed = {f: limit + 1.5 * float(spread.get(f, 0.0)) for f in scores}
             bad = {f: s for f, s in scores.items() if s > allowed[f]}

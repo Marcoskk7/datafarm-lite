@@ -1,4 +1,4 @@
-"""Verify exported source trees without requiring a developer's Git checkout."""
+"""在不依赖开发者 Git checkout 的情况下验证导出的源码树。"""
 from __future__ import annotations
 
 from datafarm.common import sha256_file

@@ -1,6 +1,6 @@
-"""Shared stdlib-only helpers: digests, canonical JSON, JSON reads, atomic writes, UTC timestamps, JSONL append.
+"""共享的仅依赖标准库的辅助函数：digests、canonical JSON、JSON 读取、原子写入、UTC 时间戳、JSONL 追加。
 
-Keep this module free of third-party and datafarm imports so any part of the package can use it.
+保持本模块不依赖第三方库与 datafarm 导入，以便包内任何部分都能使用它。
 """
 from __future__ import annotations
 
@@ -21,12 +21,12 @@ _SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 def is_sha256(value: Any) -> bool:
-    """True for a lowercase hexadecimal SHA-256 digest."""
+    """当值为小写十六进制 SHA-256 digest 时返回 True。"""
     return isinstance(value, str) and _SHA256.fullmatch(value) is not None
 
 
 def is_finite_number(value: Any) -> bool:
-    """True for an int or float that is finite; booleans are not numbers here."""
+    """当值为有限 int 或 float 时返回 True；此处布尔值不算数字。"""
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
@@ -47,7 +47,7 @@ def sha256_file(path: str | Path) -> str:
 
 
 def canonical_json_bytes(value: Any, *, allow_nan: bool = False) -> bytes:
-    """Sorted keys, compact separators, UTF-8; NaN and infinities are rejected unless allow_nan."""
+    """排序键、紧凑分隔符、UTF-8；除非 allow_nan，否则拒绝 NaN 与无穷大。"""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
                       allow_nan=allow_nan).encode("utf-8")
 
@@ -57,7 +57,7 @@ def sha256_json(value: Any, *, allow_nan: bool = False) -> str:
 
 
 def utc_now(timestamp: float | None = None, *, timespec: str = "seconds") -> str:
-    """ISO 8601 UTC with a Z suffix, for now or for a POSIX timestamp."""
+    """带 Z 后缀的 ISO 8601 UTC 时间，可用于当前时刻或 POSIX 时间戳。"""
     moment = dt.datetime.fromtimestamp(time.time() if timestamp is None else float(timestamp), tz=dt.timezone.utc)
     return moment.isoformat(timespec=timespec).replace("+00:00", "Z")
 
@@ -67,7 +67,7 @@ def read_json(path: str | Path) -> Any:
 
 
 def read_json_or_none(path: str | Path) -> Any:
-    """read_json for a file that may be absent or partly written; either case gives None."""
+    """用于可能不存在或只写入一部分的文件的 read_json；两种情况都返回 None。"""
     try:
         return read_json(path)
     except (OSError, ValueError):
@@ -89,9 +89,9 @@ def _fsync_directory(directory: Path) -> None:
 
 def atomic_write_bytes(path: str | Path, data: bytes, *, mode: int | None = None, fsync: bool = True,
                        fsync_dir: bool = False) -> None:
-    """Write through a temporary file in the same directory, then rename.
+    """先写入同目录下的临时文件，再重命名。
 
-    mode None keeps the temporary file's owner-only permissions.  fsync_dir also syncs the directory entry.
+    mode 为 None 时保留临时文件仅属主可用的权限。  fsync_dir 还会同步目录项。
     """
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -124,7 +124,7 @@ def atomic_write_json(path: str | Path, value: Any, *, indent: int = 2, sort_key
 
 def append_jsonl(path: str | Path, value: Mapping[str, Any], *, lock: bool = True, fsync: bool = True,
                  allow_nan: bool = False, default: Callable[[Any], Any] | None = None) -> None:
-    """Append one sorted-key record; lock takes an exclusive flock for the write."""
+    """追加一条按键排序的记录；lock 为真时在写入期间持有独占 flock。"""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=allow_nan, default=default) + "\n"

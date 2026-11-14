@@ -1,26 +1,21 @@
-"""Cohort training-admission certificates: issue and verify.
+"""Cohort 训练准入证书：签发与校验。
 
-A policy-training launch consumes one admitted *cohort*: a training bundle
-(dataset) built from an exact set of samples that passed the render/semantic
-verifiers. A bare digest of a semantic allowlist file would only prove that "a
-64-hex string was present", so this module makes admission a real artifact:
+一次 policy-training 启动会消耗一个已准入的 *cohort*：一个由通过 render/semantic 校验器的
+精确样本集合构建的训练 bundle（dataset）。仅对 semantic allowlist 文件做 digest 只能证明
+“存在一个 64 位十六进制字符串”，因此本模块让准入成为真正的 artifact：
 
-* the **certificate** is an ``admission-certificate`` IR document produced by a certificate
-  compiler. Its payload binds the admitted member ids (and per-member media
-  digests), the allowlist digest, the digests of the audit reports it relies
-  on, the training-bundle provenance digest, and an explicit waiver policy;
-* the raw bytes of every piece of evidence are stored in the content-addressed
-  ``ArtifactStore`` next to the certificate, so verification never depends on
-  mutable run directories;
-* an independent **admission root** (component id different from the
-  producer, authority ``admission-root``) re-derives the claim from the stored
-  evidence with a task-specific *auditor* and signs a gate receipt;
-* ``verify_certificate`` is what a launcher calls: it loads the certificate by
-  digest, requires a passing admission-root receipt, re-runs the root checks
-  against the stored evidence, and checks the binding to the launch at hand.
+* **certificate** 是由证书编译器生成的 ``admission-certificate`` IR 文档。其 payload 绑定
+  已准入的 member ids（以及每个 member 的 media digest）、allowlist digest、所依赖的审计报告
+  digest、training bundle 的 provenance digest，以及显式的 waiver 策略；
+* 每项证据的原始字节都存放在与证书相邻的、按内容寻址的 ``ArtifactStore`` 中，因此校验永远
+  不依赖可变的 run 目录；
+* 独立的 **admission root**（component id 与 producer 不同，authority 为 ``admission-root``）
+  使用任务特定的 *auditor* 从存储的证据中重新推导该声明，并签发 gate receipt；
+* ``verify_certificate`` 是 launcher 调用的入口：它按 digest 加载证书，要求存在通过的
+  admission-root receipt，针对存储的证据重新运行 root 检查，并校验与当前启动的绑定关系。
 
-The module is stdlib-only and task-agnostic; evidence formats are interpreted
-by auditors supplied by adapters (for PI0.5: ``datafarm.training.cohort_auditors``).
+本模块仅依赖标准库且与具体任务无关；证据格式由 adapter 提供的 auditor 解释
+（对于 PI0.5：``datafarm.training.cohort_auditors``）。
 """
 
 from __future__ import annotations
@@ -61,7 +56,7 @@ _ID_UNSAFE = re.compile(r"[^a-z0-9._:-]+")
 
 
 class AdmissionError(ValueError):
-    """A certificate is missing, malformed, unsigned, or not bound to the launch."""
+    """证书缺失、格式错误、未签名或未绑定到本次启动。"""
 
     def __init__(self, message: str, failures: Sequence[str] = ()):
         self.failures = tuple(failures)
@@ -69,7 +64,7 @@ class AdmissionError(ValueError):
         super().__init__(f"{message}{detail}")
 
 
-# --------------------------------------------------------------------- claim
+# --------------------------------------------------------------------- 声明
 
 
 @dataclass(frozen=True)
@@ -101,7 +96,7 @@ class GrantedWaiver:
 
 @dataclass(frozen=True)
 class CohortAdmissionClaim:
-    """What a certificate compiler asserts about one training bundle."""
+    """证书编译器对某个 training bundle 所断言的声明。"""
 
     auditor_id: str
     members: tuple[AdmittedMember, ...]
@@ -118,12 +113,12 @@ class CohortAdmissionClaim:
 
 
 class CohortEvidenceAuditor(Protocol):
-    """Task-specific re-derivation of a cohort claim from raw evidence bytes."""
+    """针对具体任务，从原始证据字节重新推导 cohort 声明。"""
 
     component_id: str
 
     def audit(self, payload: Mapping[str, Any], evidence: Mapping[str, bytes]) -> Mapping[str, bool]:
-        """Return named boolean checks; every check must hold to admit."""
+        """返回具名布尔检查；所有检查都必须成立才准入。"""
 
 
 def member_ids_digest(member_ids: Sequence[str]) -> str:
@@ -206,7 +201,7 @@ def compile_certificate(
 
 
 def evidence_roles(payload: Mapping[str, Any]) -> dict[str, ArtifactRef]:
-    """Map every evidence role named in a certificate payload to its ref."""
+    """把证书 payload 中命名的每个 evidence role 映射到其 ref。"""
 
     roles: dict[str, ArtifactRef] = {}
 
@@ -228,11 +223,10 @@ def evidence_roles(payload: Mapping[str, Any]) -> dict[str, ArtifactRef]:
 
 
 class TrainingAdmissionRoot:
-    """Independent admission-root verifier for cohort certificates.
+    """针对 cohort 证书的独立 admission-root 校验器。
 
-    It never trusts the producer's own ``checks``: it recomputes the member and
-    waiver digests, re-loads every piece of evidence by digest from the store,
-    and re-derives the claim with the auditor named in the payload.
+    它从不信任 producer 自己的 ``checks``：它会重新计算 member 与 waiver 的 digest，按 digest
+    从 store 重新加载每一项证据，并使用 payload 中指定的 auditor 重新推导该声明。
     """
 
     def __init__(
@@ -328,7 +322,7 @@ class TrainingAdmissionRoot:
         if auditor is not None and intact and structure_ok:
             try:
                 domain = dict(auditor.audit(payload, evidence_bytes))
-            except Exception:  # an auditor crash is a rejection, never a pass
+            except Exception:  # auditor 崩溃即为拒绝，绝不算通过
                 domain = {"auditor_completed": False}
             if not domain:
                 domain = {"auditor_completed": False}
@@ -357,7 +351,7 @@ class TrainingAdmissionRoot:
         )
 
 
-# -------------------------------------------------------------------- issue
+# -------------------------------------------------------------------- 签发
 
 
 @dataclass(frozen=True)
@@ -383,10 +377,9 @@ def issue_certificate(
     producer_id: str = CERTIFICATE_COMPILER_ID,
     root: TrainingAdmissionRoot | None = None,
 ) -> IssuedCertificate:
-    """Compile, store, and root-sign a cohort certificate.
+    """编译、存储并对 cohort 证书做 root 签名。
 
-    A rejected certificate is stored together with its rejecting receipt so the
-    attempt stays in the denominator; only a passing receipt admits.
+    被拒绝的证书会与其拒绝 receipt 一并存储，使该 attempt 仍计入分母；只有通过的 receipt 才准入。
     """
 
     provenance = claim.bundle.get(PROVENANCE_ROLE)
@@ -407,12 +400,12 @@ def issue_certificate(
     return IssuedCertificate(certificate, receipt_ref, receipt.verdict, dict(receipt.checks), receipt.reason)
 
 
-# ------------------------------------------------------------------- verify
+# ------------------------------------------------------------------- 校验
 
 
 @dataclass(frozen=True)
 class AdmissionExpectation:
-    """What the launch at hand requires the certificate to bind."""
+    """当前启动要求证书绑定哪些内容。"""
 
     provenance_sha256: str | None = None
     allowlist_sha256: str | None = None
@@ -486,7 +479,7 @@ def verify_certificate(
     expectation: AdmissionExpectation | None = None,
     trusted_roots: frozenset[str] = TRUSTED_ADMISSION_ROOTS,
 ) -> AdmissionVerification:
-    """Verify a stored certificate and its binding; raise ``AdmissionError``."""
+    """校验已存储的证书及其绑定关系；失败时抛出 ``AdmissionError``。"""
 
     document = load_certificate(store, certificate_sha256)
     reference = ArtifactRef(kind=IRKind.ADMISSION.value, sha256=certificate_sha256)
@@ -576,14 +569,13 @@ def verify_certificate(
     )
 
 
-# ------------------------------------------------------------- file manifest
+# ------------------------------------------------------------- 文件 manifest
 
 
 def compute_file_manifest(root: str | Path) -> dict[str, Any]:
-    """Digest every regular file under a dataset root (relative names only).
+    """对 dataset root 下的每个普通文件计算 digest（仅使用相对路径名）。
 
-    The dataset directory must be immutable after certification: any added,
-    removed, or changed file changes this manifest and fails verification.
+    dataset 目录在认证之后必须不可变：任何新增、删除或修改的文件都会改变该 manifest 并导致校验失败。
     """
 
     base = Path(root)

@@ -1,7 +1,7 @@
-"""Small, dependency-free statistics used by reviewer calibration and sim/real analysis.
+"""评审者校准与 sim/real 分析使用的轻量、无依赖统计函数。
 
-Every function returns ``None`` instead of a number when the statistic is undefined
-(e.g. zero variance), so callers cannot mistake "undefined" for "zero agreement".
+当统计量无定义时（例如零方差），每个函数返回 ``None`` 而不是一个数值，
+这样调用方就不会把“无定义”误当成“零一致度”。
 """
 
 from __future__ import annotations
@@ -30,10 +30,10 @@ def pearson(xs: Sequence[float], ys: Sequence[float]) -> float | None:
 
 
 def cohen_kappa(pairs: Sequence[tuple[Hashable, Hashable]]) -> float | None:
-    """Cohen's kappa for two raters over the categories they used.
+    """两个评分者在实际使用类别上的 Cohen's kappa。
 
-    ``None`` when there are no pairs or the expected agreement is 1 (both raters used a
-    single identical category), where kappa is undefined.
+    没有配对，或期望一致率为 1（两个评分者都只使用唯一一个相同类别）时返回 ``None``，
+    因为此时 kappa 无定义。
     """
 
     n = len(pairs)
@@ -54,7 +54,7 @@ def cohen_kappa(pairs: Sequence[tuple[Hashable, Hashable]]) -> float | None:
 def wilson_interval(
     successes: int, total: int, confidence: float = 0.95
 ) -> tuple[float, float] | None:
-    """Wilson score interval for a binomial proportion (``None`` when ``total`` is 0)."""
+    """二项比例的 Wilson 得分区间（``total`` 为 0 时返回 ``None``）。"""
 
     if total <= 0:
         return None
@@ -69,7 +69,7 @@ def wilson_interval(
 
 
 def _normal_quantile(probability: float) -> float:
-    """Inverse standard normal CDF (Acklam's rational approximation, |error| < 1.2e-9)."""
+    """逆标准正态 CDF（Acklam 有理逼近，|误差| < 1.2e-9）。"""
 
     if not 0 < probability < 1:
         raise ValueError("probability must be in (0, 1)")
@@ -97,7 +97,7 @@ def _normal_quantile(probability: float) -> float:
 
 
 def quantile(sorted_values: Sequence[float], fraction: float) -> float | None:
-    """Linear-interpolation quantile of already sorted values."""
+    """对已排序值做线性插值分位数。"""
 
     if not sorted_values:
         return None

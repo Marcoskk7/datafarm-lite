@@ -1,13 +1,11 @@
-"""Harness-only holdout evaluation and the score-vs-cost curve.
+"""仅由 harness 执行的 holdout 评估以及 score-vs-cost 曲线。
 
-Only the harness knows the holdout seeds (``harness/holdout-seeds.json``, masked in every
-sandbox) and only the harness runs them, after the round has ended: the final expert and
-each submission are executed fresh on every holdout seed with the same job template and
-isolation as development rollouts, judged by the same verifier, and summarised per seed
-family. Infrastructure failures are retried; an invalid initial state is replaced by a
-spare seed of the same family (otherwise invalid starts shrink the holdout and change the
-family mix). Results stay in ``harness/``; agents only ever see aggregate
-summaries through a later round's handoff bundle.
+只有 harness 知道 holdout seeds（``harness/holdout-seeds.json``，在每个 sandbox 中都被屏蔽），
+也只有 harness 会在轮次结束后运行它们：最终 expert 与每次提交都会在每个 holdout seed 上，
+以与 development rollout 相同的 job 模板和隔离方式全新执行，由同一个 verifier 判定，并按 seed
+family 汇总。infra 失败会重试；无效的初始状态由同 family 的 spare seed 替换（否则无效开局会
+缩小 holdout 并改变 family 构成）。结果保留在 ``harness/`` 中；agent 只能通过后续轮次的
+handoff bundle 看到聚合摘要。
 """
 
 from __future__ import annotations
@@ -28,7 +26,7 @@ RESULTS_SCHEMA = "datafarm.expert-harness.holdout-results/1"
 
 
 def holdout_masks(paths: RoundPaths) -> list[str]:
-    """Round-private items hidden from holdout rollouts (their run dirs live in harness/)."""
+    """对 holdout rollout 隐藏的轮次私有项（其 run 目录位于 harness/）。"""
 
     h = paths.harness
     return [str(p) for p in (paths.holdout_seeds, paths.manifests, paths.sessions, paths.state,
@@ -202,7 +200,7 @@ def evaluate_holdout(paths: RoundPaths, adapter: TaskAdapter, backend: RolloutBa
     atomic_write_json(paths.holdout_results, result, mode=0o600)
     events.emit("holdout_finished", private=True, final_pass_rate=(result["final"] or {}).get("pass_rate"),
                 rollouts=len(jobs))
-    events.emit("holdout_evaluated", targets=len(chosen))  # public: no scores
+    events.emit("holdout_evaluated", targets=len(chosen))  # 公开：不含分数
     return result
 
 
@@ -223,11 +221,11 @@ def _failure_labels(outcome: dict[str, Any], adapter: TaskAdapter) -> list[str]:
 
 
 def score_cost_curve(state: RoundState, per_sha: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
-    """Submissions in order with the cost/time spent up to them and their holdout score.
+    """按顺序列出各次提交，以及截至它们所花费的成本/时间与其 holdout 分数。
 
-    Session cost is known when a session ends, so ``cost_usd_through_session`` is the cost
-    of every session up to and including the one that made the submission (an upper
-    bound); ``cost_usd_before_session`` is the lower bound."""
+    session 的成本在 session 结束时才可知，因此 ``cost_usd_through_session`` 是截至并包含产生该
+    提交的那个 session 为止的所有 session 成本（上界）；``cost_usd_before_session`` 是下界。
+    """
 
     sessions = state.data["sessions"]
     curve = []
@@ -251,10 +249,9 @@ def score_cost_curve(state: RoundState, per_sha: dict[str, dict[str, Any]]) -> l
 def draw_holdout_seeds(adapter: TaskAdapter, *, per_family: int, spares: int = 1, range_start: int = 100_000,
                        range_size: int = 1_000_000, count: int | None = None, batch: int = 200,
                        run: Callable[..., Any] | None = None, rng: Any = None) -> list[HoldoutSeed]:
-    """Draw fresh holdout seeds from a secret offset in a large range, balanced across the
-    generator's families (the family of a seed is computed by the adapter's
-    ``seeds.family_command``, which prints ``<seed> <family>`` lines). The agent can compute
-    families of any seed it knows, so what must stay secret is *which* seeds are used."""
+    """在一个大范围里从秘密偏移处抽取全新的 holdout seeds，并在生成器的各 family 之间保持均衡
+    （seed 的 family 由 adapter 的 ``seeds.family_command`` 计算，该命令输出 ``<seed> <family>``
+    行）。agent 能为任何它已知的 seed 计算出 family，因此必须保密的是*使用了哪些* seed。"""
 
     import secrets
     import subprocess

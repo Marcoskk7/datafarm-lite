@@ -1,72 +1,36 @@
 ---
 name: build-observed-object
-description: Build a new observed rigid or articulated object with the optional external tool USDCraft, export source-bound URDF/USD assets, and qualify them for the current simulator. Use during scene grounding when a suitable object asset is missing; deformable objects need a different backend.
+description: 使用可选外部工具 USDCraft 构建新的被观测刚性或铰接物体，导出与来源绑定的 URDF/USD 资产，并为其在当前模拟器中进行资格验证。在缺少合适物体资产时用于场景 grounding；可变形物体需要不同的后端。
 ---
 
-# Build an observed object
+# 构建被观测物体
 
-Use this during `sim-grounding` when missing object geometry or articulation prevents task
-execution. Reuse a suitable source-verified asset when available. USDCraft is an optional external
-tool for asset authoring, not the robot controller or a replacement for task verification. Load its SDK
-references only when debugging the generated model. Upstream agent instructions describe that
-framework's authoring context; they do not override the current task's authority or acceptance.
+在缺失的物体几何或铰接结构阻碍任务执行时，于 `sim-grounding` 期间使用。有合适且经来源验证的资产时优先复用。USDCraft 是用于资产创作的可选外部工具，不是机器人控制器，也不能替代任务验证。仅在调试生成的模型时才加载其 SDK 参考文档。上游 agent 指令描述的是该框架的创作上下文，不覆盖当前任务的权限或验收。
 
-## Observe and choose the input route
+## 观察并选择输入路线
 
-Open the real full-scene and object detail images, including different observed joint poses.
-Save object identity, frame/view/time provenance, task-relevant affordances, visible parts,
-joint type/axis/range, scale anchors and uncertainties in `task/objects/<id>/observation.json`.
-Separate measured dimensions from inferred parameters. Do not invent invisible articulation
-or declare category priors to be measurements. Include container cavities, handles and contact
-surfaces that matter to the task; a visually similar solid box is not a usable open container.
+打开真实的完整场景图和物体细节图，包括不同的观测到的关节姿态。将物体身份、帧/视图/时间来源、任务相关可供性、可见部件、关节类型/轴/范围、尺度锚点和不确定性保存到 `task/objects/<id>/observation.json`。将实测尺寸与推断参数分开。不要虚构不可见的铰接结构，也不要把类别先验宣告为测量值。包含对任务重要的容器腔体、把手和接触面；一个外观相似的实心盒子不是可用的开口容器。
 
-- Image + description only: **Generation** (`generation-codex`). It infers geometry; it does
-  not establish a measured reconstruction or exact physical parameters.
-- Corresponding source mesh + photo: **Reconstruction** (`reconstruction-codex`). Declare
-  units and axes when supported by evidence, retain mesh dependencies, and do not substitute
-  an unrelated generated mesh as measured ground truth.
-- Soft or deforming objects: route to the simulator's deformable model, not a forced joint tree.
+- 仅图像 + 描述：**生成**（`generation-codex`）。它推断几何，不建立实测重建或精确物理参数。
+- 对应源网格 + 照片：**重建**（`reconstruction-codex`）。在有证据支持时声明单位和轴，保留网格依赖，不要用无关的生成网格充当作实测真值。
+- 柔软或可变形物体：交由模拟器的可变形模型处理，不要强行构建关节树。
 
-The upstream CLI consumes one image. Choose a clear real frame of the same instance; summarize
-other views in the description and retain their evidence paths. Context files are hashed by the
-bridge but are **not automatically passed as images to USDCraft**. Confirm multiview fit later.
+上游 CLI 只消费一张图像。选择同一实例的一张清晰的真实帧；在描述中概括其他视图并保留其证据路径。上下文文件会被 bridge 计算哈希，但**不会自动作为图像传给 USDCraft**。稍后确认多视图拟合。
 
-## Execute and retain the result
+## 执行并保留结果
 
-Read [USDCraft integration](../../../docs/reference/usdcraft.md) for the config and observation
-schema, setup and exact commands. Model/reasoning, checkout, launcher and optional timeout are
-configuration; do not bake this deployment's paths or credentials into generated tools.
+阅读 [USDCraft 集成](../../../docs/reference/usdcraft.md) 了解配置与观测 schema、安装和确切命令。模型/推理、检出、launcher 和可选超时属于配置；不要把本次部署的路径或凭据固化到生成的工具中。
 
-1. `build_usd_asset.py plan` validates paths, binds input hashes and prepares argv without
-   calling a model. An authorized build uses the upstream native Codex `--direct` route;
-   existing task authorization covers routine asset generation, not new external service use.
-2. Run the plan through the pipeline run ledger/supervisor, using `build_usd_asset.py run --work BUILD --task-work TASK`. Native USDCraft is refused for enforced budgets; advisory/disabled retain unknown descendant cost in the same task ledger.
-   Store the run/worker ID and progress path in the task's external jobs. Wait in program code,
-   not repeated model polling. The task-bound bridge creates an external_jobs ID/status_file; the existing supervisor refreshes it. When only waiting, set model_wait_for to that exact ID. No photorealistic video service is used; local asset inspection
-   renders are part of geometry authoring, even when downstream video rendering is disabled.
-3. Retain stdout/stderr, upstream run/record IDs and failed workspaces. Never resubmit an
-   existing `running`, interrupted or failed build automatically: inspect the existing upstream
-   workspace and worker first. A changed hypothesis gets a new versioned plan, preserving cost.
-4. `asset.json` binds the canonical model and export dependencies, records joint names and
-   leaves qualification **unverified**. Keep exports in their existing dependency-complete
-   location. No generated source is copied into the pipeline's universal skills or registry.
-   Account for all upstream authors/observation calls; absent usage is unknown, never zero.
+1. `build_usd_asset.py plan` 校验路径、绑定输入哈希并准备 argv，不调用模型。经授权的构建使用上游原生 Codex `--direct` 路线；现有任务授权覆盖常规资产生成，但不覆盖新的外部服务使用。
+2. 通过 pipeline run ledger/supervisor 运行该 plan，使用 `build_usd_asset.py run --work BUILD --task-work TASK`。在强制预算下拒绝原生 USDCraft；advisory/disabled 模式在同一任务台账中保留未知的后代成本。
+   将 run/worker ID 和进度路径存入任务的 external jobs。用程序代码等待，而不是反复轮询模型。任务绑定 bridge 会创建 external_jobs ID/status_file；现有 supervisor 会刷新它。仅等待时，将 model_wait_for 设为该确切 ID。不使用照片级真实视频服务；本地资产检查渲染属于几何创作的一部分，即使下游视频渲染已禁用。
+3. 保留 stdout/stderr、上游 run/record ID 和失败的 workspace。绝不要自动重新提交已处于 `running`、被中断或失败的构建：先检查现有上游 workspace 和 worker。改变假设后应产生新的带版本 plan，并保留成本。
+4. `asset.json` 绑定 canonical 模型和导出依赖，记录关节名称，并将资格状态留为**未验证**。将导出保留在其现有的依赖完整位置。生成的源代码不得复制进 pipeline 的通用 skills 或 registry。统计所有上游作者/观测调用；缺失的使用量是未知，绝不为零。
 
-## Qualify in the target simulator
+## 在目标模拟器中完成资格验证
 
-Use exported URDF for a compatible URDF loader (such as the SAPIEN loader); use a USD
-variant only with the appropriate simulator/backend. PhysX/Newton fields are not automatically
-portable. Record import options, version, mass/inertia/friction, drive defaults, fixed/floating
-base, link and joint maps, axes, units and collision simplifications. Upstream compilation is not
-proof of a successful simulator import.
+对兼容的 URDF 加载器（如 SAPIEN 加载器）使用导出的 URDF；仅在与合适的模拟器/后端搭配时使用 USD 变体。PhysX/Newton 字段不能自动移植。记录导入选项、版本、质量/惯性/摩擦、驱动默认值、固定/浮动基座、连杆与关节映射、轴、单位以及碰撞简化。上游编译不是模拟器成功导入的证明。
 
-Inspect real-versus-sim views at the observed poses. Sweep relevant joint ranges to check limits,
-axes, collisions, gaps and handles; test free settling, support and representative manipulation
-contacts. Save actual state/contacts and images. For articulation, check the actuator/passive
-behavior needed by the task rather than only moving a viewer slider. Fit uncertainty is allowed
-when explicit and tested. Revise the asset on a demonstrated mismatch; preserve failed versions.
+在观测到的姿态下检查真实与仿真的视图对比。扫掠相关关节范围以检查限位、轴、碰撞、间隙和把手；测试自由沉降、支撑和代表性操作接触。保存实际状态/接触和图像。对于铰接结构，检查任务需要的执行器/被动行为，而不仅仅是拖动查看器滑块。在明确且经过测试的前提下允许拟合不确定性。在演示出不匹配时修订资产；保留失败的版本。
 
-Only attach the asset to the task scene after the normal independent grounding/task review
-accepts these source-bound probes. USDCraft's own mechanical checks are upstream evidence, not a
-DataFarm success certificate. Keep simulation qualification separate from asset export and final
-white-episode admission. Recollect matched states/images if geometry or articulation changes.
+只有在常规的独立 grounding/任务评审接受这些来源绑定探测之后，才将资产挂接到任务场景。USDCraft 自身的机械检查是上游证据，不是 DataFarm 的成功证书。将模拟资格验证与资产导出以及最终的 white-episode 准入分开。如果几何或铰接结构发生变化，重新采集匹配的状态/图像。

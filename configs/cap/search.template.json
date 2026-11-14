@@ -1,0 +1,9 @@
+{
+  "debug_seeds": [0, 1],
+  "validation_seeds": [10, 11],
+  "verification_seeds": [30],
+  "max_generations": 2,
+  "population": 2,
+  "max_inspections": 2,
+  "max_model_calls": 12
+}

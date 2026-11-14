@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Production render gate: two complete-episode prefixes, then a fixed canary, then the rest of the batch.
+"""生产渲染 gate：先两个完整 episode 作为前缀，再固定 canary，然后批量其余部分。
 
   python h3_gate.py init --gate <name> --recipe <render recipe name> --task <task> \
       --prefix <ep> <ep> --canary <ep> x8.. [--rest <ep> ...] [--run-dir <run>]
   python h3_gate.py record --gate <name> --episode <ep> (--package <final package dir> | --failed "<reason>")
-  python h3_gate.py status --gate <name>            # JSON: stage, per-episode verdicts, allowed episodes
-  h3_enqueue.py --gate <name> ...                   # refuses episodes the gate has not released
+  python h3_gate.py status --gate <name>            # JSON：stage、逐 episode 结论、允许的 episode
+  h3_enqueue.py --gate <name> ...                   # 拒绝 gate 尚未放行的 episode
 
-<run>/gates/<name>.json fixes the recipe, the task and the episode lists when it is created; `init` never overwrites
-it.  A changed prompt, reference, recipe or verifier needs a new gate: the old canary no longer applies.
-Verdicts come only from the independent blind review: <run>/reviews/.mapping.json maps the recorded final package to
-its review id, and reviews/<rid>/review/review.json (h3.review/1) holds the verdict.  A package without a finished
-review is pending.  A recorded render failure counts as not accepted and is kept; it is never replaced.
+<run>/gates/<name>.json 在创建时固定 recipe、task 与 episode 列表；`init` 绝不覆盖
+它。prompt、参考、recipe 或 verifier 发生变化就需要新的 gate：旧的 canary 不再适用。
+结论只来自独立的盲审：<run>/reviews/.mapping.json 将记录的最终 package 映射到
+其 review id，reviews/<rid>/review/review.json（h3.review/1）保存结论。没有完成
+review 的 package 处于 pending。已记录的渲染失败计为未通过并保留；绝不替换。
 
-Stages (docs/reference/rendering.md):
-  prefix   only the prefix episodes may render; every prefix must be accepted.
-  canary   prefix and canary episodes may render; at least 75% of the canary must be accepted and no blocking `kind`
-           may occur in half or more of the canary episodes.
-  open     every episode may render.
-  stopped  a rule can no longer be met; nothing new renders.  Repair at the earliest owner and start a new gate.
+阶段（docs/reference/rendering.md）：
+  prefix   只有前缀 episode 可以渲染；每个前缀都必须通过。
+  canary   前缀和 canary episode 可以渲染；至少 75% 的 canary 必须通过，且没有任何阻塞性 `kind`
+           出现在半数或以上的 canary episode 中。
+  open     每个 episode 都可以渲染。
+  stopped  某条规则已无法满足；不再渲染任何新内容。在最早的归属处修复并启动新 gate。
 """
 from __future__ import annotations
 
@@ -90,7 +90,7 @@ def record(run: Path, name: str, episode: str, package: Path | None, failed: str
 
 
 def review_of(run: Path, package: str) -> tuple[str | None, dict | None]:
-    """(review id, finished review) of a final package; (None, None) before h3_review_prep.py has seen it."""
+    """某个最终 package 的 (review id, 完成的 review)；在 h3_review_prep.py 看到它之前为 (None, None)。"""
     mapping = run / "reviews" / ".mapping.json"
     rids = [rid for rid, v in (json.loads(mapping.read_text()) if mapping.is_file() else {}).items()
             if v.get("subject") == package]
@@ -151,7 +151,7 @@ def status(run: Path, name: str) -> dict:
 
 
 def check_enqueue(run: Path, name: str, recipe: str, task: str, episodes: list) -> None:
-    """Exit unless the gate covers this recipe and task and has released every episode."""
+    """除非 gate 覆盖该 recipe 和 task 并已放行每个 episode，否则退出。"""
     st = status(run, name)
     if (st["recipe"], st["task"]) != (recipe, task):
         raise SystemExit(f"gate {name} is for recipe {st['recipe']} / task {st['task']}, not {recipe} / {task}")

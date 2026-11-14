@@ -1,4 +1,4 @@
-"""Freeze evaluator assets, run paired evaluations, retain failed attempts."""
+"""冻结评测资产、运行成对评测、保留失败的尝试。"""
 from __future__ import annotations
 
 import math
@@ -32,7 +32,7 @@ def run(argv, *, cwd, directory, timeout, payload='', env=None):
         except subprocess.TimeoutExpired:
             result['status'] = 'timeout'
         finally:
-            # Kill descendants even if the top-level driver returned successfully.
+            # 即使顶层 driver 已成功返回，也要杀掉所有后代进程。
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
@@ -161,11 +161,11 @@ def evaluate(store, source, policy_id, directory, deadline, *, lesson_ids=()):
 
 
 def metric_rule(spec):
-    """'max'/'min', or a noise-aware rule {direction, tolerance, relative, min_improvement, decisive}.
+    """'max'/'min'，或噪声感知规则 {direction, tolerance, relative, min_improvement, decisive}。
 
-    tolerance: largest allowed regression (absolute, or a fraction of |baseline| when relative); default 0.
-    min_improvement: smallest gain that counts as an improvement; default any positive gain.
-    decisive: whether this metric alone can justify promotion; default True.
+    tolerance：允许的最大退化量（绝对值；relative 时为 |baseline| 的比例）；默认 0。
+    min_improvement：算作改进的最小增益；默认任意正增益。
+    decisive：该指标能否单独作为晋升依据；默认 True。
     """
     if spec in ('min', 'max'):
         return {'direction': spec, 'tolerance': 0.0, 'relative': False, 'min_improvement': 0.0, 'decisive': True}

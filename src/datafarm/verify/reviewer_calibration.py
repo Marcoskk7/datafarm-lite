@@ -1,25 +1,22 @@
-"""Calibrate a VLM reviewer against human labels and audit it against standing rules.
+"""用人工标签校准 VLM reviewer，并依据现行规则对其进行审计。
 
-A VLM reviewer ("does this generated video preserve geometry / entities / ...?") may
-only screen data after its agreement with humans has been measured. This module pairs
-per-sample, per-criterion VLM verdicts with human labels and reports, per criterion:
-confusion matrix, accuracy, Cohen's kappa, false-accept and false-reject rates (with
-Wilson 95% intervals) and abstentions. Separately, it flags VLM verdicts and reviewer
-prompts that contradict standing user rules (e.g. "hard shadows are not a defect").
+VLM reviewer（“这段生成的视频是否保持了几何 / 实体 / ...？”）只有在与人工判断的一致性经过测量之后，
+才能用于筛选数据。本模块把逐样本、逐 criterion 的 VLM 判定与人工标签配对，并按 criterion 报告：
+混淆矩阵、accuracy、Cohen's kappa、false-accept 与 false-reject 比率（含 Wilson 95% 区间）以及
+abstention。此外，它还会标记与现行用户规则相矛盾的 VLM 判定和 reviewer prompt（例如“硬阴影不算缺陷”）。
 
-Accepted VLM outputs (as written by the Seedance review scripts):
+接受的 VLM 输出（由 Seedance review 脚本写出）：
 
-- ``<run>/episodes/<id>/visual-review/assessment.json``: first-pass screening with
-  ``assessment.criteria.<name>.status`` in pass/fail/uncertain;
-- ``.../visual-review/focused-recheck/assessment.json``: a targeted second check that
-  overrides the named criteria, applied only when its ``original_assessment_sha256``
-  equals the SHA-256 of the first-pass file bytes;
-- ``<run>/review/visual-screen-summary.json``: already merged rows;
-- any JSON object (or list of objects) ``{"id": ..., "criteria": {name: {"status": ...}}}``.
+- ``<run>/episodes/<id>/visual-review/assessment.json``：首轮筛选，
+  ``assessment.criteria.<name>.status`` 取值为 pass/fail/uncertain；
+- ``.../visual-review/focused-recheck/assessment.json``：针对性的二次检查，会覆盖指定的 criteria，
+  仅当其 ``original_assessment_sha256`` 等于首轮文件字节的 SHA-256 时才应用；
+- ``<run>/review/visual-screen-summary.json``：已经合并好的行；
+- 任意 JSON 对象（或对象列表）``{"id": ..., "criteria": {name: {"status": ...}}}``。
 
-Class conventions: human labels and VLM verdicts are mapped to ``pass`` / ``fail`` /
-``abstain``. ``fail`` means "defect present". A *false accept* is a VLM ``pass`` on a
-human ``fail``; a *false reject* is a VLM ``fail`` on a human ``pass``.
+类别约定：人工标签与 VLM 判定都映射为 ``pass`` / ``fail`` / ``abstain``。``fail`` 表示“存在缺陷”。
+*false accept* 指 VLM 在人工 ``fail`` 上给出 ``pass``；*false reject* 指 VLM 在人工 ``pass`` 上给出
+``fail``。
 """
 
 from __future__ import annotations
@@ -59,7 +56,7 @@ DEFAULT_VLM_VOCABULARY: Mapping[str, Sequence[str]] = {
 }
 
 
-# --------------------------------------------------------------------------- vocabulary
+# --------------------------------------------------------------------------- 词表
 
 
 def _norm(label: Any) -> str:
@@ -84,7 +81,7 @@ class Vocabulary:
         return cls(table)
 
     def classify(self, label: Any) -> str | None:
-        """Class for ``label``; ``None`` for an empty label; ``ValueError`` if unknown."""
+        """返回 ``label`` 的类别；空标签返回 ``None``；未知标签抛出 ``ValueError``。"""
 
         if label is None or _norm(label) == "":
             return None
@@ -95,8 +92,8 @@ class Vocabulary:
 
 
 def derive_outcome(statuses: Mapping[str, str], vocabulary: Vocabulary) -> str:
-    """Same rule as the Seedance summary script: any fail -> flagged, else any
-    uncertain -> uncertain, else sampled_pass."""
+    """与 Seedance summary 脚本相同的规则：只要有 fail -> flagged，否则只要有 uncertain ->
+    uncertain，否则 sampled_pass。"""
 
     classes = {vocabulary.classify(value) for value in statuses.values()}
     if FAIL in classes:
@@ -106,7 +103,7 @@ def derive_outcome(statuses: Mapping[str, str], vocabulary: Vocabulary) -> str:
     return "sampled_pass"
 
 
-# --------------------------------------------------------------------------- VLM reviews
+# --------------------------------------------------------------------------- VLM 评审
 
 
 @dataclass
@@ -119,7 +116,7 @@ class VlmReview:
     stored_outcome: str | None = None
     prompts: list[tuple[str, str]] = field(default_factory=list)  # (origin, text)
     rechecked: list[str] = field(default_factory=list)
-    outcome: str | None = None  # derived
+    outcome: str | None = None  # 推导所得
 
 
 def _criteria_block(criteria: Any) -> tuple[dict[str, str], dict[str, str]]:
@@ -210,7 +207,7 @@ def _summary_reviews(data: Mapping[str, Any], origin: str) -> list[VlmReview]:
     reviews = []
     for row in data.get("rows", []):
         if not isinstance(row, Mapping) or not isinstance(row.get("criteria"), Mapping):
-            continue  # unreviewed rows carry no criteria
+            continue  # 未评审的行不带 criteria
         statuses, evidence = _criteria_block(row["criteria"])
         reviews.append(
             VlmReview(
@@ -309,7 +306,7 @@ def load_vlm_reviews(
     return reviews, problems
 
 
-# --------------------------------------------------------------------------- human labels
+# --------------------------------------------------------------------------- 人工标签
 
 _ID_COLUMNS = ("sample_id", "sample", "id")
 
@@ -344,7 +341,7 @@ def _rows_to_labels(rows: Iterable[Mapping[str, Any]]) -> dict[str, dict[str, st
 
 
 def read_human_label_file(path: str | Path) -> dict[str, dict[str, str]]:
-    """Raw labels ``{sample_id: {criterion: label}}`` from JSON or CSV."""
+    """从 JSON 或 CSV 读取原始标签 ``{sample_id: {criterion: label}}``。"""
 
     path = Path(path)
     text = path.read_text(encoding="utf-8-sig")
@@ -371,11 +368,10 @@ def read_human_label_file(path: str | Path) -> dict[str, dict[str, str]]:
 def apply_id_map(
     labels: Mapping[str, Mapping[str, str]], id_map: Any, template: str = "{sample}"
 ) -> dict[str, dict[str, str]]:
-    """Rename human sample ids, e.g. blind label ids to review sample ids.
+    """重命名人工样本 id，例如把盲测标签 id 改为评审样本 id。
 
-    ``id_map`` is ``{human_id: review_id}`` or a list of objects with ``label_id`` whose
-    fields fill ``template`` (e.g. a blind key ``[{"label_id": "L01", "sample": "043"}]``
-    with template ``"sample-{sample}"``).
+    ``id_map`` 是 ``{human_id: review_id}``，或是带 ``label_id`` 的对象列表，其字段用于填充
+    ``template``（例如盲测键 ``[{"label_id": "L01", "sample": "043"}]`` 配模板 ``"sample-{sample}"``）。
     """
 
     if isinstance(id_map, Mapping):
@@ -393,7 +389,7 @@ def apply_id_map(
     return renamed
 
 
-# --------------------------------------------------------------------------- mapping
+# --------------------------------------------------------------------------- 映射
 
 
 @dataclass(frozen=True)
@@ -438,9 +434,8 @@ class CalibrationMapping:
 def combine_vlm(
     review: VlmReview, criteria: Sequence[str], vocabulary: Vocabulary
 ) -> tuple[str | None, str | None]:
-    """Conservative combination: any fail -> fail; otherwise any abstain or missing
-    criterion -> abstain; all present and pass -> pass. ``(None, 'missing')`` if none of
-    the criteria is present."""
+    """保守合并：只要有 fail -> fail；否则只要有 abstain 或缺失的 criterion -> abstain；全部存在且
+    为 pass -> pass。若所有 criteria 都不存在则返回 ``(None, 'missing')``。"""
 
     classes: list[str] = []
     missing: list[str] = []
@@ -462,7 +457,7 @@ def combine_vlm(
     return PASS, None
 
 
-# --------------------------------------------------------------------------- metrics
+# --------------------------------------------------------------------------- 指标
 
 
 def _rate(numerator: int, denominator: int) -> float | None:
@@ -475,7 +470,7 @@ def _interval(numerator: int, denominator: int) -> list[float] | None:
 
 
 def agreement_metrics(pairs: Sequence[tuple[str, str]]) -> dict[str, Any]:
-    """Metrics for (human, vlm) class pairs; human in {pass, fail}, vlm adds abstain."""
+    """针对 (human, vlm) 类别对的指标；human 取 {pass, fail}，vlm 额外包含 abstain。"""
 
     for human, vlm in pairs:
         if human not in (PASS, FAIL) or vlm not in CLASSES:
@@ -600,7 +595,7 @@ def vlm_summary(reviews: Mapping[str, VlmReview], vocabulary: Vocabulary) -> dic
     }
 
 
-# --------------------------------------------------------------------------- standing rules
+# --------------------------------------------------------------------------- 现行规则
 
 
 @dataclass(frozen=True)
@@ -615,7 +610,7 @@ class StandingRule:
     exempt_criteria: frozenset[str]
 
     def matches(self, text: str) -> list[tuple[str, int, int]]:
-        """``(matched text, start, end)`` for every phrase/pattern hit (case-insensitive)."""
+        """返回每个 phrase/pattern 命中的 ``(matched text, start, end)``（不区分大小写）。"""
 
         found: list[tuple[str, int, int]] = []
         folded = text.casefold()
@@ -642,9 +637,9 @@ def load_standing_rules(path: str | Path) -> list[StandingRule]:
     seen: set[str] = set()
     audit_fields = ("forbidden_criteria", "forbidden_phrases", "forbidden_patterns")
     for raw in data:
-        # Unified registry (configs/standing-rules.json): review fields live in a nested
-        # ``review_audit`` block; rules without one (lint-only rules) are skipped. The
-        # older flat form keeps its fields at the top level.
+        # 统一注册表（configs/standing-rules.json）：review 字段位于嵌套的
+        # ``review_audit`` 块中；没有该块的规则（仅 lint 的规则）会被跳过。较早的
+        # 扁平形式则把其字段放在顶层。
         if isinstance(raw.get("review_audit"), Mapping):
             item = {**raw, **raw["review_audit"]}
         elif any(raw.get(field) for field in audit_fields):
@@ -696,11 +691,10 @@ def audit_standing_rules(
     extra_prompts: Sequence[tuple[str, str]] = (),
     max_details: int = 200,
 ) -> dict[str, Any]:
-    """Flag VLM ``fail`` verdicts and reviewer prompts that contradict standing rules.
+    """标记与现行规则相矛盾的 VLM ``fail`` 判定与 reviewer prompt。
 
-    Criterion-level hits (the criterion itself is forbidden) are definite conflicts;
-    evidence- and prompt-level hits are phrase matches, i.e. *candidates* for a human to
-    confirm.
+    criterion 级命中（该 criterion 本身被禁止）是确定的冲突；evidence 级与 prompt 级命中是短语匹配，
+    也就是供人工确认的*候选*。
     """
 
     conflicts: list[dict[str, Any]] = []

@@ -1,7 +1,7 @@
-"""Persistent reservations for the whole task, including failed/unknown sessions.
+"""整个任务的持久化预留额度，包含失败/未知的 session。
 
-The deployment driver must enforce its reservation across *all* descendant model
-calls. This ledger is a scheduler guard, not a provider billing firewall.
+部署驱动必须在 *所有* 派生 model 调用上强制执行其预留。此账本只是调度器守卫，
+不是 provider 的计费防火墙。
 """
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
@@ -91,7 +91,7 @@ class TaskBudget:
         if not identifier or (requested <= 0 and self.enforced):
             raise ValueError('reservation ID and positive amount required')
         with self.transaction() as data:
-            # Reusing an ID must not authorize a second invocation.
+            # 复用 ID 不得授权第二次调用。
             if identifier in data['reservations']:
                 raise ValueError('reservation ID already used')
             state = self._summary(data)
@@ -140,7 +140,7 @@ class TaskBudget:
 
 
 def budget_for_work(work):
-    """Budget of a work directory, or None when it has no cost policy; a budgeted input can never lose its policy."""
+    """工作目录的预算，若无成本策略则为 None；带预算的输入永远不会丢失其策略。"""
     work = Path(work)
     lock = json.loads((work / 'input.json').read_text()) if (work / 'input.json').exists() else {}
     expected = lock.get('cost_policy_sha256')

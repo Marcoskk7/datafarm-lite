@@ -101,23 +101,23 @@ class ArtifactDocument:
 
     @property
     def payload_sha256(self) -> str:
-        """Digest of the canonical payload alone.
+        """仅规范化 payload 本身的摘要。
 
-        The envelope digest (the content address) includes ``created_at`` and
-        ``artifact_id``, so two executions that produce the same payload get
-        different addresses. Producers and handlers use this digest for dedup;
-        it never replaces the content address.
+        封装层摘要（内容地址）包含 ``created_at`` 和
+        ``artifact_id``，因此两次产生相同 payload 的执行会得到
+        不同的地址。生产者和处理器用这个摘要做去重；
+        它绝不取代内容地址。
         """
 
-        from datafarm.core.schema import payload_sha256  # local import: schema imports model
+        from datafarm.core.schema import payload_sha256  # 局部导入：schema 导入 model
 
         return payload_sha256(self)
 
     @property
     def identity_sha256(self) -> str:
-        """Digest of the envelope without ``created_at`` (timestamp-free identity)."""
+        """不含 ``created_at`` 的封装层摘要（无时间戳身份）。"""
 
-        from datafarm.core.schema import identity_sha256  # local import: schema imports model
+        from datafarm.core.schema import identity_sha256  # 局部导入：schema 导入 model
 
         return identity_sha256(self)
 

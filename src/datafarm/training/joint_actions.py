@@ -1,10 +1,9 @@
-"""Piper joint-position training contract and trainer config registration.
+"""Piper 关节位置训练契约与 trainer 配置注册。
 
-Datasets keep absolute joint targets.  In ``delta_joint_current_v1`` the model
-sees each of the twelve arm joint targets relative to the current measured joint
-state and inference applies the exact inverse using the fresh request state.  In
-``absolute_joint_v1`` the model predicts the absolute joint targets directly, so
-its output does not depend on the request state.  Both grippers stay absolute.
+数据集保存绝对关节目标。在 ``delta_joint_current_v1`` 中，模型看到的
+十二个手臂关节目标都是相对于当前测得关节状态的值，推理时使用新的
+请求状态施加精确的逆变换。在 ``absolute_joint_v1`` 中，模型直接预测绝对
+关节目标，因此其输出不依赖请求状态。两个夹爪都保持绝对。
 """
 
 from __future__ import annotations
@@ -30,7 +29,7 @@ MODEL_REPRESENTATION = "delta_joint_current_absolute_gripper"
 ABSOLUTE_MODE = "absolute_joint_v1"
 ABSOLUTE_SUFFIX = "_absolute_joint_v1"
 ABSOLUTE_MODEL_REPRESENTATION = "absolute_joint_absolute_gripper"
-# mode -> (config suffix, model representation, relative to the current joint state)
+# mode -> (config 后缀, 模型表示, 是否相对于当前关节状态)
 MODES = {
     MODE: (SUFFIX, MODEL_REPRESENTATION, True),
     ABSOLUTE_MODE: (ABSOLUTE_SUFFIX, ABSOLUTE_MODEL_REPRESENTATION, False),
@@ -39,7 +38,7 @@ GRIPPER_RANGES = {"m": (0.0, 0.105), "normalized_0_1": (0.0, 1.0)}
 
 
 def convert(actions: np.ndarray, state: np.ndarray, *, inverse: bool = False) -> np.ndarray:
-    """Convert absolute joint chunks to/from current-state-relative joint chunks."""
+    """将绝对关节 chunk 转换为相对当前状态的关节 chunk（或反向转换）。"""
 
     actions = np.asarray(actions)
     state = np.asarray(state)
@@ -57,19 +56,19 @@ def convert(actions: np.ndarray, state: np.ndarray, *, inverse: bool = False) ->
 
 
 def convert_for_mode(actions: np.ndarray, state: np.ndarray, mode: str, *, inverse: bool = False) -> np.ndarray:
-    """Map dataset absolute joint chunks into the model space of ``mode`` (or back)."""
+    """将数据集绝对关节 chunk 映射到 ``mode`` 的模型空间（或反向映射）。"""
 
     if mode not in MODES:
         raise ValueError(f"unsupported joint action mode {mode!r}")
     if MODES[mode][2]:
         return convert(actions, state, inverse=inverse)
-    # Absolute targets: validate shapes exactly like the delta path, then pass through.
+    # 绝对目标：像 delta 路径一样精确校验形状，然后原样通过。
     convert(actions, state)
     return np.array(actions, dtype=np.float32, copy=True)
 
 
 def validate_contract(contract: Mapping[str, object], mode: str = MODE) -> dict[str, object]:
-    """Validate the explicit dataset/model unit contract used by the launcher."""
+    """校验 launcher 使用的显式 dataset/model 单位契约。"""
 
     fields_value = tuple(contract.get("fields") or ())
     units = tuple(contract.get("units") or ())
@@ -96,8 +95,8 @@ def validate_contract(contract: Mapping[str, object], mode: str = MODE) -> dict[
 
 
 READBACK_SOURCE = "simulator actual joint readback at next retained source frame"
-# Simulators whose export stores only the per-frame joint drive (PD) target, e.g. RoboTwin/SAPIEN white
-# renders (HDF5 joint_action); the dataset must then audit target-vs-actual tracking.
+# 导出只存储逐帧关节驱动（PD）目标的模拟器，例如 RoboTwin/SAPIEN white
+# 渲染（HDF5 joint_action）；此时数据集必须审计目标与实际的跟踪差距。
 DRIVE_TARGET_SOURCE = "simulator joint drive target at next retained source frame"
 JOINT_ACTION_SOURCES = (READBACK_SOURCE, DRIVE_TARGET_SOURCE)
 
@@ -105,7 +104,7 @@ JOINT_ACTION_SOURCES = (READBACK_SOURCE, DRIVE_TARGET_SOURCE)
 def validate_provenance_contract(
     training_contract: Mapping[str, object], dataset_contract: Mapping[str, object], mode: str = MODE
 ) -> dict[str, object]:
-    """Bind the launch declaration to the dataset's stored state/action semantics."""
+    """将 launch 声明绑定到数据集存储的 state/action 语义。"""
 
     validated = validate_contract(training_contract, mode)
     if tuple(dataset_contract.get("fields") or ()) != validated["fields"]:
@@ -133,7 +132,7 @@ def validate_provenance_contract(
 
 
 def action_groups() -> dict[str, slice]:
-    """Names used by the observable trainer's loss breakdown."""
+    """可观测 trainer 损失分解所用的名称。"""
 
     return {
         "left_joint_1_3": slice(0, 3),
@@ -148,7 +147,7 @@ def action_groups() -> dict[str, slice]:
 
 
 def install() -> None:
-    """Register joint configs (every mode) without modifying the read-only trainer checkout."""
+    """注册关节配置（所有 mode），而不修改只读的 trainer checkout。"""
 
     from openpi.training import config as cfg
 

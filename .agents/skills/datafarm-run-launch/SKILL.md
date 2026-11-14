@@ -1,18 +1,18 @@
 ---
 name: datafarm-run-launch
-description: Register, launch, independently persistence-check, recover and close a DataFarm pipeline run.
+description: 注册、启动、独立校验持续运行、恢复并关闭一次 DataFarm pipeline 运行。
 ---
 
 # datafarm-run-launch
 
-Read `prompts/instructions/operations.md` and `docs/reference/run-ledger.md`. Full runs and cohort stage-to-end requests must use `tools/datafarm_runs.py`; recovery uses parent/child lineage.
+阅读 `prompts/instructions/operations.md` 和 `docs/reference/run-ledger.md`。完整运行和 cohort 阶段到终点（stage-to-end）请求必须使用 `tools/datafarm_runs.py`；恢复使用父/子 lineage。
 
-1. Preserve valid user authorization for GPU use and paid providers. Do not seek repeated approval within scope. Resolve render mode and real references separately before submitting render work.
-2. Use a clean traceable commit without overwriting user changes; register request, authorization source, phase range, fixed IDs, task/cohort and artifacts.
-3. Launch through ledger sentinel. Check actual worker after launcher exit, including PID/PPID/session/log and GPU job/lease where applicable.
-4. In a new tool call after an appropriate interval, recheck worker plus observable progress. Split waits at 60 seconds to keep communication responsive. Only after both checks report persistent running with IDs and timestamps.
-5. Query failures are unknown, not permission to resubmit. Reuse existing task IDs/checkpoints, record interventions and bound retries. Sentinel heartbeat alone is insufficient.
-6. Apply joint-margin requirements before scaling newly collected/replanned trajectories; never clip action labels alone. Preserve existing task camera/qualification requirements.
-7. Finalize against evidence and report gaps explicitly; maintain attempts, rejections, replacements and costs.
+1. 保留用户对 GPU 使用和付费 provider 的有效授权。不要在有授权范围内反复请求批准。在提交渲染工作前，分别确定渲染模式和真实参考。
+2. 使用干净、可追溯的 commit，不覆盖用户改动；登记请求、授权来源、阶段范围、固定 ID、task/cohort 和产物。
+3. 通过 ledger sentinel 启动。在启动器退出后检查实际 worker，包括 PID/PPID/session/log，以及在适用时检查 GPU job/lease。
+4. 在适当间隔之后的新的工具调用中，重新检查 worker 以及可观测进度。将等待拆分到 60 秒，以保持通信响应。只有两次检查都报告带 ID 和时间戳的持续运行之后才继续。
+5. 查询失败属于未知状态，而不是重新提交的许可。复用已有 task ID/checkpoint，记录干预并限制重试次数。仅有 sentinel heartbeat 是不够的。
+6. 在扩展新采集/重新规划的轨迹前应用关节余量（joint-margin）要求；绝不要只单独裁剪动作标签。保留现有 task 的相机/资格（qualification）要求。
+7. 依据证据做最终确认，并明确报告缺口；维护尝试、拒绝、替换和成本记录。
 
-Deployment scope: GPU and paid-provider authorization comes from the current deployment and session. Obtaining the repository grants none, and permission already given is not asked for again.
+Deployment scope：GPU 和付费 provider 的授权来自当前 deployment 和会话。获得仓库本身不授予任何授权，已给予的许可不会再次索取。

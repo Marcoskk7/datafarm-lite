@@ -1,18 +1,17 @@
-"""End-to-end dry run with a scripted agent and a fake simulator (no GPU, no API).
+"""使用脚本化 agent 与 fake simulator 的端到端 dry run（不使用 GPU，不调用 API）。
 
-It exercises the real code paths of a round -- the template brief and lint,
-the agent sandbox, the ``xh`` broker, job scripts with the rollout sandbox, the judge
-outside the sandbox, tamper checks, holdout evaluation, handoff, the library and the
-agent-call ledger -- in a throw-away directory, then checks the evidence:
+它在一个临时目录中跑通一轮的真实代码路径——模板 brief 与 lint、agent sandbox、``xh`` broker、
+带 rollout sandbox 的 job script、sandbox 之外的 judge、tamper 检查、holdout 评估、handoff、
+library 以及 agent-call ledger——然后检查证据：
 
-* the agent could not read masked paths or write outside its workspace (OS level);
-* agent code in the rollout could not read the judge, the credential or the holdout seeds;
-* holdout-seed and symlink requests were rejected and recorded as violations;
-* every attempt has a launch and an end record; counted/infra classification is right;
-* sessions were resumed, and each has one ``datafarm.agent-call/1`` record with its cost;
-* tamper checks passed and a modified judge is detected;
-* holdout scored both submissions (the curve), nothing about it reached agent-visible files;
-* the handoff bundle renders a brief that lints, and the next round starts from it.
+* agent 无法读取被屏蔽的路径，也无法写出其 workspace 之外（OS 层面）；
+* rollout 中的 agent 代码无法读取 judge、凭据或 holdout seeds；
+* holdout seed 与 symlink 请求被拒绝并记为 violation；
+* 每一次 attempt 都有 launch 与 end 记录；counted/infra 分类正确；
+* session 被恢复，且每个 session 各有一条带成本的 ``datafarm.agent-call/1`` 记录；
+* tamper 检查通过，且被修改的 judge 能被检测到；
+* holdout 为两次提交都打了分（即 curve），其任何信息都没有进入 agent 可见文件；
+* handoff bundle 渲染出的 brief 能通过 lint，且下一轮从它开始。
 """
 
 from __future__ import annotations
@@ -44,7 +43,7 @@ from datafarm.expert.util import Clock, read_json, read_jsonl, sha256_file
 
 HOLDOUT_SEEDS = tuple(range(5000, 5008))
 SPARE_SEEDS = (5100, 5101, 5102, 5103)
-LEAKED_SEED = 5003  # the scripted agent tries it on purpose; it must be rejected
+LEAKED_SEED = 5003  # 脚本化 agent 会故意尝试它；它必须被拒绝
 
 EXPERT_TEMPLATE = '''"""Fake expert for the harness dry run (no simulator)."""
 FAKE_QUALITY = {quality}
@@ -117,8 +116,8 @@ def build_world(root: Path) -> dict[str, Path]:
 
 def make_dry_run_adapter(base: TaskAdapter, world: dict[str, Path], *, isolation: str, model: str = "fake-model",
                          plan_path: Path | None = None, name: str | None = None) -> TaskAdapter:
-    """The template adapter (brief template, verifier text, runtime facts, rules) with a
-    fake agent, a fake simulator/judge and a throw-away world."""
+    """使用模板 adapter（brief 模板、verifier 文本、runtime facts、规则），但换成 fake agent、
+    fake simulator/judge 和一个临时 world。"""
 
     raw = copy.deepcopy(base.raw)
     root = world["root"]
@@ -174,9 +173,9 @@ def make_dry_run_adapter(base: TaskAdapter, world: dict[str, Path], *, isolation
 
 
 def default_plan(world: dict[str, Path], round_dir: Path, *, adversarial: bool = True) -> dict[str, Any]:
-    """Two scripted sessions. With ``adversarial`` the agent also probes masked paths,
-    writes outside its workspace, asks for a holdout seed and submits a symlinked and an
-    escaping expert path -- all of which the harness must refuse and record."""
+    """两个脚本化的 session。当 ``adversarial`` 为真时，agent 还会探测被屏蔽的路径、写出其
+    workspace 之外、请求一个 holdout seed，并提交 symlink 路径与逃逸的 expert 路径——这些都必须
+    由 harness 拒绝并记录。"""
 
     harness = round_dir / "harness"
     probe_paths = [str(world["judge"] / "fake_judge.py"), str(world["secrets"] / "credential.txt"),
@@ -236,7 +235,7 @@ def run_dry_run(out_dir: str | Path | None = None, *, isolation: str = "auto",
                 log: Callable[[str], None] = lambda message: None) -> dict[str, Any]:
     base_dir = Path(out_dir) if out_dir else Path(tempfile.mkdtemp(
         prefix="xh-dryrun-", dir="/var/tmp" if os.access("/var/tmp", os.W_OK) else None))
-    base_dir = base_dir.resolve()  # the adapter stores absolute sandbox paths
+    base_dir = base_dir.resolve()  # adapter 存储的是绝对 sandbox 路径
     base_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(base_dir, 0o755)
     mode = pick_isolation(isolation)

@@ -1,8 +1,8 @@
-"""``tools/expert_harness.py`` command line (see docs/reference/expert-harness.md).
+"""``tools/expert_harness.py`` 命令行（见 docs/reference/expert-harness.md）。
 
-Every command prints JSON. Exit codes: 0 ok, 1 failure (lint errors, refused action),
-2 usage, 75 round paused (provider outage or operator interrupt; run-round resumes it).
-Commands that spend money or GPU time refuse to run without an explicit approval flag.
+每个命令都输出 JSON。退出码：0 正常，1 失败（lint 错误、被拒绝的操作），
+2 用法错误，75 round 暂停（provider 故障或操作员中断；run-round 会续跑）。
+会花费金钱或 GPU 时间的命令在没有显式 approval 标志时拒绝运行。
 """
 
 from __future__ import annotations
@@ -99,8 +99,8 @@ def cmd_eval_holdout(args: argparse.Namespace) -> int:
 
 
 def cmd_smoke_rollout(args: argparse.Namespace) -> int:
-    """One rollout of a given expert outside any round: checks the job template, the rollout
-    sandbox and the judge on the real backend before a live round."""
+    """在任意 round 之外对给定 expert 做一次 rollout：在真实 round 之前检查 job 模板、rollout
+    sandbox 和真实后端上的 judge。"""
 
     import time
 

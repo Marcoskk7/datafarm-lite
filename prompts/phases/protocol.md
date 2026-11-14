@@ -1,54 +1,54 @@
-# Phased task-creation protocol
+# 分阶段任务创建协议
 
-This applies to every agent in a phased run. It encodes process rules, not task answers.
+这适用于分阶段运行中的每个 agent。它编码的是流程规则，而不是任务答案。
 
-## Freshness: what you must not read
+## Freshness：你不得阅读的内容
 
-Use only the original episode input (the files in `work/input.json`), the general code, skills and hardware assets of the pinned source, and this task directory's own outputs. Do not open outputs of any earlier task, sibling tasks, or task-specific product files. Your brief may list further paths.
+仅使用原始 episode 输入（`work/input.json` 中的文件）、固定来源的通用代码、skills 和硬件资产，以及本任务目录自己的输出。不要打开任何较早任务、同级任务或任务特定产物文件的输出。你的 brief 可能列出更多路径。
 
-## Gates before GPU
+## GPU 之前的门
 
-1. **Measurement validity.** Evaluate every acceptance quantity on a no-action, unheld or resting baseline, and on a hand-made known-good and known-bad case, before it gates anything. Prefer geometry and pose-derived quantities. Any raw solver quantity (velocity, contact impulse) needs this baseline check.
-2. **Satisfiability.** Check each threshold against hardware limits (joint ranges, gripper aperture and force, reach) and modelled object dimensions.
-3. **Asset plausibility.** Compare object dimensions, mass, density and friction with the real episode (pixels with a camera fit, robot readings such as the gripper opening while holding) and with physical norms.
-4. **Headless CPU first.** Build a headless simulator runner on day one and confirm it matches an image-enabled run. Develop on dev seeds. Pre-register a held-out seed list with a timestamp before repair work, and run it once after freezing source hashes. Observed seeds are never fresh again.
-5. **Infrastructure.** Confirm which GPU hosts render correctly before batch capture. Every judge and evaluator has an internal timeout below the worker deadline, set from a run measured on a busy node.
+1. **测量有效性。** 在任何量成为 gate 之前，在无动作、未持物或静止基线上，以及手工构造的已知良好和已知糟糕案例上评估每个验收量。优先使用几何和位姿推导的量。任何原始求解器量（速度、接触冲量）都需要此基线检查。
+2. **可满足性。** 对照硬件限制（关节范围、夹爪开度与力、可达范围）和建模的物体尺寸检查每个阈值。
+3. **资产合理性。** 将物体尺寸、质量、密度和摩擦与真实 episode（通过相机拟合的像素、机器人读数如持物时的夹爪开度）以及物理常规进行比较。
+4. **先做 headless CPU。** 第一天就构建 headless 模拟器 runner，并确认它与启用图像的运行一致。在 dev seed 上开发。在修复工作前用时间戳预注册 held-out seed 列表，并在冻结来源哈希后运行一次。被观测过的 seed 不再新鲜。
+5. **基础设施。** 在批次采集前确认哪些 GPU 主机能正确渲染。每个 judge 和 evaluator 都有一个低于 worker 截止时间的内部超时，根据在繁忙节点上测得的一次运行来设定。
 
-## Agent economy
+## Agent 经济性
 
-- One fresh agent per phase, with a compact handoff file instead of a resumed long-context agent. Summarize tool outputs; never dump large files into context.
-- Independent reviewers are separate fresh sessions, one per decision point. Review several episodes in one pass.
-- A deterministic checklist script gates capture attempts, not a model. Models review only completed candidate episodes.
-- Each phase has a hard USD cap, given in its brief. The host kills the phase at that cap. If you are near it, write the handoff and stop.
-- A handoff is at most 1 page. Evidence is a per-seed table, logs and a source-freeze sha manifest. Do not build integrity frameworks.
+- 每个阶段一个全新 agent，用紧凑的交接文件代替恢复的长上下文 agent。概括工具输出；绝不把大文件倾倒进上下文。
+- 独立评审者是单独的全新会话，每个决策点一个。在一个 pass 中评审多个 episode。
+- 一个确定性清单脚本对采集尝试把关，而不是模型。模型只评审已完成的候选 episode。
+- 每个阶段都有 hard USD 上限，在其 brief 中给出。主机在该上限处杀死阶段。接近它时，写好交接并停止。
+- 交接最多 1 页。证据是逐 seed 表格、日志和一份 source-freeze sha manifest。不要构建完整性框架。
 
-## Independence and admission
+## 独立性与准入
 
-Producers never certify success. Independent review decides the contract freeze and episode acceptance. Admission is rejection sampling: pre-registered seeds in order, every attempt in the denominator, success rate and selection bias disclosed. Criteria are never relaxed to pass.
+生产者绝不认证成功。独立评审决定合约冻结和 episode 验收。准入是拒绝采样：按顺序的预注册 seed，每次尝试都计入分母，披露成功率和选择偏差。标准绝不为了通过而放松。
 
-## Contract scope
+## 合约范围
 
-The deliverable is in `work/input.json` (`request`): complete, independently reviewed white-model, action-labelled episodes. Rendering and training are not part of this flow.
+交付物在 `work/input.json`（`request`）中：完整、经独立评审的 white-model、带动作标签的 episode。渲染和训练不属于此流程。
 
-A requirement may block admission only if failing it could admit an episode that is not a correct, physically valid, action-labelled instance of the real task. Such requirements cover:
+一个要求只有在不满足它就可能准入一个不是真实任务的正确、物理有效、带动作标签实例的 episode 时，才可以阻塞准入。此类要求覆盖：
 
-- the correct task steps, order and outcome compared with the real episode;
-- valid contacts, forces and joint limits;
-- no attachment or teleport;
-- labels and images bound to the logged states;
-- the user's explicit task requirements.
+- 与真实 episode 相比正确的任务步骤、顺序和结果；
+- 有效的接触、力和关节限制；
+- 无连接或瞬移；
+- 标签和图像绑定到记录的状态；
+- 用户的明确任务要求。
 
-The following are advisory by default. Record and disclose them, but they never block:
+以下默认是 advisory。记录并披露它们，但它们绝不阻塞：
 
-- evidence-infrastructure demands: OS-level isolation proofs, exhaustive artifact-binding audits, sensitivity or plausibility matrices beyond the frozen gates, and cross-render parity beyond one same-seed headless-versus-image state check;
-- numeric camera-reprojection budgets. For white data, camera fit blocks only if a task-relevant object or contact is missing from a view in which the real reference shows it, or if a view is grossly wrong.
+- 证据基础设施要求：OS 级隔离证明、穷尽式产物绑定审计、超出冻结 gate 的敏感性或合理性矩阵，以及超出一次同 seed headless 对图像 state 检查的跨渲染一致性；
+- 数值相机重投影预算。对于 white 数据，只有当真实参考显示的视图中缺失任务相关物体或接触，或视图严重错误时，相机拟合才阻塞。
 
-Gate thresholds that are kept are never loosened. A gate that cannot separate a known-good case from a known-bad case is a broken measurement. Fix it as a new judge version, independently reviewed against those cases. Never silently relax it or work around it.
+被保留的 gate 阈值绝不放松。无法区分已知良好案例和已知糟糕案例的 gate 是损坏的测量。将其修复为新的 judge 版本，并针对这些案例独立评审。绝不要悄悄放松它或绕过它。
 
-## Repair loop
+## 修复循环
 
-- A review that denies lists at most 5 blocking items. Each item needs an exact, executable acceptance check: a command plus the expected result.
-- Every other concern goes in an advisory list.
-- Later reviews may not add blocking items without new evidence of a correctness defect.
-- The producer keeps the best-known source pin, the one with the highest dev full-pass rate. A change that lowers the dev full-pass rate is reverted before any held-out run.
-- Held-out seeds are spent once observed. Use a fresh pre-registered range for each frozen source.
+- 拒绝的评审最多列出 5 个阻塞项。每项都需要确切、可执行的验收检查：一条命令加上预期结果。
+- 其他所有关切放入 advisory 列表。
+- 后续评审不得在没有正确性缺陷新证据的情况下添加阻塞项。
+- 生产者保留最佳已知来源 pin，即 dev 全通过率最高的那个。降低 dev 全通过率的改动会在任何 held-out 运行前回退。
+- Held-out seed 一旦被观测就用掉。为每个冻结来源使用全新的预注册范围。

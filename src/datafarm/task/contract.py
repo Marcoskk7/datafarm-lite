@@ -1,4 +1,4 @@
-"""Task-agnostic delivery checks. Semantic correctness still needs independent review."""
+"""与任务无关的交付检查。语义正确性仍需独立审阅。"""
 from __future__ import annotations
 
 from datafarm.agent.runtime import validate_completion
@@ -25,21 +25,20 @@ RUNTIME_MARKERS = ('reviews', 'author.json', 'control.json')
 
 
 def runtime_managed(root: Path) -> bool:
-    """A workspace driven by pipeline_agent drive/supervise has host review records."""
+    """由 pipeline_agent drive/supervise 驱动的 workspace 带有宿主审阅记录。"""
     return any((root / '.runtime' / name).exists() for name in RUNTIME_MARKERS)
 
 
 def verify_review_independence(root: Path, review: dict, review_ref: dict, producer: str,
                                artifact_sha256s: set) -> str:
-    """Prove that an episode review came from a separate execution.
+    """证明某次 episode review 来自一次独立的执行。
 
-    Under the agent runtime the review must cite a completed runtime review
-    (`runtime_review`): its host-written completion is re-validated (verifier role,
-    context, transcript and identity hashes, no reuse of the author session), its
-    verdict is pass, its frozen request covered every delivered artifact, its report
-    evidence binds this episode review file. A hand-written execution record is
-    refused there. Outside the
-    runtime the execution record is accepted and reported as declared, not verified.
+    在 agent runtime 下，该 review 必须引用一次已完成的 runtime review
+    （`runtime_review`）：其宿主写入的 completion 会被重新校验（verifier 角色、
+    context、transcript 与身份哈希，且不得复用 author session），其判定必须为 pass，
+    其冻结的 request 必须覆盖每一个交付产物，其 report 证据必须绑定本次 episode review
+    文件。在此处，手写的执行记录会被拒绝。在 runtime 之外，
+    执行记录会被接受，并报告为 declared 而非 verified。
     """
     reviewer = review.get('reviewer_id')
     require(isinstance(reviewer, str) and bool(reviewer) and reviewer != producer, 'self review refused')
@@ -69,7 +68,7 @@ def verify_review_independence(root: Path, review: dict, review_ref: dict, produ
 
 
 def verify_grounding(root: Path, delivery: dict) -> dict:
-    """The delivery binds G; every physical quantity carries its label (core/grounding.py)."""
+    """交付绑定 G；每个物理量都携带其标签（core/grounding.py）。"""
     require(isinstance(delivery.get('grounding'), dict), 'delivery must bind the grounding record')
     try:
         return load_grounding(bound_file(root, delivery['grounding']),
@@ -88,7 +87,7 @@ def verify_input(root: Path) -> dict:
 
 
 def _is_visual_evidence(path: Path) -> bool:
-    """Decode and verify a comparison image; a filename or magic header is insufficient."""
+    """解码并校验一张对比图；仅凭文件名或 magic header 不足以证明。"""
 
     try:
         from PIL import Image

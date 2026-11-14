@@ -1,140 +1,136 @@
-# Policy training (pi0.5)
+# 策略训练（pi0.5）
 
-Training is downstream of admission. `tools/launch_pi05_training.py` (`src/datafarm/training/launch.py`) turns a JSON
-training spec, started from `configs/training/template.json`, into a launch manifest and a scheduler command
-for the vendored openpi trainer (`vendor/trainer/`). First it validates the dataset, the action representation, the state
-conditioning mode, the distribution claim and the admission binding. It writes nothing
-launchable unless every check passes. Two action families exist:
+训练位于准入的下游。`tools/launch_pi05_training.py`（`src/datafarm/training/launch.py`）把一份从 `configs/training/template.json` 开始的 JSON
+训练 spec 转换为启动清单，以及用于 vendored openpi 训练器（`vendor/trainer/`）的调度器命令。
+它首先验证数据集、动作表示、状态条件模式、分布主张和准入绑定。除非每项检查都通过，
+否则它不会写出任何可启动的内容。存在两个动作族：
 
-- **EEF**: `absolute_eef` (what `configs/training/template.json` starts from and what
-  `tools/build_pi05_dataset.py --task <instruction> --expected-episodes <N>` builds), and `delta_eef_current_rpy_v1` (`delta_eef.py`). The
-  builder keeps every source frame; `--excise-recovery` drops deliberate misaligned-approach recovery detours, whose
-  revisited joint state gives a state-free policy two futures for one observation.
-- **Joint** (`joint_actions.py`): `delta_joint_current_v1` and `absolute_joint_v1`. With `absolute_joint_v1` the
-  model predicts absolute joint targets and ignores the request state. These modes exist in the launcher, but
-  they need a dataset with a joint `state_action_contract` and the joint source receipts below, and no shipped
-  tool builds such a dataset; you must supply your own.
+- **EEF**：`absolute_eef`（`configs/training/template.json` 的起点，也是
+  `tools/build_pi05_dataset.py --task <instruction> --expected-episodes <N>` 所构建的）、以及 `delta_eef_current_rpy_v1`（`delta_eef.py`）。
+  构建器保留每个源帧；`--excise-recovery` 会丢弃故意的未对齐接近恢复绕行，因为其
+  重访的关节状态会让无状态策略对同一观测得到两个未来。
+- **关节（Joint）**（`joint_actions.py`）：`delta_joint_current_v1` 和 `absolute_joint_v1`。使用 `absolute_joint_v1` 时，
+  模型预测绝对关节目标并忽略请求状态。这些模式在启动器中存在，但
+  它们需要带有 `state_action_contract` 关节的数据集以及下面的关节源收据，且没有随附
+  工具构建这样的数据集；你必须自己提供。
 
-## Input contract
+## 输入契约
 
-For the dual-arm PiPER policy family, one training sample contains:
+对于双臂 PiPER 策略族，一个训练样本包含：
 
-- three independent `224 x 224` RGB observations: head, left wrist, and right
-  wrist;
-- an explicitly declared state-conditioning mode, `none`;
-- a 14-dimensional action in the declared semantic order and the admitted temporal
-  convention;
-- one task prompt and an action horizon of 50.
+- 三个独立的 `224 x 224` RGB 观测：头部、左腕和
+  右腕；
+- 一个显式声明的状态条件模式 `none`；
+- 一个按声明语义顺序、采用已准入时间约定的 14 维动作；
+- 一个任务 prompt 和 50 的动作视界。
 
-Adding joint proprioception to a dataset whose state is EEF-only requires a new, versioned state schema and
-a train/inference parity check; it must not be silently appended.
+向 state 仅为 EEF 的数据集添加关节本体感知，需要新的、带版本的状态 schema 和
+训练/推理一致性检查；不得静默追加。
 
-Padding state and action to the model width of 32 is an implementation detail.
-It does not change the semantic dimension. Composite review videos such as a
-T-layout carrier are transport artifacts; they must be decoded into
-the three camera tensors before training.
+把 state 和 action 补齐到模型宽度 32 是实现细节。
+它不改变语义维度。像
+T-layout carrier 这样的合成审查视频是传输产物；训练前必须解码为
+三个相机张量。
 
-PI0.5 can consume normalized state by discretizing it into 256 bins and placing the result in the language
-prefix. This launcher does not use that path: every launch declares `state_conditioning: none`, and the model
-flag and CLI flag must agree. Any other value is refused.
+PI0.5 可以通过把状态离散化为 256 个 bin 并放入语言
+前缀来消费归一化状态。本启动器不使用该路径：每次启动都声明 `state_conditioning: none`，
+且模型标志与 CLI 标志必须一致。任何其他值都会被拒绝。
 
-## Why state conditioning is explicit
+## 为什么显式声明状态条件
 
-In the PI0.5 tokenizer, `discrete_state_input=False` passes `state=None` to the tokenizer, and PI0.5 has no continuous suffix state token. A dataset can therefore declare a 14-D `observation.state` that the loader reads, normalizes and pads to `(batch, 32)`, while the model is conditioned only on images and prompt. The model configuration defaults `discrete_state_input` to true when no override is supplied, so the false value is a project-specific override and not the upstream default. Checkpoints trained this way are not proprioceptive.
+在 PI0.5 tokenizer 中，`discrete_state_input=False` 会把 `state=None` 传给 tokenizer，而 PI0.5 没有连续后缀状态 token。因此数据集可以声明一个 14 维的 `observation.state`，由 loader 读取、归一化并补齐到 `(batch, 32)`，而模型只以图像和 prompt 为条件。在未提供覆盖时，模型配置默认 `discrete_state_input` 为 true，因此 false 值是项目特定的覆盖，而不是上游默认值。以这种方式训练的 checkpoint 不具备本体感知能力。
 
-## Guarantees
+## 保证
 
-1. **A launch needs a verified admission certificate.**
-   `train-command` verifies `--admission-certificate`: the stored document, a passing
-   admission-root receipt whose verifier differs from the producer and no rejecting root receipt, a fresh
-   re-derivation of the admitted set from the stored evidence, and the binding to this dataset's
-   provenance, allowlist, members, repo, waivers and files. Every other launch raises `AdmissionRequired`.
-2. **The state conditioning mode is explicit and consistent.** `state_conditioning` must be
-   `none`, and the command passes `--model.no-discrete-state-input`.
-3. **The model interface is fixed.** The command always passes `--model.action-dim 32`,
-   `--model.action-horizon 50` and `--model.pi05`. The audit requires these values, 14-D
-   native actions, and exactly three views `cam_high`, `cam_left_wrist` and
-   `cam_right_wrist`. The dataset must expose a 14-D `observation.state` and `action` and
-   all three image features.
-4. **The dataset is bound to an accepted distribution and is fully generated.** The spec
-   must use `datafarm.pi05-finetune/1.1.0` and declare `target_task` and a
-   `required_distribution_claim`:
-   - `broad_deployment` requires `training_scope: production_policy`;
-   - `local_robustness` is exploratory only, with an authorization ID.
+1. **启动需要已验证的准入证书。**
+   `train-command` 验证 `--admission-certificate`：存储的文档、由不同于生产者的
+   verifier 给出的通过准入根收据且无拒绝性根收据、从存储证据重新推导
+   准入集合，以及与本数据集 provenance、allowlist、members、repo、waivers 和文件的绑定。
+   其他任何启动都会抛出 `AdmissionRequired`。
+2. **状态条件模式是显式且一致的。** `state_conditioning` 必须为
+   `none`，且命令会传递 `--model.no-discrete-state-input`。
+3. **模型接口固定。** 命令总是传递 `--model.action-dim 32`、
+   `--model.action-horizon 50` 和 `--model.pi05`。审计要求这些值、14 维
+   原生 action，以及恰好三个视角 `cam_high`、`cam_left_wrist` 和
+   `cam_right_wrist`。数据集必须暴露 14 维的 `observation.state` 和 `action`
+   以及全部三个图像特征。
+4. **数据集绑定到已接受的分布且完全生成。** spec
+   必须使用 `datafarm.pi05-finetune/1.1.0`，并声明 `target_task` 和一个
+   `required_distribution_claim`：
+   - `broad_deployment` 要求 `training_scope: production_policy`；
+   - `local_robustness` 仅用于探索，需要一个授权 ID。
 
-   `distribution_acceptance` must match its sha256, and the dataset provenance must name
-   that receipt. The provenance must also:
-   - be `training_eligible`;
-   - pin a semantic allowlist and its digest;
-   - mark every episode `image_source: generated`;
-   - match the spec's `allowed_semantic_waivers`, `repo_id` and `dataset_fps` (default 30).
-5. **The action representation is declared and matches the trainer config.** `action_representation` is
-   required and must agree with the `base_config` suffix (`_delta_eef_current_rpy_v1`,
-   `_delta_joint_current_v1`, `_absolute_joint_v1`, or none). The command runs `src/datafarm/training/run_trainer.py` with
-   `--action-adapter delta-eef`, `joint` or `none`. The joint adapter registers both joint configs for every
-   Piper base config, without editing the trainer checkout.
-6. **Joint actions have exact, declared semantics.** The dataset stores absolute joint
-   targets (`absolute_next_joint_current_gripper`, 14 fields `left_joint_1..6,
-   left_gripper, right_joint_1..6, right_gripper`, radians for the 12 arm joints, one
-   gripper unit `m` [0, 0.105] or `normalized_0_1`).
-   - `delta_joint_current_v1` subtracts the current measured joint state from the 12 arm
-     joints, using one anchor per chunk.
-   - `absolute_joint_v1` passes targets through unchanged (shapes are still validated).
-   - Grippers stay absolute in both modes.
-   - `model_representation` must match the mode.
-7. **Joint labels come from simulator readback or an audited drive target.** The dataset
-   contract must declare `action_joint_t` as either:
-   - the next retained frame's joint readback, or
-   - the joint *drive target* (for exports without readback), which must carry a
-     `joint_tracking_audit` object.
+   `distribution_acceptance` 必须与其 sha256 匹配，且数据集 provenance 必须指名
+   该收据。provenance 还必须：
+   - 为 `training_eligible`；
+   - 固定一个语义 allowlist 及其摘要；
+   - 把每个 episode 标记为 `image_source: generated`；
+   - 与 spec 的 `allowed_semantic_waivers`、`repo_id` 和 `dataset_fps`（默认 30）匹配。
+5. **动作表示被声明且与训练器配置匹配。** `action_representation` 是必需的，
+   且必须与 `base_config` 后缀一致（`_delta_eef_current_rpy_v1`、
+   `_delta_joint_current_v1`、`_absolute_joint_v1`，或无）。命令运行
+   `src/datafarm/training/run_trainer.py`，并带 `--action-adapter delta-eef`、`joint` 或 `none`。关节 adapter 为每个
+   Piper base config 注册两个关节 config，而不编辑训练器 checkout。
+6. **关节动作具有精确、声明的语义。** 数据集存储绝对关节
+   目标（`absolute_next_joint_current_gripper`，14 个字段 `left_joint_1..6,
+   left_gripper, right_joint_1..6, right_gripper`，12 个手臂关节为弧度，夹爪单位一
+   `m` [0, 0.105] 或 `normalized_0_1`）。
+   - `delta_joint_current_v1` 从 12 个手臂关节中减去当前测量的关节状态，
+     每个 chunk 使用一个锚点。
+   - `absolute_joint_v1` 原样传递目标（形状仍会被验证）。
+   - 两种模式下夹爪都保持绝对。
+   - `model_representation` 必须与模式匹配。
+7. **关节标签来自仿真器回读或经过审计的 drive target。** 数据集
+   契约必须声明 `action_joint_t` 为：
+   - 下一个保留帧的关节回读，或
+   - 关节 *drive target*（用于没有回读的导出），其必须携带一个
+     `joint_tracking_audit` 对象。
 
-   Grippers must be the current frame's expert command, and field order and units must
-   equal the launch contract.
-8. **Joint launches bind exact source evidence.** The spec must bind, by sha256:
-   - the dataset provenance;
-   - an action-conversion certificate file (and its store);
-   - a terminal joint readback manifest covering every episode with exact final joints and
-     unchanged source states;
-   - an independent joint machine audit that uniquely matches the dataset's episode and
-     frame counts and passes the required exact checks.
+   夹爪必须是当前帧的专家命令，且字段顺序和单位必须
+   等于启动契约。
+8. **关节启动绑定精确的源证据。** spec 必须按 sha256 绑定：
+   - 数据集 provenance；
+   - 一个动作转换证书文件（及其存储）；
+   - 一个终止关节回读清单，覆盖每个 episode，带精确的最终关节和
+     未变更的源状态；
+   - 一个独立的关节机器审计，唯一匹配数据集的 episode 和
+     帧计数，并通过要求的精确检查。
 
-   Gripper identity is proven against an EEF baseline by default. The independent command
-   re-derivation replaces it only when the spec declares
-   `eef_baseline: {status: not_applicable, reason}`, the provenance names no EEF source,
-   and the audit records that check as not applicable.
-9. **The trainer source and tokenizer are pinned.** `trainer_source_sha256` and the PaliGemma tokenizer hash
-    must match, and required trainer files must exist. The
-    global `batch_size` must divide every GPU candidate count. Runs use `--no-overwrite
-    --no-resume`.
+   默认情况下，夹爪身份对照 EEF 基线来证明。只有当 spec 声明
+   `eef_baseline: {status: not_applicable, reason}`、provenance 不指名任何 EEF 源、
+   且审计把该检查记为不适用时，独立的命令重新推导才会取代它。
+9. **训练器源码和 tokenizer 被固定。** `trainer_source_sha256` 和 PaliGemma tokenizer 哈希
+    必须匹配，且必需的训练器文件必须存在。全局 `batch_size` 必须整除每个 GPU 候选数。运行使用 `--no-overwrite
+    --no-resume`。
 
-Code: `tools/launch_pi05_training.py`, `src/datafarm/training/`.
+代码：`tools/launch_pi05_training.py`, `src/datafarm/training/`。
 
-## Data model
+## 数据模型
 
-- **Training spec** (`datafarm.pi05-finetune/1.1.0`). The fields are listed under
-  *Configuration*.
-- **Dataset** (LeRobot): `meta/info.json` (`fps`, `total_episodes`, `total_frames`,
-  `features`) and `meta/lerobot-provenance.json`. The provenance holds `repo_id`,
-  `training_eligible`, `semantic_allowlist(_sha256)`, `episodes_detail[].image_source`,
-  `allowed_semantic_waivers` and `distribution_acceptance_sha256`. Joint datasets add
-  `state_action_contract` and `joint_conversion`.
-- **Launch manifest** `<run_manifest_dir>/launch-manifest.json`
-  (`datafarm.pi05-train-launch/1.2.0`): the command, the contract audit (`checks`,
-  `statuses`, `admission_mode`), the admission record, and the dataset provenance digest. A
-  superseded manifest is kept.
+- **训练 spec**（`datafarm.pi05-finetune/1.1.0`）。字段列在
+  *配置*之下。
+- **数据集**（LeRobot）：`meta/info.json`（`fps`、`total_episodes`、`total_frames`、
+  `features`）和 `meta/lerobot-provenance.json`。provenance 持有 `repo_id`、
+  `training_eligible`、`semantic_allowlist(_sha256)`、`episodes_detail[].image_source`、
+  `allowed_semantic_waivers` 和 `distribution_acceptance_sha256`。关节数据集额外有
+  `state_action_contract` 和 `joint_conversion`。
+- **启动清单** `<run_manifest_dir>/launch-manifest.json`
+  （`datafarm.pi05-train-launch/1.2.0`）：命令、契约审计（`checks`、
+  `statuses`、`admission_mode`）、准入记录和数据集 provenance 摘要。被取代的
+  清单会被保留。
 
-## How it works
+## 工作原理
 
-1. Build the LeRobot dataset from admitted episodes and issue a certificate
-   ([delivery and admission](delivery-and-admission.md)).
-2. `preflight` validates the spec and dataset, and with `--admission-certificate` also
-   verifies the certificate.
-3. `norm-stats` and `loader-smoke` materialize normalization and test the data loader.
-4. `train-command` builds the trainer argv, resolves admission, audits the contract and
-   writes the launch manifest. With `--execute`, it submits through `submit`, which tries
-   each GPU-count candidate in order (exit 2 when none is free).
+1. 从已准入的 episode 构建 LeRobot 数据集并签发证书
+   （[delivery and admission](delivery-and-admission.md)）。
+2. `preflight` 验证 spec 和数据集，配合 `--admission-certificate` 时还
+   验证证书。
+3. `norm-stats` 和 `loader-smoke` 生成归一化并测试数据 loader。
+4. `train-command` 构建训练器 argv、解析准入、审计契约并
+   写出启动清单。配合 `--execute` 时，它通过 `submit` 提交，后者按顺序尝试
+   每个 GPU 数量候选（没有空闲时退出码为 2）。
 
-## Entry points
+## 入口点
 
 ```bash
 python tools/launch_pi05_training.py preflight --spec <spec.json> --admission-certificate <digest> --admission-store <store>
@@ -142,79 +138,77 @@ python tools/launch_pi05_training.py norm-stats --spec <spec.json>
 python tools/launch_pi05_training.py train-command --spec <spec.json> --admission-certificate <digest> --admission-store <store> --execute
 ```
 
-## Configuration
+## 配置
 
-| Key | Default | Notes |
+| 键 | 默认值 | 备注 |
 |---|---|---|
-| `state_conditioning` | required | `none` |
-| `action_representation` | required | `absolute_eef` (template), `delta_eef_current_rpy_v1`, `absolute_joint_v1`, `delta_joint_current_v1` |
-| `batch_size`, `num_train_steps` | required | Not enforced by code. |
-| `fsdp_devices`, `gpu_candidates` | `[fsdp_devices]` | Each candidate must divide `batch_size`. |
-| fixed in the command | — | action dim 32, horizon 50, max tokens 200; warmup 1000, peak LR 2.5e-5 decaying to 2.5e-6 over 30 000 steps; AdamW (0.9, 0.95, 1e-8, wd 1e-10); clip 1.0 |
-| `dataset_fps`, `minimum_episodes` | 30, 1 | Dataset checks. |
-| `training_action_contract`, `joint_source_evidence`, `dataset_provenance_sha256`, `admission_certificate {path, sha256, store}` | — | Required for joint modes. |
+| `state_conditioning` | 必需 | `none` |
+| `action_representation` | 必需 | `absolute_eef`（模板）、`delta_eef_current_rpy_v1`、`absolute_joint_v1`、`delta_joint_current_v1` |
+| `batch_size`, `num_train_steps` | 必需 | 代码不强制。 |
+| `fsdp_devices`, `gpu_candidates` | `[fsdp_devices]` | 每个候选必须整除 `batch_size`。 |
+| 在命令中固定 | — | action 维度 32，视界 50，最大 token 200；warmup 1000，峰值 LR 2.5e-5 在 30 000 步内衰减到 2.5e-6；AdamW（0.9, 0.95, 1e-8, wd 1e-10）；clip 1.0 |
+| `dataset_fps`, `minimum_episodes` | 30, 1 | 数据集检查。 |
+| `training_action_contract`, `joint_source_evidence`, `dataset_provenance_sha256`, `admission_certificate {path, sha256, store}` | — | 关节模式必需。 |
 
-Paths for the trainer, checkpoints and tokenizer are spec fields. Deployment-wide bindings
-are described in [deployment](../deployment.md).
+训练器、checkpoint 和 tokenizer 的路径是 spec 字段。部署范围的绑定
+见 [deployment](../deployment.md)。
 
-## Failure behaviour
+## 失败行为
 
-- Spec, dataset or evidence drift raises `ValueError` or `FileNotFoundError` before any
-  manifest is written. A missing certificate raises `AdmissionRequired` with the exact
-  remedy.
-- A failed contract audit raises with the failing check names.
-- `submit` exits 2 when no candidate allocation is free, so a queue can retry. Other
-  scheduler errors pass through.
+- spec、数据集或证据漂移会在写出任何清单之前抛出 `ValueError` 或 `FileNotFoundError`。
+  缺少证书会抛出 `AdmissionRequired`，并给出确切的
+  补救方式。
+- 契约审计失败会带出失败的检查名。
+- 没有空闲的候选分配时，`submit` 退出码为 2，以便队列重试。其他
+  调度器错误原样传递。
 
-## Filling the template
+## 填写模板
 
-`configs/training/template.json` is not runnable as shipped. Before `preflight` passes you need:
+`configs/training/template.json` 按原样不可运行。在 `preflight` 通过之前，你需要：
 
-- the `<task>`, `<org>/<dataset>` and `<authorization-id>` placeholders, and bindings for `TRAINER`, `TRAINING_PYTHON`,
-  `OPENPI_CACHE`, `DATASETS` and `TRAINING_RUN`;
-- `terminal_home_contract.canonical_home_state_14d`, the 14-number home state of your robot;
-- the base checkpoint directory and the tokenizer under `OPENPI_CACHE`, whose hash must equal `paligemma_tokenizer_sha256`;
-- `distribution_acceptance.path` and `.sha256`, bound to a receipt (see below);
-- a dataset with `meta/info.json`, parquet episodes that end at the home state, and `meta/lerobot-provenance.json` holding
-  `repo_id`, `training_eligible`, `semantic_allowlist`, `semantic_allowlist_sha256`, `episodes_detail`,
-  `allowed_semantic_waivers`, `distribution_acceptance_sha256`, `training_scope` and `production_policy_eligible`. The dataset
-  builder writes these.
+- `<task>`、`<org>/<dataset>` 和 `<authorization-id>` 占位符，以及 `TRAINER`、`TRAINING_PYTHON`、
+  `OPENPI_CACHE`、`DATASETS` 和 `TRAINING_RUN` 的绑定；
+- `terminal_home_contract.canonical_home_state_14d`，你的机器人的 14 个数字的 home 状态；
+- `OPENPI_CACHE` 下的基础 checkpoint 目录和 tokenizer，其哈希必须等于 `paligemma_tokenizer_sha256`；
+- `distribution_acceptance.path` 和 `.sha256`，绑定到一份收据（见下文）；
+- 一个带 `meta/info.json`、终止于 home 状态的 parquet episode，以及 `meta/lerobot-provenance.json` 的数据集，后者持有
+  `repo_id`、`training_eligible`、`semantic_allowlist`、`semantic_allowlist_sha256`、`episodes_detail`、
+  `allowed_semantic_waivers`、`distribution_acceptance_sha256`、`training_scope` 和 `production_policy_eligible`。数据集
+  构建器会写出这些。
 
-`train-command` additionally needs `--admission-certificate`.
+`train-command` 额外需要 `--admission-certificate`。
 
-## Distribution-acceptance receipt
+## 分布接受收据
 
-`distribution_acceptance` points at a `datafarm-distribution-acceptance/1.0.0` JSON file that records the setup coverage
-actually captured (`src/datafarm/training/distribution.py::validate_distribution_acceptance_contract`). Task code or the
-agent writes it; no shipped tool does.
+`distribution_acceptance` 指向一份 `datafarm-distribution-acceptance/1.0.0` JSON 文件，记录实际采集到的 setup 覆盖
+（`src/datafarm/training/distribution.py::validate_distribution_acceptance_contract`）。由任务代码或
+agent 编写；没有随附工具会做这件事。
 
-| Field | Meaning |
+| 字段 | 含义 |
 |---|---|
 | `schema_version` | `datafarm-distribution-acceptance/1.0.0` |
-| `status` | `frozen` or `accepted` |
-| `target_task` | must equal the spec's `target_task` |
-| `claim` | `fixed_setup`, `local_robustness` or `broad_deployment`; must equal `required_distribution_claim` |
-| `variable_objects` | non-empty list of object names that vary across episodes |
-| `frozen_denominator`, `accepted_count` | positive integers; they must be equal |
-| `frozen_plan_sha256`, `cohort_manifest_sha256`, `coverage_authority_sha256` | SHA-256 bindings of the plan, the cohort and the coverage evidence |
-| `unique_joint_layouts` | must equal the denominator |
-| `unique_relational_layouts` | positive; `broad_deployment` needs more than one |
-| `required_world_span_xy_m` | per object, the required `[x, y]` span in metres |
-| `observed_per_object` | per object, `unique_positions` (more than one) and `span_xy_m`, at least the required span |
-| `required_image_span_px`, `observed_image_span_px` | per camera and object, required and observed `[x, y]` spans in pixels; the camera sets must match |
+| `status` | `frozen` 或 `accepted` |
+| `target_task` | 必须等于 spec 的 `target_task` |
+| `claim` | `fixed_setup`、`local_robustness` 或 `broad_deployment`；必须等于 `required_distribution_claim` |
+| `variable_objects` | 跨 episode 变化的物体名称的非空列表 |
+| `frozen_denominator`, `accepted_count` | 正整数；它们必须相等 |
+| `frozen_plan_sha256`, `cohort_manifest_sha256`, `coverage_authority_sha256` | plan、cohort 和覆盖证据的 SHA-256 绑定 |
+| `unique_joint_layouts` | 必须等于分母 |
+| `unique_relational_layouts` | 正数；`broad_deployment` 需要多于一个 |
+| `required_world_span_xy_m` | 每个物体所需的 `[x, y]` 跨度（米） |
+| `observed_per_object` | 每个物体的 `unique_positions`（多于一个）和 `span_xy_m`，至少达到所需跨度 |
+| `required_image_span_px`, `observed_image_span_px` | 每个相机和物体在像素中的所需与观测 `[x, y]` 跨度；相机集合必须匹配 |
 
-For `broad_deployment` every required span must be strictly positive. The dataset provenance must name the receipt's hash
-in `distribution_acceptance_sha256`.
+对于 `broad_deployment`，每个所需跨度必须严格为正。数据集 provenance 必须在 `distribution_acceptance_sha256` 中指名该收据的哈希。
 
-## Limitations
+## 局限性
 
-- **Only the horizon is pinned.** Batch size and steps are ordinary spec values. The learning-rate decay length (30 000 steps) is fixed
-  independently of `num_train_steps`.
-- **The certificate does not depend on delivery verification.** Admission profiles read
-  allowlists and audits, not `delivery.json`.
-- **No shipped builder writes joint datasets.** `tools/build_pi05_dataset.py` writes the XYZ-RPY contract, so
-  `absolute_joint_v1` and `delta_joint_current_v1` need a dataset and receipts you build yourself.
-- **The drive-target tracking audit is only checked for shape.** `joint_tracking_audit` must
-  be an object; its contents are not checked here. Task code produces it.
-- **Generated images only.** The launcher rejects datasets with any non-generated image source.
-
+- **只有视界被固定。** 批量大小和步数是普通的 spec 值。学习率衰减长度（30 000 步）独立于
+  `num_train_steps` 固定。
+- **证书不依赖交付验证。** 准入 profile 读取
+  allowlist 和审计，而不是 `delivery.json`。
+- **没有随附构建器写出关节数据集。** `tools/build_pi05_dataset.py` 写出 XYZ-RPY 契约，因此
+  `absolute_joint_v1` 和 `delta_joint_current_v1` 需要你自己构建的数据集和收据。
+- **drive-target 跟踪审计只检查形状。** `joint_tracking_audit` 必须
+  是对象；其内容不在此处检查。由任务代码生成。
+- **仅限生成图像。** 启动器拒绝任何图像源不是 generated 的数据集。

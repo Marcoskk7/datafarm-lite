@@ -1,10 +1,10 @@
-"""Deterministic domain-randomization plans for policy demonstrations.
+"""策略演示的确定性 domain-randomization 计划。
 
-The sampler only produces immutable episode plans.  A simulator adapter must
-apply the realized camera pose once, before capture, and must execute the grasp
-plan with robot commands.  Sampling a value is not evidence that an episode is
-physically valid; the resulting rollout still needs the normal physics and
-observation gates.
+sampler 只产生不可变的 episode 计划。simulator adapter 必须在
+采集之前一次性应用实际得到的 camera pose，并且必须用机器人
+命令执行 grasp 计划。采样出一个值并不证明 episode 在物理上
+有效；得到的 rollout 仍需通过常规的物理与观测
+门禁。
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ Vector3 = tuple[float, float, float]
 
 @dataclass(frozen=True)
 class PosePerturbationBounds:
-    """Independent symmetric SE(3) residual bounds around a calibrated pose."""
+    """围绕标定 pose 的独立对称 SE(3) 残差边界。"""
 
     translation_half_range_m: Vector3
     rotation_half_range_deg: Vector3
@@ -43,7 +43,7 @@ class CameraPerturbation:
 
 @dataclass(frozen=True)
 class CameraRandomizationPolicy:
-    """Per-camera episode-constant extrinsic randomization policy."""
+    """逐相机的、episode 恒定的外参随机化策略。"""
 
     bounds: Mapping[str, PosePerturbationBounds]
     intrinsics_fixed: bool = True
@@ -59,7 +59,7 @@ class CameraRandomizationPolicy:
 
 @dataclass(frozen=True)
 class GraspRandomizationPolicy:
-    """Bounds for ordinary grasp jitter and explicit recoverable misses."""
+    """普通 grasp 抖动与显式可恢复 miss 的边界。"""
 
     nominal_xy_half_range_m: float = 0.004
     nominal_z_half_range_m: float = 0.003
@@ -130,7 +130,7 @@ class EpisodeRandomizationPlan:
 
 @dataclass(frozen=True)
 class RecoveryTrace:
-    """Simulator-derived evidence for one planned recoverable miss."""
+    """针对一次计划内可恢复 miss、由 simulator 产生的证据。"""
 
     object_id: str
     arm: str
@@ -168,10 +168,10 @@ class CameraRealizationAudit:
 
 
 def default_camera_randomization_policy() -> CameraRandomizationPolicy:
-    """Conservative default profile around calibrated nominal poses.
+    """围绕标定名义 pose 的保守默认配置。
 
-    Bounds are episode-constant.  Head bounds are tighter than wrist bounds; a
-    task can replace both after its own held-out sweep.
+    边界为 episode 恒定。head 边界比 wrist 边界更紧；任务可以在自己的 held-out sweep
+    之后替换两者。
     """
 
     return CameraRandomizationPolicy(
@@ -221,7 +221,7 @@ def sample_episode_randomization(
     camera_policy: CameraRandomizationPolicy | None = None,
     grasp_policy: GraspRandomizationPolicy | None = None,
 ) -> EpisodeRandomizationPlan:
-    """Create a deterministic, content-addressed episode randomization plan."""
+    """创建确定性、按内容寻址的 episode 随机化计划。"""
 
     camera_policy = camera_policy or default_camera_randomization_policy()
     grasp_policy = grasp_policy or GraspRandomizationPolicy()
@@ -244,10 +244,10 @@ def sample_episode_randomization(
             rng.uniform(-grasp_policy.nominal_xy_half_range_m, grasp_policy.nominal_xy_half_range_m),
             rng.uniform(-grasp_policy.nominal_z_half_range_m, grasp_policy.nominal_z_half_range_m),
         )
-        # A lateral realign is a recovery without a retract: the arm arrives
-        # above the object at an offset, slides horizontally onto the staging
-        # point and descends.  Nothing is revisited, so one
-        # observation never carries two different futures.
+        # 横向 realign 是不回撤的恢复方式：机械臂先带偏移
+        # 到达物体上方，水平滑到暂存点再下降。不会重访
+        # 任何 pose，因此同一次观测绝不会承载
+        # 两种不同的未来。
         realign = rng.random() < grasp_policy.lateral_realign_fraction
         realign_direction = None
         realign_offset = None
@@ -301,14 +301,14 @@ def sample_episode_randomization(
 
 
 def audit_lateral_realign_trace(trace: RecoveryTrace, *, min_clearance_m: float = 0.0) -> RecoveryAudit:
-    """Fail closed unless the offset approach is fixed by one horizontal slide.
+    """除非偏移接近由一次水平滑动完成，否则 fail closed。
 
-    Unlike a retract-and-return recovery this trace must never step back onto
-    a pose it already held: the arm approaches above the object at an offset,
-    translates horizontally onto the staging point at the same height
-    and descends.  ``clearance_m`` is the lowest height of the realign segment
-    above the object, and ``revisited_pose`` reports whether any later pose
-    repeats an earlier one (one observation would then have two futures).
+    与回撤再返回的恢复不同，此 trace 绝不能踏回它已经保持过的
+    pose：机械臂带偏移在物体上方接近，在同一高度水平平移到
+    暂存点，然后下降。``clearance_m`` 是 realign 段在物体
+    上方的最低高度，``revisited_pose`` 报告是否有任何后续
+    pose 重复了更早的 pose（那样一次观测就会有两种
+    未来）。
     """
 
     required = ("offset_approach", "lateral_realign", "verified_close")
@@ -339,7 +339,7 @@ def audit_lateral_realign_trace(trace: RecoveryTrace, *, min_clearance_m: float 
 
 
 def audit_recovery_trace(trace: RecoveryTrace) -> RecoveryAudit:
-    """Fail closed unless a miss is recovered by a clean robot-only sequence."""
+    """除非 miss 由纯机器人动作的干净序列恢复，否则 fail closed。"""
 
     required = (
         "misaligned_approach",
@@ -378,7 +378,7 @@ def audit_camera_realization(
     expected_frame_count: int,
     tolerance: float = 1e-9,
 ) -> CameraRealizationAudit:
-    """Verify that each realized camera stays at its planned episode pose."""
+    """校验每个实际实现的相机都停留在其计划的 episode pose。"""
 
     planned = {row.camera_id: row for row in plan.cameras}
     grouped = {camera_id: [] for camera_id in planned}

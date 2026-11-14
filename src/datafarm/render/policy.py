@@ -1,6 +1,6 @@
-"""Current-task render intent, prompt expansion and actual payload binding.
+"""当前任务的渲染意图、prompt 展开与实际 payload 绑定。
 
-No network calls. Semantic truth of provenance and quality requires independent review.
+不发起任何网络调用。provenance 与质量的语义真值需要独立审查。
 """
 from __future__ import annotations
 
@@ -38,14 +38,14 @@ def json_sha(value):
     return sha256_text(json.dumps(value, sort_keys=True, ensure_ascii=False))
 
 
-# An authorized appearance axis never extends to the robot, the number or identity of
-# objects, the camera layout, or the motion. This is a lexical fail-closed guard on the
-# axis names; the render reviewer still checks the rendered content against it.
+# 获得授权的外观轴绝不会扩展到机器人、物体的数量或身份、
+# 相机布局或运动。这是对轴名进行的词法层面失败关闭防护（fail closed）；
+# 渲染审查者仍会对照它检查渲染内容。
 PROTECTED_OOD_AXIS = re.compile(
     r'\b(robots?|arms?|grippers?|end[- ]effectors?|cameras?|viewpoints?|camera layout|view layout|'
     r'object count|number of objects|objects? added|add(ed|ing)? objects?|remov(e|ed|ing) objects?|'
     r'extra objects?|distractors?|motion|trajector(y|ies)|timing|actions?|poses?)\b'
-    # Axis names must be English; any CJK axis name fails closed instead of bypassing the English list.
+    # 轴名必须是英文；任何 CJK 轴名一律失败关闭，而不是绕过英文列表。
     r'|[\u3400-\u9fff]', re.IGNORECASE)
 
 
@@ -123,7 +123,7 @@ def validate_intent(intent: dict, root: Path) -> None:
 
 VARIABLES = {'TASK_DESCRIPTION', 'SOURCE_VIDEO_ROLE', 'CAMERA_TIMING_CONTRACT',
              'TASK_EVENT_CONTRACT', 'CONTINUITY_CONTRACT'}
-# This is a lexical backstop, not a claim to understand arbitrary contradictory prose.
+# 这是词法层面的兜底，而不是声称能理解任意自相矛盾的表述。
 CONFLICT = re.compile(r'(?:ignore|omit|remove|disable|without|no)\s+(?:all\s+)?(?:real[- ]world\s+|real\s+|appearance\s+)?references|'
                       r'source[- ]only|structure[- ]reference[- ]only|(?:do\s+not|don\'t)\s+(?:use|provide|reference)\s+(?:the\s+)?real\b|'
                       r'cancel\s+(?:the\s+)?real[- ]references?', re.IGNORECASE)
@@ -161,7 +161,7 @@ def load_contract(path: Path) -> dict:
     validate_intent(c['intent'], Path(c['intent_root']))
     require(json_sha(c['intent']) == c.get('intent_sha256'), 'render intent changed')
     require(sha256_text(c['prompt']) == c.get('prompt_sha256'), 'render prompt changed')
-    # Recompile with current core templates, so modifying a frozen prompt or core invalidates it.
+    # 用当前 core 模板重新编译，因此修改被冻结的 prompt 或 core 都会使其失效。
     from datafarm.agent.context import repository_root
     expected = compile_prompt(Path(c['intent_root']), c['intent'], c['overlay'], assets=repository_root())
     require(c == expected, 'compiled render contract differs from current templates/intent')
@@ -200,13 +200,13 @@ _VIEW_NAMES = {'head': 'head camera', 'left_wrist': 'left wrist camera', 'right_
 
 
 def lower_h3_prompt(contract: dict, lowering: str, *, assets: Path, chunk_facts: dict | None = None) -> str:
-    """Deterministic H3 provider lowering of an already validated render contract.
+    """对已校验渲染 contract 的确定性 H3 provider 降级转换。
 
-    H3 conditions on a caption-style presentation (`<Picture i>`/`<Video k>` labels followed by text), so the
-    lowering restates the confirmed contract as a positive description: the white carrier (Video 1) owns motion,
-    timing and task state; the real images own appearance; mode/OOD axes and task semantics come verbatim from
-    the confirmed intent and overlay.  It adds no new authority and cannot drop the real references, because the
-    gate still binds the actual images and recomputes this text from the contract.
+    H3 以 caption 风格的呈现方式进行条件控制（先是 `<Picture i>`/`<Video k>` 标签，随后是文本），因此该
+    降级会把已确认的 contract 复述为正向描述：white 载体（Video 1）拥有运动、
+    时序与任务状态；真实图像拥有外观；mode/OOD 轴与任务语义逐字来自
+    已确认的 intent 与 overlay。它不引入新的权限，也无法丢弃真实引用，因为
+    gate 仍会绑定实际图像并根据 contract 重新计算该文本。
     """
     require(lowering in H3_LOWERINGS, f'unknown H3 prompt lowering: {lowering}')
     intent, overlay = contract['intent'], contract['overlay']
@@ -231,11 +231,11 @@ def lower_h3_prompt(contract: dict, lowering: str, *, assets: Path, chunk_facts:
                  'REAL_BASELINE_DESCRIPTION': intent['real_baseline'].rstrip('. '),
                  'TASK_DESCRIPTION': overlay['TASK_DESCRIPTION'].rstrip('. '),
                  'TASK_EVENT_CONTRACT': overlay['TASK_EVENT_CONTRACT'].rstrip('. ')}
-    # '-noevents' lowerings drop the overlay's TASK_EVENT_CONTRACT (object inventory and terminal-count wording written
-    # for whole-video providers); the carrier and the chunk facts carry the per-segment state instead
-    # '-notask' lowerings also drop the whole-episode TASK_DESCRIPTION: in a chunk it states future task states (an
-    # object already placed while its target is still empty), which the generator draws early; task progress then comes
-    # only from the carrier (Video 1) and the measured chunk facts
+    # '-noevents' 降级会丢弃 overlay 的 TASK_EVENT_CONTRACT（为整段视频类 provider 编写的物体清单与
+    # 终态数量措辞）；改由载体与 chunk 事实承载每个分段的状态
+    # '-notask' 降级还会丢弃整段 episode 的 TASK_DESCRIPTION：在某个 chunk 中它会陈述未来的任务状态（物体
+    # 已经放置而目标仍为空），生成器会提前画出这些状态；此时任务进展仅
+    # 来自载体（Video 1）以及测得的 chunk 事实
     template = {'-noevents': 'h3-caption-noevents-v1.txt', '-notask': 'h3-caption-notask-v1.txt'}[lowering[lowering.rfind('-'):]]
     text = Template((assets / 'prompts/render' / template).read_text()).substitute(variables)
     require('${' not in text, 'unexpanded H3 lowering slot')
@@ -253,13 +253,13 @@ _COUNT_WORDS = ('no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'ei
 
 
 def chunk_visibility_sentences(facts: dict, views: list) -> str:
-    """Fixed-phrase, chunk-local visibility statements measured from the white carrier (the authority).
+    """从 white 载体（权威来源）测得的、固定措辞的 chunk 局部可见性陈述。
 
-    `facts` is a closed schema - {"head_absent_arms": [...sides], "empty_wrists": [...wrist views],
-    "head_max_coloured_objects": int 0..9, "wrist_large_objects": [...wrist views]} - so no free text can reach the
-    provider prompt; the packager measures it from the chunk's carrier clip.  The object count closes the gap between
-    the task's object inventory in the prompt and what the carrier shows in a segment (one nested stack, an object shut
-    in a container), which the generator otherwise fills with invented objects."""
+    `facts` 是封闭 schema——{"head_absent_arms": [...sides], "empty_wrists": [...wrist views],
+    "head_max_coloured_objects": int 0..9, "wrist_large_objects": [...wrist views]}——因此任何自由文本都无法进入
+    provider prompt；packager 会从该 chunk 的载体片段中测量它。物体数量弥合了
+    prompt 中任务物体清单与载体在某分段中所显示内容之间的差距（一个嵌套堆叠、一个被收进
+    容器中的物体），否则生成器会用臆造的物体填补这一差距。"""
     keys = {'head_absent_arms', 'empty_wrists', 'head_max_coloured_objects', 'wrist_large_objects'}
     require(isinstance(facts, dict) and set(facts) <= keys, 'invalid chunk facts')
     absent = facts.get('head_absent_arms', [])

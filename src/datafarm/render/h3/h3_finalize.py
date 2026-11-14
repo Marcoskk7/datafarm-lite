@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Finish one rendered episode: seed choice -> assembly -> frozen EVAL-v1 score -> first-chunk exposure lock -> score.
+"""完成一个已渲染 episode：seed 选择 -> 组装 -> 冻结的 EVAL-v1 评分 -> 首 chunk 曝光锁定 -> 评分。
 
   python h3_finalize.py select --render-recipe <name> --task <task> --episode-tag <tag> --name <selection name> \
       [--choice-file <choice.json>] --seeds s0 s1 ... [--run-dir <run>]
   python h3_finalize.py lock --package <assembled package dir> --name <selection name> [--run-dir <run>]
 
-`select` builds <run>/recipes/<name>.json and <run>/pkgs/<name>/<task>/<tag> from the per-chunk choice (a separate
-producer-side VLM screen; h3_screen_prep.py), assembles it with min-diff seams, scores it, then applies `lock`.  When the
-choice file is omitted, missing or invalid (the screen session failed or wrote a partial answer), it falls back to the
-pixel occupancy screen of h3_select.py and records why in the package's `selection.fallback_reason`.
-`lock` writes <run>/pkgs/exposure-lock-<name>/<task>/<tag> and scores it.  A package rendered from a wide-FOV wrist
-white (package.json wide_wrist) is then cropped back to the white's own wrist camera model (h3_wrist_crop.py) into
-<run>/pkgs/exposure-lock-<name>-wristcrop/<task>/<tag> and scored; that package is the one to pack and review.
-Acceptance stays the independent blind review.
-Relative paths resolve against the run directory.  Run with H3_PYTHON (numpy, opencv); bindings: H3_RUN, H3_EVAL_DINO.
+`select` 依据逐 chunk 的选择（一个独立的 producer 侧 VLM 筛选；h3_screen_prep.py）构建
+<run>/recipes/<name>.json 与 <run>/pkgs/<name>/<task>/<tag>，以 min-diff 接缝组装并评分，然后应用 `lock`。当
+choice 文件被省略、缺失或无效时（筛选会话失败或写出了部分答案），它回退到
+h3_select.py 的像素占用筛选，并在 package 的 `selection.fallback_reason` 中记录原因。
+`lock` 写出 <run>/pkgs/exposure-lock-<name>/<task>/<tag> 并对其评分。由宽 FOV wrist
+white（package.json wide_wrist）渲染的 package 随后被裁回 white 自身的腕部相机模型（h3_wrist_crop.py），输出到
+<run>/pkgs/exposure-lock-<name>-wristcrop/<task>/<tag> 并评分；该 package 才是要打包并审查的那个。
+验收仍由独立的盲审完成。
+相对路径相对于 run 目录解析。使用 H3_PYTHON 运行（numpy、opencv）；绑定：H3_RUN、H3_EVAL_DINO。
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def lock(package: Path, name: str, run: Path) -> Path:
             indent=2))
     dst = lock_package(package, json.loads(recipe_path.read_text()), run)
     score_package(dst, package.parts[-2], run)
-    cropped = crop_back(dst, run)   # wide-FOV wrist white: back to the white's own wrist camera model
+    cropped = crop_back(dst, run)   # 宽 FOV 腕部 white：裁回 white 自身的腕部相机模型
     if cropped is not None:
         score_package(cropped, package.parts[-2], run)
         return cropped
@@ -55,7 +55,7 @@ def lock(package: Path, name: str, run: Path) -> Path:
 
 
 def usable_choice(choice_file: Path | None, cands: list[Path]) -> tuple[Path | None, str | None]:
-    """(choice file, None) when the VLM screen answer fits the candidates, else (None, why it cannot be used)."""
+    """当 VLM 筛选答案与候选匹配时返回 (choice 文件, None)，否则返回 (None, 无法使用的原因)。"""
     if choice_file is None:
         return None, "no choice file given"
     if not choice_file.is_file():
@@ -114,7 +114,7 @@ def main() -> int:
     h3_paths.add_run_dir_arg(k)
     args = ap.parse_args()
     run = h3_paths.run_dir(args.run_dir)
-    h3_paths.eval_dino()  # fail closed before any work
+    h3_paths.eval_dino()  # 在任何工作前失败关闭
     final = select(args, run) if args.cmd == "select" else lock((run / args.package).resolve(), args.name, run)
     print(json.dumps({"final_package": str(final)}))
     return 0

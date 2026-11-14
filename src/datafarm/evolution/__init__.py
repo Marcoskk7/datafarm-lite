@@ -1,1 +1,1 @@
-"""Repository-native, evidence-driven improvement of pipeline code and instructions."""
+"""仓库原生、以证据驱动的 pipeline 代码与指令改进。"""

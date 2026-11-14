@@ -1,4 +1,4 @@
-"""Content-addressed source snapshots and atomic, compare-and-swap activation."""
+"""内容寻址的源码快照，以及原子化、compare-and-swap 的激活。"""
 from __future__ import annotations
 
 from datafarm.common import sha256_file
@@ -39,7 +39,7 @@ def files(root):
         if path.is_symlink() or not path.resolve().is_relative_to(root):
             raise ValueError(f'source snapshot cannot contain symlink: {name}')
         if not path.is_file():
-            continue  # tracked deletion is reflected in the manifest
+            continue  # tracked 的删除会反映在 manifest 中
         result[name] = {'sha256': sha256_file(path),
                         'executable': bool(path.stat().st_mode & 0o111)}
     if not result:
