@@ -153,7 +153,7 @@ Both tools exit 0 only on `pass` / `calibrated`, and 2 otherwise. The output is 
    `calibration.json` (`datafarm.render-verifier-calibration/2`) records `spec_sha256` and
    `generated_sha256`. The tool exits 0 only when `calibrated` is true.
 
-Code: `src/datafarm/render/verify/`, `tools/verify_render.py`, `tools/calibrate_render_verifier.py`.
+Code: `src/datafarm/render/verify/` (calibration: `calibration.py`), `tools/verify_render.py`, `tools/calibrate_render_verifier.py`.
 
 ## 8. Data model
 

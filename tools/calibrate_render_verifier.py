@@ -16,76 +16,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import multiprocessing as mp
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import cv2  # noqa: E402
+from dataclasses import replace  # noqa: E402
 
 from datafarm.kernel.io import sha256_file as sha256  # noqa: E402
 from datafarm.render.verify import counterfactual as CF  # noqa: E402
-from dataclasses import replace  # noqa: E402
-
+from datafarm.render.verify.calibration import run_suite, summarize  # noqa: E402
 from datafarm.render.verify.episode import frame_events, gripper_events, load_state  # noqa: E402
-from datafarm.render.verify.media import load_clip, load_reference_clip  # noqa: E402
 from datafarm.render.verify.spec import load_spec  # noqa: E402
-from datafarm.render.verify.verifier import run_checks  # noqa: E402
-
-G: dict = {}
-
-
-def _run(name: str):
-    spec, base, carrier, real, refs, state = G["spec"], G["gen"], G["car"], G["real"], G["refs"], G["state"]
-    start = time.time()
-    if name == "positive_control":
-        clip = base
-        expected = ()
-    else:
-        cf = next(c for c in CF.SUITE if c.name == name)
-        entity = spec.entities[0]
-        robot = next((e for e in spec.entities if e.role == "robot"), None)
-        frames = cf.make(G["gen_full"], G["car_full"], spec, entity, robot)
-        if frames is None:
-            return {"name": name, "status": "not_constructible"}
-        clip = CF.clip_from_full(base, frames)
-        expected = cf.expected
-    receipt = run_checks(spec, carrier, clip, real, refs, state=state)
-    verdicts = {c["name"]: c["verdict"] for c in receipt["checks"]}
-    failed = [n for n, v in verdicts.items() if v == "fail"]
-    caught = all(any(f.startswith(e) for f in failed) for e in expected) if expected else None
-    return {"name": name, "verdict": receipt["verdict"], "failed": failed, "expected": list(expected),
-            "caught": caught, "verdicts": verdicts, "seconds": round(time.time() - start, 1),
-            "reasons": {c["name"]: c["reason"] for c in receipt["checks"] if c["verdict"] != "pass"}}
-
-
-def summarize(results: list, *, suite: list, partial: bool, waivers: dict) -> dict:
-    """Calibration verdict; nothing is dropped from the denominator silently."""
-    unknown = set(waivers) - set(suite)
-    if unknown:
-        raise ValueError(f"waivers name unknown counterfactuals: {sorted(unknown)}")
-    positive = next((r for r in results if r["name"] == "positive_control"), None)
-    negatives = [r for r in results if r["name"] != "positive_control"]
-    unconstructed = [r["name"] for r in negatives if r.get("status") == "not_constructible"]
-    unwaived = [name for name in unconstructed if name not in waivers]
-    missed = [r["name"] for r in negatives
-              if r.get("status") != "not_constructible" and not r.get("caught")]
-    passes = positive["verdict"] == "pass" if positive else None
-    return {
-        "positive_control_passes": passes,
-        "caught": sum(1 for r in negatives if r.get("caught")),
-        "total": len(suite),
-        "constructed": len(negatives) - len(unconstructed),
-        "missed": missed,
-        "not_constructible": unconstructed,
-        "unwaived_not_constructible": unwaived,
-        "waivers": waivers,
-        "partial": partial,
-        "calibrated": bool(passes) and not partial and not missed and not unwaived,
-        "results": results,
-    }
 
 
 def main(argv=None) -> int:
@@ -117,16 +59,6 @@ def main(argv=None) -> int:
     if args.mode:
         spec = replace(spec, realism=replace(spec.realism, mode=args.mode,
                                              perturbed_axes=tuple(a for a in args.perturbed_axes.split(",") if a)))
-    kw = dict(layout_size=spec.layout_size, work_scale=spec.work_scale, stride=spec.stride)
-    G["spec"] = spec
-    G["state"] = state
-    G["car"] = load_clip(args.carrier, **kw)
-    G["gen"] = load_clip(args.generated, **kw)
-    G["real"] = load_reference_clip(args.real, layout_size=spec.layout_size,
-                                    work_scale=spec.work_scale) if args.real else None
-    G["refs"] = [cv2.resize(cv2.imread(str(p)), spec.layout_size) for p in args.reference]
-    G["car_full"] = CF.full_rate_frames(str(args.carrier), spec)
-    G["gen_full"] = CF.full_rate_frames(str(args.generated), spec)
     waivers = {}
     for item in args.waive:
         name, _, reason = item.partition("=")
@@ -137,8 +69,8 @@ def main(argv=None) -> int:
     names = ["positive_control"] + suite
     if args.only:
         names = [n for n in names if n in args.only.split(",")]
-    with mp.get_context("fork").Pool(min(args.workers, len(names))) as pool:
-        results = pool.map(_run, names)
+    results = run_suite(spec, state, carrier=args.carrier, generated=args.generated, real=args.real,
+                        references=args.reference, names=names, workers=args.workers)
     positive = next((r for r in results if r["name"] == "positive_control"), None)
     negatives = [r for r in results if r["name"] != "positive_control"]
     summary = {

@@ -107,7 +107,7 @@ In the PI0.5 tokenizer, `discrete_state_input=False` passes `state=None` to the 
     global `batch_size` must divide every GPU candidate count. Runs use `--no-overwrite
     --no-resume`.
 
-Code: `tools/launch_pi05_training.py`, `src/datafarm/training/`.
+Code: `tools/launch_pi05_training.py`, `tools/build_pi05_dataset.py` (implementation: `src/datafarm/training/pi05_build.py`), `src/datafarm/training/`.
 
 ## Data model
 

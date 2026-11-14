@@ -1,12 +1,9 @@
 import json
-from pathlib import Path
 from types import SimpleNamespace
-import sys
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from build_pi05_dataset import admitted_reviews
+from datafarm.training.pi05_build import admitted_reviews
 from datafarm.training.cohort import cohort_contract
 
 

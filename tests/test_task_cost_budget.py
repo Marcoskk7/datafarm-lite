@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import multiprocessing
 import sys
@@ -106,8 +105,7 @@ def test_concurrent_drivers_cannot_double_allocate(tmp_path):
 
 
 def driver_module(monkeypatch, work):
-    spec = importlib.util.spec_from_file_location('budget_pipeline_cli', ROOT / 'tools/pipeline_agent.py')
-    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    import datafarm.orchestration.driver as module
     monkeypatch.setattr(module, 'verify_input', lambda _: {})
     monkeypatch.setattr(module, 'source_for', lambda *_: ROOT)
     monkeypatch.setattr(module, 'context_for', lambda _: {})

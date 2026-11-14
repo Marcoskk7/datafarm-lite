@@ -62,7 +62,7 @@ Related: [capability layer](capability-layer.md) (context compiler and source pi
 15. **Published progress counts only verified deliveries.** `completed_episodes` is non-zero only
     when the last result is `valid` and `complete`; heartbeats do not change `last_substantive_at`.
 
-Code: `tools/pipeline_agent.py`, `src/datafarm/orchestration/runtime.py`, `src/datafarm/adapters/agent_harness/native_codex.py`, `src/datafarm/orchestration/task_wait.py`, `src/datafarm/orchestration/progress.py`, `src/datafarm/task/review_identity.py`, `src/datafarm/render/delivery.py`.
+Code: `tools/pipeline_agent.py`, `src/datafarm/orchestration/driver.py`, `src/datafarm/orchestration/runtime.py`, `src/datafarm/adapters/agent_harness/native_codex.py`, `src/datafarm/orchestration/task_wait.py`, `src/datafarm/orchestration/progress.py`, `src/datafarm/task/review_identity.py`, `src/datafarm/render/delivery.py`.
 
 ## Data model
 
