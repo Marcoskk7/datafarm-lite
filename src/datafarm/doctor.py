@@ -41,7 +41,7 @@ def doctor(root: Path, profile: str) -> dict:
             check(name, shutil.which(name), "required on PATH; see docs/reference/usdcraft.md")
     manifest = root / "configs/external-assets.json"
     if manifest.is_file():
-        from datafarm.core.source_lock import sha256_file
+        from datafarm.kernel.binding import sha256_file
         for entry in json.loads(manifest.read_text())["files"]:
             if profile not in entry["profiles"]:
                 continue

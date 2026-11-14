@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import os
-from datafarm.common import atomic_write_json
+from datafarm.kernel.io import atomic_write_json
 from pathlib import Path
 import subprocess
 import sys

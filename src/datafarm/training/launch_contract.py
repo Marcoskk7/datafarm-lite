@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 import math
 from typing import Any, Mapping
 
-from datafarm.common import is_sha256
+from datafarm.kernel.io import is_sha256
 
 
 # PI0.5 可以通过其 tokenizer 消费离散化 state，但本 launcher 只训练无 state 模式。

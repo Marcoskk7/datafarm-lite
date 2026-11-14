@@ -1,7 +1,7 @@
 """把 task session 绑定到 source/experience 版本，并记录可见的反馈。"""
 from __future__ import annotations
 
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 import json
 from pathlib import Path
 

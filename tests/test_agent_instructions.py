@@ -12,7 +12,7 @@ from render_policy_fixtures import policy_fixture
 
 from datafarm.agent.context import build_context, write_context
 from datafarm.render.policy import check_seedance_payload, compile_prompt
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 from datafarm.task.contract import verify_delivery
 
 ROOT = Path(__file__).resolve().parents[1]

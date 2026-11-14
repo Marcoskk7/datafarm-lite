@@ -7,7 +7,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from datafarm.common import append_jsonl
 from datafarm.expert.adapter import (HoldoutSeed, SeedSet, TaskAdapter, load_holdout_seeds,
                                           validate_holdout_against_dev, write_holdout_seeds)
 from datafarm.expert.audit import audit_expert_source
@@ -15,7 +14,8 @@ from datafarm.expert.brief import lint_brief, render_brief
 from datafarm.expert.manifest import build_manifest, diff_manifests
 from datafarm.expert.util import (ConfigError, UnsafePathError, expand,
                                        human_duration, read_jsonl, read_regular_nofollow, safe_relpath,
-                                       sha256_json, tree_digest)
+                                       tree_digest)
+from datafarm.kernel.io import append_jsonl, sha256_json
 from xh_helpers import HOLDOUT, TEMPLATE, expert, write_adapter
 
 REPO = Path(__file__).resolve().parents[1]

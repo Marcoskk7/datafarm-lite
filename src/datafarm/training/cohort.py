@@ -1,5 +1,5 @@
 """数据集审计与物化共用的显式 cohort 范围。"""
-from datafarm.common import read_json, sha256_file
+from datafarm.kernel.io import read_json, sha256_file
 
 
 def cohort_contract(args, samples):

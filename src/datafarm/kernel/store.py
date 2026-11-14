@@ -4,15 +4,14 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from datafarm.common import atomic_write_bytes
-from datafarm.core.model import ArtifactDocument, ArtifactRef, GateReceipt, IRKind
-from datafarm.core.schema import (
+from datafarm.kernel.artifacts import ArtifactDocument, ArtifactRef, GateReceipt, IRKind
+from datafarm.kernel.io import atomic_write_bytes, sha256_bytes
+from datafarm.kernel.schema import (
     SchemaError,
     canonical_json_bytes,
     validate_artifact,
     validate_gate_receipt,
 )
-from datafarm.common import sha256_bytes
 
 
 class ArtifactIntegrityError(RuntimeError):

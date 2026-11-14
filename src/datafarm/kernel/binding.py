@@ -1,12 +1,34 @@
-"""在不依赖开发者 Git checkout 的情况下验证导出的源码树。"""
+"""绑定文件引用：``{path, sha256}`` 记录必须解析到它所指向的确切字节；并验证导出的源码树。"""
 from __future__ import annotations
 
-from datafarm.common import sha256_file
 import json
 from pathlib import Path
 
+from datafarm.kernel.io import sha256_file
+
+
+class ContractError(ValueError):
+    pass
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise ContractError(message)
+
+
+def bound_file(root: Path, ref: dict, *, external: bool = False) -> Path:
+    require(isinstance(ref, dict) and isinstance(ref.get('path'), str), 'invalid file reference')
+    raw = Path(ref['path'])
+    p = (root / raw).resolve(strict=True)
+    require(external or (not raw.is_absolute() and p.is_relative_to(root.resolve())),
+            'artifact escapes task workspace')
+    require(p.is_file() and p.stat().st_size > 0, 'artifact must be a nonempty file')
+    require(sha256_file(p) == ref.get('sha256'), f'artifact changed: {ref["path"]}')
+    return p
+
 
 def verify_source_lock(root: Path, manifest: Path, expected_sha256: str) -> dict:
+    """在不依赖开发者 Git checkout 的情况下验证导出的源码树。"""
     if sha256_file(manifest) != expected_sha256:
         raise ValueError("source lock manifest digest mismatch")
     value = json.loads(manifest.read_text())

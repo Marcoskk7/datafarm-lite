@@ -32,8 +32,8 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from datafarm.expert.adapter import TaskAdapter
 from datafarm.expert.isolation import PROBE_SCRIPT, job_wrapper_bash, make_empty_file
-from datafarm.expert.util import ConfigError, HarnessError, get_dotted, read_json, sha256_bytes
-from datafarm.common import sha256_text
+from datafarm.expert.util import ConfigError, HarnessError, get_dotted
+from datafarm.kernel.io import read_json, sha256_bytes, sha256_text
 
 JOB_SCHEMA = "datafarm.expert-harness.job/1"
 

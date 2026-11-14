@@ -1,7 +1,7 @@
 """显式的 host feedback、限定范围的 lessons，以及可复现的上下文选择。"""
 from __future__ import annotations
 
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 from datafarm.evolution.store import digest, identifier
 
 KINDS = {'user-requirement', 'correction', 'observation', 'code-fix', 'test-result',

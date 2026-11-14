@@ -14,7 +14,7 @@ task 代码的职责。
 
 from __future__ import annotations
 
-from datafarm.common import is_finite_number, sha256_json
+from datafarm.kernel.io import is_finite_number, sha256_json
 import copy
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping, Sequence

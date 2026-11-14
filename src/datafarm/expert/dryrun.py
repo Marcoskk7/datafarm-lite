@@ -38,8 +38,8 @@ from datafarm.expert.manifest import build_manifest, diff_manifests
 from datafarm.expert.rollout import make_backend
 from datafarm.expert.round import (RoundRunner, harness_code_sha256, manifest_entries, prepare_round, rollout_masks)
 from datafarm.expert.state import RoundState
-from datafarm.common import read_json_or_none
-from datafarm.expert.util import Clock, read_json, read_jsonl, sha256_file
+from datafarm.expert.util import Clock, read_jsonl
+from datafarm.kernel.io import read_json, read_json_or_none, sha256_file
 
 HOLDOUT_SEEDS = tuple(range(5000, 5008))
 SPARE_SEEDS = (5100, 5101, 5102, 5103)

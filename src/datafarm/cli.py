@@ -5,10 +5,10 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from datafarm.core.model import ArtifactDocument, GateReceipt
-from datafarm.core.schema import canonical_json_bytes, validate_artifact, validate_gate_receipt
+from datafarm.kernel.artifacts import ArtifactDocument, GateReceipt
+from datafarm.kernel.schema import canonical_json_bytes, validate_artifact, validate_gate_receipt
 from datafarm.doctor import add_parsers as add_doctor_parser, handle as handle_doctor
-from datafarm.common import sha256_bytes
+from datafarm.kernel.io import sha256_bytes
 
 
 def _load(path: Path) -> dict:

@@ -24,8 +24,8 @@ from datafarm.core.admission import (
     issue_certificate,
     verify_certificate,
 )
-from datafarm.core.model import ArtifactRef, Verdict
-from datafarm.core.store import ArtifactStore
+from datafarm.kernel.artifacts import ArtifactRef, Verdict
+from datafarm.kernel.store import ArtifactStore
 
 from tests.admission_fixtures import sha, write_dense_cohort
 

@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import cv2  # noqa: E402
 
-from datafarm.common import sha256_file as sha256  # noqa: E402
+from datafarm.kernel.io import sha256_file as sha256  # noqa: E402
 from datafarm.verify import counterfactual as CF  # noqa: E402
 from dataclasses import replace  # noqa: E402
 

@@ -207,7 +207,7 @@ pathlib.Path('state.json').write_text(json.dumps({'status':'needs-input','open_q
 '''
     work,module,args=setup(tmp_path,monkeypatch,script)
     subject=work/'task/subject.txt';subject.parent.mkdir();subject.write_text('actual evidence')
-    from datafarm.common import sha256_file
+    from datafarm.kernel.io import sha256_file
     req={'id':'check','subjects':[{'path':'task/subject.txt','sha256':sha256_file(subject)}],
          'instructions':'Check the actual evidence.'}
     save(work/'state.json',{'status':'working','review_requests':[req]})
@@ -240,7 +240,7 @@ def test_exhausted_transient_retries_cannot_reset_on_restart(tmp_path, monkeypat
 def test_review_runs_when_author_is_waiting_for_input(tmp_path, monkeypatch):
     work,module,args=setup(tmp_path,monkeypatch,'')
     subject=work/'subject';subject.write_text('evidence')
-    from datafarm.common import sha256_file
+    from datafarm.kernel.io import sha256_file
     request={'id':'pending','instructions':'Inspect',
              'subjects':[{'path':'subject','sha256':sha256_file(subject)}]}
     save(work/'state.json',{'status':'needs-input','open_questions':['fixture question'],'review_requests':[request]})
@@ -256,7 +256,7 @@ r=json.loads((f/'request.json').read_text())
 
 def test_recovered_review_finalizes_without_second_paid_turn(tmp_path, monkeypatch):
     work,module,args=setup(tmp_path,monkeypatch,'')
-    from datafarm.common import sha256_file
+    from datafarm.kernel.io import sha256_file
     subject=work/'subject';subject.write_text('source')
     req={'id':'recovered','instructions':'Inspect','subjects':[{'path':'subject','sha256':sha256_file(subject)}]}
     save(work/'state.json',{'status':'working','review_requests':[req]})
@@ -337,7 +337,7 @@ f=pathlib.Path('.runtime/reviews')/r['id']
 s['status']='needs-input';s['open_questions']=['fixture question'];p.write_text(json.dumps(s))
 '''
     work,module,args=setup(tmp_path,monkeypatch,script)
-    from datafarm.common import sha256_file
+    from datafarm.kernel.io import sha256_file
     subject=work/'subject';subject.write_text('original source')
     req={'id':'bound','instructions':'Inspect actual source',
          'subjects':[{'path':'subject','sha256':sha256_file(subject)}]}
@@ -361,7 +361,7 @@ def test_completion_cannot_upgrade_rejected_report(tmp_path, monkeypatch):
 
 def test_generic_driver_cannot_reuse_author_identity_for_review(tmp_path):
     from datafarm.agent.runtime import register_identity
-    from datafarm.common import sha256_file
+    from datafarm.kernel.io import sha256_file
     workspace(tmp_path)
     for name,key,role in [('first','author','orchestrator'),('second','review-check','task-verifier')]:
         folder=tmp_path/'sessions'/name;folder.mkdir();proof=folder/'provider.txt';proof.write_text('same-provider-session')
@@ -377,7 +377,7 @@ def test_argv_only_review_is_refused_before_model_launch(tmp_path, monkeypatch):
     work,module,args=setup(tmp_path,monkeypatch,'raise RuntimeError("must not run")')
     cfg=json.loads(args.config.read_text());cfg['driver'].pop('session_identity_protocol');save(args.config,cfg)
     subject=work/'subject';subject.write_text('source')
-    from datafarm.common import sha256_file
+    from datafarm.kernel.io import sha256_file
     save(work/'state.json',{'status':'working','review_requests':[{'id':'check','instructions':'Inspect',
         'subjects':[{'path':'subject','sha256':sha256_file(subject)}]}]})
     with pytest.raises(ValueError,match='cannot prove independence'):supervise(args,module.drive)

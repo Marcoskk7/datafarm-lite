@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from datafarm.agent.runtime import validate_completion
-from datafarm.common import sha256_file, sha256_text
-from datafarm.core.file_binding import ContractError, bound_file, require
-from datafarm.core.grounding import GroundingError, load_grounding
+from datafarm.grounding.quantities import GroundingError, load_grounding
+from datafarm.kernel.binding import ContractError, bound_file, require
+from datafarm.kernel.io import sha256_file, sha256_text
 from datafarm.render.policy import load_contract
 import json
 from pathlib import Path
@@ -68,7 +68,7 @@ def verify_review_independence(root: Path, review: dict, review_ref: dict, produ
 
 
 def verify_grounding(root: Path, delivery: dict) -> dict:
-    """交付绑定 G；每个物理量都携带其标签（core/grounding.py）。"""
+    """交付绑定 G；每个物理量都携带其标签（grounding/quantities.py）。"""
     require(isinstance(delivery.get('grounding'), dict), 'delivery must bind the grounding record')
     try:
         return load_grounding(bound_file(root, delivery['grounding']),

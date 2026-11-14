@@ -10,7 +10,7 @@ from datafarm.render.policy import (
     compile_prompt,
     load_contract,
 )
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 
 
 @pytest.mark.parametrize('mode', ['sim2real', 'ood'])

@@ -21,7 +21,6 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from datafarm.common import append_jsonl
 from datafarm.expert.adapter import TaskAdapter
 from datafarm.expert.audit import AuditReport, audit_expert_source
 from datafarm.expert.layout import RoundPaths
@@ -29,8 +28,8 @@ from datafarm.expert.rollout import (AttemptSpec, LaunchError, RolloutBackend, c
                       summarize_outcome)
 from datafarm.expert.state import EventLog, RoundState
 from datafarm.expert.util import (Clock, UnsafePathError, atomic_write_bytes, atomic_write_json,
-                   clip_text, read_regular_nofollow, safe_relpath, sha256_bytes, sha256_json,
-                   utc_now)
+                   clip_text, read_regular_nofollow, safe_relpath)
+from datafarm.kernel.io import append_jsonl, sha256_bytes, sha256_json, utc_now
 
 REQUEST_SCHEMA = "datafarm.expert-harness.request/1"
 RESPONSE_SCHEMA = "datafarm.expert-harness.response/1"

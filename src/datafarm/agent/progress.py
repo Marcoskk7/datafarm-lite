@@ -4,14 +4,14 @@
 生产者的声明会单独标注。
 """
 from __future__ import annotations
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 import fcntl
 import json
 from pathlib import Path
 import time
 
 from datafarm.agent.native_codex import save
-from datafarm.common import sha256_text
+from datafarm.kernel.io import sha256_text
 
 
 def refresh_external_jobs(work):

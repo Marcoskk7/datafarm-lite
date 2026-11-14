@@ -109,7 +109,7 @@ class ArtifactDocument:
         它绝不取代内容地址。
         """
 
-        from datafarm.core.schema import payload_sha256  # 局部导入：schema 导入 model
+        from datafarm.kernel.schema import payload_sha256  # 局部导入：schema 导入 artifacts
 
         return payload_sha256(self)
 
@@ -117,7 +117,7 @@ class ArtifactDocument:
     def identity_sha256(self) -> str:
         """不含 ``created_at`` 的封装层摘要（无时间戳身份）。"""
 
-        from datafarm.core.schema import identity_sha256  # 局部导入：schema 导入 model
+        from datafarm.kernel.schema import identity_sha256  # 局部导入：schema 导入 artifacts
 
         return identity_sha256(self)
 

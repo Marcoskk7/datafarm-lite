@@ -27,8 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
-from datafarm.common import is_sha256, sha256_bytes, utc_now
-from datafarm.core.model import (
+from datafarm.kernel.artifacts import (
     ArtifactDocument,
     ArtifactRef,
     Authority,
@@ -37,8 +36,9 @@ from datafarm.core.model import (
     StageName,
     Verdict,
 )
-from datafarm.core.schema import SchemaError, canonical_json_bytes, document_sha256
-from datafarm.core.store import ArtifactIntegrityError, ArtifactStore
+from datafarm.kernel.io import is_sha256, sha256_bytes, utc_now
+from datafarm.kernel.schema import SchemaError, canonical_json_bytes, document_sha256
+from datafarm.kernel.store import ArtifactIntegrityError, ArtifactStore
 
 TRAINING_ADMISSION_PROFILE = "datafarm.training-admission/1.0.0"
 CERTIFICATE_COMPILER_ID = "datafarm-training-certificate-compiler-v1"

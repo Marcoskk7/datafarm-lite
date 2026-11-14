@@ -8,11 +8,11 @@ from pathlib import PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit
 
-from datafarm.common import canonical_json_bytes as _canonical_json_bytes
-from datafarm.common import is_sha256
-from datafarm.common import sha256_bytes as sha256_hex
-from datafarm.core.grounding import GroundingError, validate_quantities
-from datafarm.core.model import ArtifactDocument, GateReceipt, IRKind
+from datafarm.grounding.quantities import GroundingError, validate_quantities
+from datafarm.kernel.artifacts import ArtifactDocument, GateReceipt, IRKind
+from datafarm.kernel.io import canonical_json_bytes as _canonical_json_bytes
+from datafarm.kernel.io import is_sha256
+from datafarm.kernel.io import sha256_bytes as sha256_hex
 
 IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,127}$")
 WINDOWS_ABSOLUTE_PATTERN = re.compile(r"^[A-Za-z]:[\\/]")

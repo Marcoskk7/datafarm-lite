@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
-from datafarm.common import is_sha256, sha256_bytes
+from datafarm.kernel.io import is_sha256, sha256_bytes
 from datafarm.core.admission import (
     ALLOWLIST_ROLE,
     FILES_ROLE,
@@ -30,7 +30,7 @@ from datafarm.core.admission import (
     CohortAdmissionClaim,
     GrantedWaiver,
 )
-from datafarm.core.model import ArtifactRef
+from datafarm.kernel.artifacts import ArtifactRef
 
 DENSE_ALLOWLIST_AUDITOR_ID = "datafarm-pi05-dense-allowlist-auditor-v1"
 DENSE_ALLOWLIST_SCHEMA = "datafarm.pi05-semantic-allowlist/1.1.0"

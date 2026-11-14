@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-from datafarm.core.model import (
+from datafarm.kernel.artifacts import (
     Authority,
     IRKind,
     StageName,

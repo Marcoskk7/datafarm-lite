@@ -21,7 +21,7 @@ abstention。此外，它还会标记与现行用户规则相矛盾的 VLM 判�
 
 from __future__ import annotations
 
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 import csv
 from dataclasses import dataclass, field
 import io
@@ -31,7 +31,7 @@ import re
 from typing import Any, Iterable, Mapping, Sequence
 
 from datafarm.verify.stats import cohen_kappa, wilson_interval
-from datafarm.common import sha256_text
+from datafarm.kernel.io import sha256_text
 
 PASS, FAIL, ABSTAIN = "pass", "fail", "abstain"
 CLASSES = (PASS, FAIL, ABSTAIN)

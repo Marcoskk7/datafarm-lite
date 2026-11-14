@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 from datafarm.expert.session import ClaudeStreamParser, CodexJsonParser
 
 ROOT = Path(__file__).resolve().parents[3]

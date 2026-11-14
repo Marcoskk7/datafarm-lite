@@ -12,9 +12,9 @@ import math
 from pathlib import Path
 from typing import Any
 
-from datafarm.common import append_jsonl
 from datafarm.expert.layout import RoundPaths
-from datafarm.expert.util import HarnessError, atomic_write_json, read_json, utc_now
+from datafarm.expert.util import HarnessError, atomic_write_json
+from datafarm.kernel.io import append_jsonl, read_json, utc_now
 
 STATE_SCHEMA = "datafarm.expert-harness.state/1"
 EVENT_SCHEMA = "datafarm.expert-harness.event/1"

@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation, ROUND_CEILING
 import fcntl
 import json
 from pathlib import Path
-from datafarm.common import atomic_write_json, sha256_text
+from datafarm.kernel.io import atomic_write_json, sha256_text
 
 
 def micros(value):

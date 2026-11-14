@@ -13,12 +13,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-from datafarm.common import append_jsonl
 from datafarm.expert.adapter import TaskAdapter
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.state import RoundState
-from datafarm.expert.util import (HarnessError, atomic_write_bytes, atomic_write_json, read_json,
-                   sha256_bytes, utc_now)
+from datafarm.expert.util import (HarnessError, atomic_write_bytes, atomic_write_json)
+from datafarm.kernel.io import append_jsonl, read_json, sha256_bytes, utc_now
 
 ENTRY_SCHEMA = "datafarm.expert-harness.library-entry/1"
 

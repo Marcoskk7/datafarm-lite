@@ -11,7 +11,7 @@ from typing import Callable, Iterable, NamedTuple
 import h3_paths
 
 h3_paths.datafarm_src()
-from datafarm.common import sha256_file as sha256  # noqa: E402
+from datafarm.kernel.io import sha256_file as sha256  # noqa: E402
 
 __all__ = ["VideoInfo", "link_or_copy", "nframes", "probe", "read_all", "read_frames", "sha256"]
 

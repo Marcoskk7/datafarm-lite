@@ -40,7 +40,7 @@ import h3_paths
 from h3_media import sha256
 
 h3_paths.datafarm_src()
-from datafarm.common import atomic_write_json  # noqa: E402
+from datafarm.kernel.io import atomic_write_json  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:

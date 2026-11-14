@@ -16,9 +16,9 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from datafarm.common import atomic_write_json
+from datafarm.kernel.io import atomic_write_json
 from datafarm.agent.context import write_context
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 from datafarm.task.contract import verify_delivery, verify_input
 from datafarm.evolution.integration import bind, binding, source_for, context_for, capture, feedback
 from datafarm.agent.cost_budget import TaskBudget, validate_policy, micros, budget_for_work

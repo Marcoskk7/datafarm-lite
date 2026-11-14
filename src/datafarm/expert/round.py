@@ -44,8 +44,9 @@ from datafarm.expert.session import AgentBackend, SessionRunner, SessionSpec, cl
 from datafarm.expert.state import TERMINAL, EventLog, RoundState
 from datafarm.expert.toolbox import Broker
 from datafarm.expert.util import (Clock, ConfigError, HarnessError, UnsafePathError, atomic_write_bytes,
-                   atomic_write_json, atomic_write_text, human_duration, read_json,
-                   read_regular_nofollow, sha256_file, sha256_text, tree_digest, utc_now)
+                   atomic_write_json, atomic_write_text, human_duration,
+                   read_regular_nofollow, tree_digest)
+from datafarm.kernel.io import read_json, sha256_file, sha256_text, utc_now
 
 from datafarm.agent.context import repository_root
 

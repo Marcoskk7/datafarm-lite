@@ -21,7 +21,8 @@ from datafarm.expert.rollout import (AttemptSpec, FakeRolloutBackend, LocalRollo
 from datafarm.expert.state import EventLog, RoundState
 from datafarm.expert.toolbox import REQUEST_SCHEMA, Broker
 from xh_helpers import FakeClock
-from datafarm.expert.util import read_jsonl, sha256_bytes
+from datafarm.expert.util import read_jsonl
+from datafarm.kernel.io import sha256_bytes
 from xh_helpers import HOLDOUT, expert, write_adapter
 
 PKG = Path(__file__).resolve().parents[1] / "src" / "datafarm" / "expert"

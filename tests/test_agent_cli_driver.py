@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from datafarm.agent.runtime import register_identity, runtime_dir, supervise
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 from test_configurable_runtime import policy
 from test_task_cost_budget import driver_module, workspace
 

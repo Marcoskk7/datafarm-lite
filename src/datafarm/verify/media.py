@@ -13,7 +13,7 @@ transport 检查。这里保存两份副本：
 
 from __future__ import annotations
 
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 from dataclasses import dataclass
 from pathlib import Path
 

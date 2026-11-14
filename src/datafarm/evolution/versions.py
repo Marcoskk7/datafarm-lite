@@ -1,7 +1,7 @@
 """内容寻址的源码快照，以及原子化、compare-and-swap 的激活。"""
 from __future__ import annotations
 
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 import os
 from pathlib import Path
 import shutil

@@ -63,7 +63,7 @@ from datafarm.batch.supervisor import (
     Verdict,
     write_json_atomic,
 )
-from datafarm.common import read_json_or_none
+from datafarm.kernel.io import read_json_or_none
 
 TASK_CONFIG_SCHEMA = "datafarm.batch-task-config/1.0.0"
 TEMPLATE_FIELDS = frozenset({"item", "item_index", "attempt", "seed", "launch_id", "attempt_dir",

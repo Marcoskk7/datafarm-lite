@@ -31,7 +31,7 @@ from datafarm.training import (
     Pi05TrainingContract,
     audit_pi05_training_contract,
 )
-from datafarm.common import is_sha256, read_json, sha256_bytes, sha256_file
+from datafarm.kernel.io import is_sha256, read_json, sha256_bytes, sha256_file
 from datafarm.training.cohort_auditors import PI05_COHORT_AUDITORS
 from datafarm.training.dataset import (
     audit_action_shift,
@@ -51,8 +51,8 @@ from datafarm.core.admission import (
     file_manifest_digest,
     verify_certificate,
 )
-from datafarm.core.schema import canonical_json_bytes
-from datafarm.core.store import ArtifactStore
+from datafarm.kernel.schema import canonical_json_bytes
+from datafarm.kernel.store import ArtifactStore
 
 ROOT = source_root()
 LAUNCH_MANIFEST_SCHEMA = "datafarm.pi05-train-launch/1.2.0"
@@ -368,7 +368,7 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     if tokenizer_hash != spec["paligemma_tokenizer_sha256"]:
         raise ValueError(f"PaliGemma tokenizer drifted: {tokenizer_hash} != {spec['paligemma_tokenizer_sha256']}")
     if spec.get("trainer_source_manifest"):
-        from datafarm.core.source_lock import verify_source_lock
+        from datafarm.kernel.binding import verify_source_lock
         lock = spec["trainer_source_manifest"]
         verify_source_lock(trainer_root, Path(lock["path"]), lock["sha256"])
 

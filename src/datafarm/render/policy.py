@@ -11,8 +11,8 @@ import re
 from pathlib import Path
 from string import Template
 
-from datafarm.common import sha256_bytes, sha256_file, sha256_text
-from datafarm.core.file_binding import bound_file, require
+from datafarm.kernel.binding import bound_file, require
+from datafarm.kernel.io import sha256_bytes, sha256_file, sha256_text
 
 REFERENCE_AREAS = {
     'robot_body',

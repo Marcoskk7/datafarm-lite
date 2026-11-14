@@ -16,8 +16,8 @@ import time
 
 from datafarm.agent.native_codex import save
 from datafarm.agent.task_wait import model_wait_status, wait_for_task
-from datafarm.common import sha256_file
-from datafarm.common import sha256_text
+from datafarm.kernel.io import sha256_file
+from datafarm.kernel.io import sha256_text
 
 
 def load_config(path):

@@ -17,7 +17,8 @@ import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from datafarm.expert.util import ConfigError, deep_merge, expand, expand_all, human_duration, sha256_file, sha256_json
+from datafarm.expert.util import ConfigError, deep_merge, expand, expand_all, human_duration
+from datafarm.kernel.io import sha256_file, sha256_json
 from datafarm.expert.task_ir import PROFILE as STAGE_GRAPH_PROFILE, validate_stage_graph
 
 ADAPTER_SCHEMA = "datafarm.expert-harness.adapter/1"

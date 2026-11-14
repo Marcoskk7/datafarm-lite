@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 import requests
-from datafarm.common import sha256_bytes, sha256_text
+from datafarm.kernel.io import sha256_bytes, sha256_text
 
 MAX_INPUT = 1050000
 MAX_OUTPUT = 4096

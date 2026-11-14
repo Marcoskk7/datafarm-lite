@@ -11,7 +11,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import uuid
-from datafarm.common import append_jsonl, sha256_json, sha256_text  # noqa: F401
+from datafarm.kernel.io import append_jsonl, sha256_json, sha256_text  # noqa: F401
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 

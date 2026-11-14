@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datafarm.common import sha256_bytes as digest
+from datafarm.kernel.io import sha256_bytes as digest
 from pathlib import Path
 from typing import Any
 

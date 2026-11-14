@@ -37,8 +37,8 @@ callable 注入；控制器负责 try、seed、预算、存活语义、持久状
 
 from __future__ import annotations
 
-from datafarm import common
-from datafarm.common import utc_now as iso
+from datafarm.kernel import io
+from datafarm.kernel.io import utc_now as iso
 import contextlib
 import dataclasses
 import fcntl
@@ -53,7 +53,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
-from datafarm.common import sha256_text
+from datafarm.kernel.io import sha256_text
 
 STATE_SCHEMA = "datafarm.batch-supervisor-state/1.0.0"
 REPORT_SCHEMA = "datafarm.batch-supervisor-report/1.0.0"
@@ -141,7 +141,7 @@ class LaunchOutcomeUnknown(Exception):
 
 def write_json_atomic(path: str | Path, value: Any, *, fsync: bool = True) -> None:
     """通过同目录下的临时文件写入 JSON，fsync 后重命名。"""
-    common.atomic_write_json(path, value, fsync=fsync, fsync_dir=fsync)
+    io.atomic_write_json(path, value, fsync=fsync, fsync_dir=fsync)
 
 
 def read_events(state_dir: str | Path) -> list[dict[str, Any]]:
@@ -299,7 +299,7 @@ class BatchPolicy:
         return {"schema": POLICY_SCHEMA, **dataclasses.asdict(self)}
 
     def sha256(self) -> str:
-        return common.sha256_json(self.to_dict(), allow_nan=True)
+        return io.sha256_json(self.to_dict(), allow_nan=True)
 
     def replace(self, **changes: Any) -> "BatchPolicy":
         return dataclasses.replace(self, **changes)
@@ -643,7 +643,7 @@ class BatchSupervisor:
         now = self._now()
         record = {key: value for key, value in data.items() if value is not None}
         record.update({"at": iso(now), "t": round(now, 3), "kind": event})
-        common.append_jsonl(self._events_path, record, lock=False, fsync=self._fsync, allow_nan=True, default=str)
+        io.append_jsonl(self._events_path, record, lock=False, fsync=self._fsync, allow_nan=True, default=str)
 
     def _save(self, *, force: bool = False) -> None:
         now = self._now()

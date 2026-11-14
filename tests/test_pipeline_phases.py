@@ -11,7 +11,7 @@ import time
 import pytest
 
 from datafarm.agent import phases
-from datafarm.common import sha256_file
+from datafarm.kernel.io import sha256_file
 from datafarm.task.contract import runtime_managed, verify_review_independence
 
 ROOT = Path(__file__).resolve().parents[1]

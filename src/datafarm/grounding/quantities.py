@@ -17,7 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from datafarm.common import is_finite_number
+from datafarm.kernel.io import is_finite_number
 
 GROUNDING_SCHEMA = 'datafarm.grounding/1'
 QUANTITY_LABELS = ('measured', 'fitted', 'assumed', 'unknown')

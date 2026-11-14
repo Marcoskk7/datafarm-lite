@@ -27,8 +27,8 @@ from typing import Any, Mapping, Sequence
 from datafarm.expert.adapter import TaskAdapter
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.state import RoundState
-from datafarm.expert.util import (Clock, ConfigError, HarnessError, atomic_write_json, atomic_write_text, read_json,
-                   sha256_json, utc_now)
+from datafarm.expert.util import (Clock, ConfigError, HarnessError, atomic_write_json, atomic_write_text)
+from datafarm.kernel.io import read_json, sha256_json, utc_now
 
 SUITE_SCHEMA = "datafarm.expert-harness.suite/1"
 PLAN_SCHEMA = "datafarm.expert-harness.suite-plan/1"

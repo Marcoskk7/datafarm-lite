@@ -26,7 +26,7 @@ import pyarrow.parquet as parquet
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from datafarm.common import read_json as load_json  # noqa: E402
+from datafarm.kernel.io import read_json as load_json  # noqa: E402
 from datafarm.training.dataset import (  # noqa: E402
     SEEDANCE_T_LAYOUT_1280X1080,
     PiperEefEncoder,

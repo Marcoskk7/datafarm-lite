@@ -5,9 +5,9 @@ import json
 import pytest
 
 from helpers import NOW, payload_for
-from datafarm.core.grounding import GroundingError, validate_grounding, validate_quantities
-from datafarm.core.model import ArtifactDocument, IRKind
-from datafarm.core.schema import SchemaError, validate_artifact
+from datafarm.grounding.quantities import GroundingError, validate_grounding, validate_quantities
+from datafarm.kernel.artifacts import ArtifactDocument, IRKind
+from datafarm.kernel.schema import SchemaError, validate_artifact
 from datafarm.task.contract import verify_delivery
 from test_white_delivery import fixture
 

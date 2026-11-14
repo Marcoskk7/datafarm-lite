@@ -20,7 +20,8 @@ from datafarm.expert.layout import RoundPaths
 from datafarm.expert.manifest import ManifestGuard
 from datafarm.expert.rollout import AttemptSpec, LaunchError, RolloutBackend, classify_run_dir, prepare_run_dir
 from datafarm.expert.state import ACTIVE, EventLog, RoundState
-from datafarm.expert.util import Clock, HarnessError, atomic_write_json, sha256_bytes, utc_now
+from datafarm.expert.util import Clock, HarnessError, atomic_write_json
+from datafarm.kernel.io import sha256_bytes, utc_now
 
 RESULTS_SCHEMA = "datafarm.expert-harness.holdout-results/1"
 

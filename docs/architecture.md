@@ -13,7 +13,7 @@ episode + request
   │  tools/pipeline_agent.py prepare     pin source, input and cost policy (datafarm.agent)
   │  tools/pipeline_agent.py supervise   run agent sessions until delivery or a stop (datafarm.agent)
   ▼
-grounding              scene, cameras, references, labelled physical quantities (datafarm.core.grounding)
+grounding              scene, cameras, references, labelled physical quantities (datafarm.grounding)
   ▼
 simulator qualification  a variant certified for the task's skills (datafarm.simulation)
   ▼
@@ -55,7 +55,7 @@ same user.
 
 ## Artifacts and admission
 
-`datafarm.core` defines typed documents (`ArtifactDocument`, `GateReceipt`) stored by content address
+`datafarm.kernel` defines typed documents (`ArtifactDocument`, `GateReceipt`) stored by content address
 in an `ArtifactStore`. Documents cannot contain absolute host paths, credential fields or mutable signed
 URLs. `datafarm validate <file>` checks one document or receipt.
 
@@ -70,7 +70,9 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 
 | Package | Job |
 |---|---|
-| `core` | Artifact documents, receipts, schema checks, content-addressed store, file binding, source locks, grounding ledger, admission certificates |
+| `kernel` | Shared kernel: standard-library I/O helpers, artifact documents and receipts, schema checks, content-addressed store, file binding and source locks |
+| `grounding` | Grounding ledger: labelled physical quantities and their validated record |
+| `core` | Admission certificates |
 | `agent` | Compile role context, run and resume agent sessions, meter usage, keep the cost ledger and call log |
 | `task` | Task contract and delivery check, white delivery |
 | `expert` | Expert harness: sandboxed author sessions, rollout broker, frozen judge, held-out evaluation, expert library |
@@ -81,7 +83,7 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 | `ledger` | Run ledger: fixed item denominator, derived run status, launch sentinel |
 | `training` | Certificate-gated pi0.5 launch, dataset and action-mode contracts, cohort auditors |
 | `evolution` | Feedback store and controller that evaluates and activates capability-layer changes |
-| `runtime.py`, `doctor.py`, `cli.py`, `common.py` | Runtime bindings, prerequisite checks, the `datafarm` command, shared helpers |
+| `runtime.py`, `doctor.py`, `cli.py` | Runtime bindings, prerequisite checks, the `datafarm` command |
 
 ## Top-level directories
 

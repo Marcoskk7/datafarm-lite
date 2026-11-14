@@ -15,7 +15,7 @@ One note per component. Each states what the code guarantees and what it does no
 | Model-call ledger and VLM reviewer calibration | [agent-calls](reference/agent-calls.md) | `src/datafarm/agent/call_log.py`, `src/datafarm/verify/reviewer_calibration.py` |
 | Run ledger | [run-ledger](reference/run-ledger.md) | `src/datafarm/ledger/` |
 | Batch supervisor | [batch-supervisor](reference/batch-supervisor.md) | `src/datafarm/batch/` |
-| Grounding and the physical-quantity ledger | [grounding](reference/grounding.md) | `src/datafarm/core/grounding.py` |
+| Grounding and the physical-quantity ledger | [grounding](reference/grounding.md) | `src/datafarm/grounding/quantities.py` |
 | Object assets (optional) | [usdcraft](reference/usdcraft.md) | `src/datafarm/simulation/usdcraft.py` |
 | Simulator qualification | [simulator-qualification](reference/simulator-qualification.md) | `src/datafarm/simulation/sim_qualification.py` |
 | Task contract, frozen judge, expert harness | [expert-harness](reference/expert-harness.md) | `src/datafarm/expert/` |
