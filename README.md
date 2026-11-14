@@ -269,7 +269,7 @@ src/datafarm/
   evolution/           capability evolution store and controller
   cap/                 CaP skill search and library
   orchestration/       task driver, agent runtime and sessions, phases, progress, cost ledger, batch supervisor
-  adapters/            outer technology: agent CLIs and call log, OS sandbox, subprocess wrappers,
+  adapters/            outer technology: agent CLIs by vendor (claude_code, codex/) and call log, OS sandbox, subprocess wrappers,
                        H3 and Seedance renderers, SAPIEN replay and USDCraft, openpi launcher, LeRobot import
   entry/               composition roots: datafarm command, doctor, expert-harness and run-ledger commands
   instructions.py      role context compiler

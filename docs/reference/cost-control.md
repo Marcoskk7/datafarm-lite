@@ -95,7 +95,7 @@ Before every provider request the driver reserves the worst-case amount for the 
 
 `cost_basis` may also be `provider`. Even if the session exits non-zero, the cost already incurred must be reported. A missing or invalid receipt blocks resume and retains the whole reserved amount; this does not mean the amount was paid. A reservation left by a crash also blocks the next session. A receipt above the reservation is recorded as an overrun and later calls stop.
 
-[`examples/runtime/metered_codex_driver.py`](../../examples/runtime/metered_codex_driver.py) is an example of such a driver: it runs `codex exec` through a local metered OpenAI-compatible gateway (`src/datafarm/adapters/agent_harness/metered_provider.py`). The model, endpoint and price table must be configured explicitly with `--pricing` or `DATAFARM_METERED_PRICING`; there is no default gateway.
+[`examples/runtime/metered_codex_driver.py`](../../examples/runtime/metered_codex_driver.py) is an example of such a driver: it runs `codex exec` through a local metered OpenAI-compatible gateway (`src/datafarm/adapters/agent_harness/codex/metered_gateway.py`). The model, endpoint and price table must be configured explicitly with `--pricing` or `DATAFARM_METERED_PRICING`; there is no default gateway.
 
 ## Failure behaviour
 

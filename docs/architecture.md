@@ -82,7 +82,7 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 | `orchestration` | Prepare and drive task workspaces (`orchestration/driver.py`), run and resume agent sessions, phases, progress, the task cost ledger, and the batch supervisor (`orchestration/batch.py`: bounded per-item launch, poll, verify and retry) |
 | `entry` | Composition roots: the `datafarm` command (`entry/cli.py`), prerequisite checks (`entry/doctor.py`), expert-harness command and dry run (`entry/expert_cli.py`, `entry/expert_dryrun.py`), run-ledger command (`entry/runs_cli.py`) |
 | `cap` | CaP skill search and library (B-line) |
-| `adapters` | Outer technology: agent CLIs, metered provider, credentials and call log (`agent_harness`); OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
+| `adapters` | Outer technology: agent CLIs split by vendor (`agent_harness`: vendor-neutral `session`, `claude_code`, `codex/` with the exec backend, native runner and metered gateway, `fake`), credentials and call log; OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
 | `instructions.py`, `config.py` | Role context compiler; environment/runtime path bindings |
 | `batch_protocol.py` | Contract shared by the batch supervisor and its task implementations: policy, poll and verdict results, `BatchTask`, launch exceptions |
 

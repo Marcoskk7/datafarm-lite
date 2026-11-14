@@ -13,9 +13,10 @@ import time
 import unittest
 from pathlib import Path
 
-from datafarm.adapters.agent_harness.agent_cli import (ClaudeCliBackend, ClaudeStreamParser, CodexExecBackend,
-                                          CodexJsonParser, SessionRunner, SessionSpec, classify_errors,
-                                          estimate_cost, make_agent_backend)
+from datafarm.adapters.agent_harness.backends import make_agent_backend
+from datafarm.adapters.agent_harness.claude_code import ClaudeCliBackend, ClaudeStreamParser
+from datafarm.adapters.agent_harness.codex.exec_backend import CodexExecBackend, CodexJsonParser
+from datafarm.adapters.agent_harness.session import SessionRunner, SessionSpec, classify_errors, estimate_cost
 
 PRICES = {"claude-opus-5-5": {"input": 4.0, "output": 20.0, "cache_write_5m": 5.0, "cache_write_1h": 8.0,
                               "cache_read": 0.2}}

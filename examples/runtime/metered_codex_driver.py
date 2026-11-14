@@ -11,7 +11,7 @@ import argparse, json, os, subprocess, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from datafarm.adapters.agent_harness.metered_provider import Meter, MeteredGateway, load_pricing
+from datafarm.adapters.agent_harness.codex.metered_gateway import Meter, MeteredGateway, load_pricing
 
 
 def main():

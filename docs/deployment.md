@@ -58,7 +58,7 @@ These have no default on purpose. A missing value stops the tool before any call
 | Setting | Where | Meaning |
 |---|---|---|
 | `DATAFARM_SEEDANCE_UPLOAD_HOST` env, or `upload_host` in a Seedance batch config | `src/datafarm/adapters/render/seedance/client.py::upload_host` | HTTPS base URL of a file host that serves the carrier video to Seedance. **Opting in publishes real-scene media at a URL until it expires.** |
-| `agent.model` and, for `codex-metered`, `agent.pricing` | expert-harness adapter; `src/datafarm/adapters/agent_harness/agent_cli.py` | The coding model, and its price table: `{"model", "source", "usd_per_million_tokens": {"input", "cached_input", "cache_write", "output"}, "long_context"?}`. |
+| `agent.model` and, for `codex-metered`, `agent.pricing` | expert-harness adapter; `src/datafarm/adapters/agent_harness/backends.py`, `src/datafarm/adapters/agent_harness/codex/exec_backend.py` | The coding model, and its price table: `{"model", "source", "usd_per_million_tokens": {"input", "cached_input", "cache_write", "output"}, "long_context"?}`. |
 | `--pricing` / `DATAFARM_METERED_PRICING` | `examples/runtime/metered_codex_driver.py` | Same price-table format, for the example metered driver. |
 | `H3_EVAL_DINO` / `DATAFARM_H3_EVAL_DINO` | `evaluations/render-h3/h3eval.py` | DINOv2 directory for `realpool`/`score`. |
 

@@ -2,8 +2,10 @@ import json,tempfile,unittest,urllib.request,urllib.error
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from datafarm.adapters.agent_harness.agent_cli import MeteredCodexBackend,SessionSpec,ParsedSession,make_agent_backend,classify_errors
-from datafarm.adapters.agent_harness import metered_provider as mp
+from datafarm.adapters.agent_harness.backends import make_agent_backend
+from datafarm.adapters.agent_harness.codex.exec_backend import MeteredCodexBackend
+from datafarm.adapters.agent_harness.session import SessionSpec,ParsedSession,classify_errors
+from datafarm.adapters.agent_harness.codex import metered_gateway as mp
 # Test-only price table (no built-in default exists): USD per million tokens.
 PRICING_CFG={'model':'metered-test-model','source':'test fixture','usd_per_million_tokens':{'input':10,'cached_input':1,'cache_write':12.5,'output':50},'long_context':{'above_input_tokens':272000,'input_factor':2,'output_factor':1.5}}
 PRICING=mp.load_pricing(PRICING_CFG)

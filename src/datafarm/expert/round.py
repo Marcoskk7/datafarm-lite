@@ -40,7 +40,8 @@ from datafarm.expert.layout import RoundPaths
 from datafarm.expert.library import ExpertLibrary
 from datafarm.expert.manifest import ManifestGuard
 from datafarm.expert.rollout import make_backend
-from datafarm.adapters.agent_harness.agent_cli import AgentBackend, SessionRunner, SessionSpec, classify_errors, make_agent_backend
+from datafarm.adapters.agent_harness.backends import make_agent_backend
+from datafarm.adapters.agent_harness.session import AgentBackend, SessionRunner, SessionSpec, classify_errors
 from datafarm.expert.state import TERMINAL, EventLog, RoundState
 from datafarm.expert.toolbox import Broker
 from datafarm.expert.util import (Clock, ConfigError, HarnessError, UnsafePathError, atomic_write_bytes,

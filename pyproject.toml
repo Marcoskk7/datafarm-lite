@@ -64,7 +64,8 @@ ignore_imports = [
     # Known debt: the expert harness still calls agent-session and sandbox adapters
     # directly; these become ports (injected by entry/) in a later step.
     "datafarm.expert.handoff -> datafarm.adapters.agent_harness.call_log",
-    "datafarm.expert.round -> datafarm.adapters.agent_harness.agent_cli",
+    "datafarm.expert.round -> datafarm.adapters.agent_harness.backends",
+    "datafarm.expert.round -> datafarm.adapters.agent_harness.session",
     "datafarm.expert.round -> datafarm.adapters.agent_harness.call_log",
     "datafarm.expert.round -> datafarm.adapters.sandbox.isolation",
     "datafarm.expert.rollout -> datafarm.adapters.sandbox.isolation",

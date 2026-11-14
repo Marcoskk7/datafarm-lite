@@ -10,7 +10,7 @@ One note per component. Each states what the code guarantees and what it does no
 | Component | Note | Code |
 |---|---|---|
 | Capability layer, context compiler, instruction audit, source pinning | [capability-layer](reference/capability-layer.md) | `src/datafarm/instructions.py`, `tools/audit_instruction_layers.py`, `src/datafarm/evolution/integration.py` |
-| Agent runtime: prepare, drive, supervise, review queue, recovery | [agent-runtime](reference/agent-runtime.md) | `tools/pipeline_agent.py`, `src/datafarm/orchestration/runtime.py`, `src/datafarm/adapters/agent_harness/native_codex.py` |
+| Agent runtime: prepare, drive, supervise, review queue, recovery | [agent-runtime](reference/agent-runtime.md) | `tools/pipeline_agent.py`, `src/datafarm/orchestration/runtime.py`, `src/datafarm/adapters/agent_harness/codex/native.py` |
 | Phased runs: fresh sessions with USD caps | [phased-runs](reference/phased-runs.md) | `tools/pipeline_phases.py`, `src/datafarm/orchestration/phases.py` |
 | Model-call ledger and VLM reviewer calibration | [agent-calls](reference/agent-calls.md) | `src/datafarm/adapters/agent_harness/call_log.py`, `src/datafarm/render/verify/reviewer_calibration.py` |
 | Run ledger | [run-ledger](reference/run-ledger.md) | `src/datafarm/ledger/` |
