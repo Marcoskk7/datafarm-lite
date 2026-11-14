@@ -1,0 +1,55 @@
+{
+  "schema": "datafarm.scene-layout/1",
+  "scene_id": "scene.plate_drawer_airbot",
+  "assets": [
+    {"asset_id": "object.table_stainless", "role": "background", "simready": "table_metal_stainless_a03", "body": "kinematic"},
+    {"asset_id": "object.cabinet_drawer", "role": "receptacle", "simready": "fixture_cabinet_b01", "body": "articulation",
+     "anchor_body": "RootNode/Geometry/body_01_obj_00"},
+    {"asset_id": "object.plate", "role": "task_object", "simready": "dishware_plastic_bigPlate_a01", "body": "rigid"}
+  ],
+  "nodes": [
+    {"node_id": "object.table", "asset_id": "object.table_stainless", "semantic_tag": "table",
+     "xy_m": [0.0, 0.0], "yaw_deg": 0, "on": "floor"},
+    {"node_id": "object.cabinet", "asset_id": "object.cabinet_drawer", "semantic_tag": "drawer",
+     "xy_m": [1.30, 0.215], "yaw_deg": -90, "on": "floor",
+     "joint_state": {"joint_part_01_joint_00": 0.40, "joint_part_02_joint_00": 0.0}},
+    {"node_id": "object.plate", "asset_id": "object.plate", "semantic_tag": "plate",
+     "xy_m": [0.52, -0.20], "yaw_deg": 0, "on": "object.table",
+     "randomization": {"position_jitter_m": 0.03, "yaw_range_deg": [-180, 180]}}
+  ],
+  "robot": {
+    "node_id": "robot.airbot",
+    "asset_id": "robot.airbot_g2_left",
+    "package_asset": "airbot_single",
+    "on": "object.table", "xy_m": [0.84, -0.10], "yaw_deg": 0,
+    "arms": ["left"],
+    "gripper": "g2",
+    "tcp_link": "left_end_link",
+    "tcp_frame_id": "tcp.left",
+    "tool_approach_axis": "x",
+    "limit_margin_rad": 0.05
+  },
+  "reach_targets": [
+    {"name": "plate_center_above", "node": "object.plate", "local_m": [0.0, 0.0, 0.10]},
+    {"name": "plate_rim_near", "node": "object.plate", "local_m": [0.0, -0.075, 0.02]},
+    {"name": "plate_rim_far", "node": "object.plate", "local_m": [0.0, 0.075, 0.02]},
+    {"name": "plate_rim_left", "node": "object.plate", "local_m": [-0.075, 0.0, 0.02]},
+    {"name": "drawer_center_release", "node": "object.cabinet", "joint": "joint_part_01_joint_00", "local_m": [0.015, 0.0, 0.82]},
+    {"name": "drawer_center_above", "node": "object.cabinet", "joint": "joint_part_01_joint_00", "local_m": [0.015, 0.0, 0.89]},
+    {"name": "drawer_front_release", "node": "object.cabinet", "joint": "joint_part_01_joint_00", "local_m": [0.13, 0.0, 0.82]},
+    {"name": "drawer_back_release", "node": "object.cabinet", "joint": "joint_part_01_joint_00", "local_m": [-0.10, 0.0, 0.82]},
+    {"name": "drawer_side_near_release", "node": "object.cabinet", "joint": "joint_part_01_joint_00", "local_m": [0.015, -0.06, 0.82]},
+    {"name": "drawer_side_far_release", "node": "object.cabinet", "joint": "joint_part_01_joint_00", "local_m": [0.015, 0.06, 0.82]}
+  ],
+  "probes": [
+    {"name": "plate_in_drawer", "asset_id": "object.plate", "node": "object.cabinet", "joint": "joint_part_01_joint_00",
+     "local_m": [0.015, 0.0, 0.80], "expect_rest_z_min_m": 0.74, "expect_rest_z_max_m": 0.80}
+  ],
+  "collision_groups": {
+    "robot_self": {"entities": ["robot.airbot"], "contact_with": [], "forbidden_with": ["robot.airbot"]},
+    "task_contact": {"entities": ["object.plate"],
+                     "contact_with": ["robot.airbot", "object.cabinet", "object.table"], "forbidden_with": []},
+    "environment": {"entities": ["object.table", "object.cabinet"], "contact_with": [],
+                    "forbidden_with": ["robot.airbot"]}
+  }
+}
