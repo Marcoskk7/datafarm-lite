@@ -267,10 +267,16 @@ src/datafarm/
   ledger/              run ledger
   training/            admission certificates, launch, dataset and action-mode contracts
   evolution/           capability evolution store and controller
-  orchestration/       agent runtime and sessions, phases, progress, cost ledger, batch supervisor
+  cap/                 CaP skill search and library
+  orchestration/       task driver, agent runtime and sessions, phases, progress, cost ledger, batch supervisor
   adapters/            outer technology: agent CLIs and call log, OS sandbox, subprocess wrappers,
                        H3 and Seedance renderers, SAPIEN replay and USDCraft, openpi launcher, LeRobot import
-tools/                 CLIs: pipeline_agent.py, pipeline_phases.py, pipeline_evolve.py, build_usd_asset.py (USDCraft), expert_harness.py, datafarm_runs.py,
+  entry/               composition roots: datafarm command, doctor, expert-harness and run-ledger commands
+  instructions.py      role context compiler
+  config.py            environment/runtime path bindings
+  batch_protocol.py    contract between the batch supervisor and its tasks
+                       (dependency rules: docs/architecture.md, enforced by `make lint`)
+tools/                 thin CLIs: pipeline_agent.py, pipeline_phases.py, pipeline_evolve.py, build_usd_asset.py (USDCraft), expert_harness.py, datafarm_runs.py,
                        supervise_batch.py, verify_render.py, launch_pi05_training.py, ...
 configs/               general policy files, render recipes and one template per config folder; see configs/README.md
 vendor/                openpi trainer (Apache-2.0) and the VideoX-Fun patch

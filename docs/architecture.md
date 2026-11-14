@@ -77,21 +77,39 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 | `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans |
 | `render` | Render contract (`render/policy.py`), rendered-delivery check (`render/delivery.py`), spec-driven render verifier with counterfactual and reviewer calibration (`render/verify`); the renderers live in `adapters/render` |
 | `ledger` | Run ledger: fixed item denominator, derived run status, launch sentinel |
-| `training` | Admission certificates (`training/admission.py`), launch, dataset and action-mode contracts, cohort auditors |
+| `training` | Admission certificates (`training/admission.py`), launch, dataset and action-mode contracts, cohort auditors, PI0.5 dataset builder (`training/pi05_build.py`) |
 | `evolution` | Feedback store and controller that evaluates and activates capability-layer changes |
-| `orchestration` | Run and resume agent sessions, phases, progress, the task cost ledger, and the batch supervisor (`orchestration/batch.py`: bounded per-item launch, poll, verify and retry) |
+| `orchestration` | Prepare and drive task workspaces (`orchestration/driver.py`), run and resume agent sessions, phases, progress, the task cost ledger, and the batch supervisor (`orchestration/batch.py`: bounded per-item launch, poll, verify and retry) |
+| `entry` | Composition roots: the `datafarm` command (`entry/cli.py`), prerequisite checks (`entry/doctor.py`), expert-harness command and dry run (`entry/expert_cli.py`, `entry/expert_dryrun.py`), run-ledger command (`entry/runs_cli.py`) |
+| `cap` | CaP skill search and library (B-line) |
 | `adapters` | Outer technology: agent CLIs, metered provider, credentials and call log (`agent_harness`); OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
-| `instructions.py`, `config.py`, `doctor.py`, `cli.py` | Role context compiler, environment/runtime path bindings, prerequisite checks, the `datafarm` command |
+| `instructions.py`, `config.py` | Role context compiler; environment/runtime path bindings |
 | `batch_protocol.py` | Contract shared by the batch supervisor and its task implementations: policy, poll and verdict results, `BatchTask`, launch exceptions |
 
-Dependency direction: `orchestration` may import anything; business packages (`grounding`, `task`, `expert`, `simulation`, `render`, `training`, `ledger`, `evolution`) never import `orchestration`; `adapters` import business packages and `kernel` but never `orchestration`.
+## Dependency rules
+
+Imports point downward only. `make lint` enforces this with [import-linter](https://import-linter.readthedocs.io/);
+the contracts are `[tool.importlinter]` in [`pyproject.toml`](../pyproject.toml).
+
+1. Layers, top to bottom: `entry` > `orchestration` > `adapters` > (`training`, `expert`, `evolution`, `simulation`,
+   `ledger`, `cap`) > `render` > `task` > `grounding` > (`instructions`, `config`, `batch_protocol`) > `kernel`.
+   A module may import its own layer or any layer below it.
+2. `adapters` never import `orchestration` or `entry`.
+3. Business packages (`grounding`, `task`, `render`, `training`, `expert`, `evolution`, `simulation`, `ledger`, `cap`)
+   never import `orchestration` or `entry`.
+4. One-way business chain `training` -> `render` -> `task` -> `grounding`: `task` does not import `render`,
+   `training` or `expert`; `render` does not import `training`; `grounding` does not import `task`, `render` or
+   `training`. `kernel` imports nothing else in `datafarm`.
+
+Known debt, listed in `ignore_imports` with exact module pairs: the expert harness (`expert/round.py`,
+`expert/handoff.py`, `expert/rollout.py`) still imports the agent-session and sandbox adapters directly.
 
 ## Top-level directories
 
 | Directory | Job |
 |---|---|
 | `src/` | The `datafarm` package |
-| `tools/` | Command-line entry points: `pipeline_agent.py`, `pipeline_phases.py`, `expert_harness.py`, `supervise_batch.py`, `verify_render.py`, `launch_pi05_training.py`, ... |
+| `tools/` | Thin command-line entry points (bootstrap + `main`; logic lives in `src/datafarm`): `pipeline_agent.py`, `pipeline_phases.py`, `expert_harness.py`, `supervise_batch.py`, `verify_render.py`, `launch_pi05_training.py`, ... |
 | `.agents/skills/` | Stage skills the agents load |
 | `prompts/` | Role instructions, runtime instructions, expert session messages, render prompt templates |
 | `configs/` | General policy files, render recipes, one template per task-artifact kind |
