@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """把渲染出的宽视场腕部视角裁回白色 episode 自身的腕部相机模型。
 
-当腕部为宽视场白色（datafarm.simulation.white_replay wrist_fov_factor F < 1：相机位姿与主点不变，
+当腕部为宽视场白色（datafarm.adapters.sim.sapien_replay wrist_fov_factor F < 1：相机位姿与主点不变，
 焦距 x F）时，H3 能看到夹爪周围更多的场景，并以真实上下文渲染腕部视角；本步骤把最终
 T-layout 视频的两个腕部面板分别围绕各自腕部相机的主点按 F 裁回，并缩放到 640x360，
 使输出的腕部内参重新与白色一致。carrier 片段也按同样方式裁剪

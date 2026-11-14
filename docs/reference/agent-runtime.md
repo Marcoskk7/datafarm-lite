@@ -62,7 +62,7 @@ Related: [capability layer](capability-layer.md) (context compiler and source pi
 15. **Published progress counts only verified deliveries.** `completed_episodes` is non-zero only
     when the last result is `valid` and `complete`; heartbeats do not change `last_substantive_at`.
 
-Code: `tools/pipeline_agent.py`, `src/datafarm/agent/runtime.py`, `src/datafarm/agent/native_codex.py`, `src/datafarm/agent/task_wait.py`, `src/datafarm/agent/progress.py`, `src/datafarm/task/review_identity.py`, `src/datafarm/render/delivery.py`.
+Code: `tools/pipeline_agent.py`, `src/datafarm/agent/runtime.py`, `src/datafarm/adapters/agent_harness/native_codex.py`, `src/datafarm/agent/task_wait.py`, `src/datafarm/agent/progress.py`, `src/datafarm/task/review_identity.py`, `src/datafarm/render/delivery.py`.
 
 ## Data model
 
@@ -97,7 +97,7 @@ in-flight group; refresh external jobs; wait on jobs in bounded slices; for `com
 call `drive` once and finish; else reserve a session and call `drive(max_sessions=1)`;
 transient failures back off `min(backoff_max_seconds, backoff_seconds * 2^(n-1))`.
 
-Native Codex (`native_codex.py::run`): argv `codex exec [resume <id>] --json
+Native Codex (`adapters/agent_harness/native_codex.py::run`): argv `codex exec [resume <id>] --json
 --skip-git-repo-check [--model M] -c sandbox_mode=... [-c model_reasoning_effort=...] [-c k=v] -`;
 the thread ID from `thread.started` is saved to the namespace state file at once, so a crash after
 the first event is resumable by explicit ID. `messages` input is joined into one prompt.

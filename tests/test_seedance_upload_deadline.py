@@ -7,7 +7,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from datafarm.render.seedance.upload_transport import curl, exchange, UploadError
+from datafarm.adapters.render.seedance.upload_transport import curl, exchange, UploadError
 
 
 class UploadDeadlineTest(unittest.TestCase):
@@ -31,13 +31,13 @@ class UploadDeadlineTest(unittest.TestCase):
             def fake(args,url,remaining):
                 if '--form' in args:return b'{"files":[{"id":"test"}]}'
                 Path(args[1]).write_bytes(b'changed');return b''
-            with patch('datafarm.render.seedance.upload_transport.curl',side_effect=fake):
+            with patch('datafarm.adapters.render.seedance.upload_transport.curl',side_effect=fake):
                 with self.assertRaises(UploadError):exchange(source,hashlib.sha256(b'original').hexdigest(),folder,'https://example.invalid')
             self.assertEqual(source.read_bytes(),b'original')
             self.assertFalse((folder/'upload-verify.partial').exists())
 
     def test_upload_host_is_explicit_opt_in(self):
-        from datafarm.render.seedance.client import upload_host
+        from datafarm.adapters.render.seedance.client import upload_host
         with patch.dict('os.environ',{'DATAFARM_SEEDANCE_UPLOAD_HOST':''}):
             with self.assertRaisesRegex(RuntimeError,'real-scene media'):upload_host()
             self.assertEqual(upload_host('https://files.example/'),'https://files.example')

@@ -10,7 +10,7 @@ The tools run by path with `H3_PYTHON`, which need not have this package install
 
 | Step | Tool |
 |---|---|
-| render-only replay of a white attempt (robot colour, shapes, dressing, dense rate, wide wrists) | `python -m datafarm.simulation.white_replay` |
+| render-only replay of a white attempt (robot colour, shapes, dressing, dense rate, wide wrists) | `python -m datafarm.adapters.sim.sapien_replay` |
 | compose and check the T-layout white carrier | `h3_carrier.py` |
 | real references from the task's episode (production set, memory budget, robot colours) | `h3_episode_references.py` |
 | projected robot masks from the task's kinematics (light robots, dark furniture) | `h3_robot_masks.py` |

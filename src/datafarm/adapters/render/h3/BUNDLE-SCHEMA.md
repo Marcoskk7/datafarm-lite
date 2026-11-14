@@ -83,7 +83,7 @@ Rules
   it does not mention a provider, IMAGE numbers or chunk windows. CAMERA_TIMING_CONTRACT describes the
   T-layout (head on top, left wrist bottom-left, right wrist bottom-right), 24 fps playback, and that
   output frame i corresponds to source frame i.
-- Check with: `python src/datafarm/render/h3/h3_bundle.py check <run>/tasks/<task>/bundle.json --run-dir <run>`
+- Check with: `python src/datafarm/adapters/render/h3/h3_bundle.py check <run>/tasks/<task>/bundle.json --run-dir <run>`
   (must print no problems).
 - Reference policy of the default recipe (configs/render/h3-control-hybrid-v1.json, docs/reference/rendering.md):
   a real scene frame whose task state matches the carrier at the render start + a real robot sheet that keeps the

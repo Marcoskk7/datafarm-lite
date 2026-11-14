@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[3]  # src/datafarm/render/h3 -> 携带此 harness 的 datafarm 源码检出目录
+REPO = HERE.parents[4]  # src/datafarm/adapters/render/h3 -> 携带此 harness 的 datafarm 源码检出目录
 EVAL_DIR = REPO / "evaluations" / "render-h3"
 BINDING_KEYS = ("H3_PYTHON", "H3_MODELS", "H3_VIDEOX_FUN", "H3_TURBO_LORA", "GPU_SCHEDULER", "H3_EVAL_DINO", "H3_SAM2",
                 "H3_HED_ANNOTATOR_REPO")

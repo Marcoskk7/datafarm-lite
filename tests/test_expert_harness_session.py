@@ -13,7 +13,7 @@ import time
 import unittest
 from pathlib import Path
 
-from datafarm.expert.session import (ClaudeCliBackend, ClaudeStreamParser, CodexExecBackend,
+from datafarm.adapters.agent_harness.agent_cli import (ClaudeCliBackend, ClaudeStreamParser, CodexExecBackend,
                                           CodexJsonParser, SessionRunner, SessionSpec, classify_errors,
                                           estimate_cost, make_agent_backend)
 

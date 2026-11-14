@@ -94,7 +94,7 @@ def cmd_launch(args: argparse.Namespace) -> int:
     )
     with open(log, "ab") as stream:
         sentinel = subprocess.Popen(
-            [sys.executable, "-m", "datafarm.ledger.ledger_exec", str(ledger.directory),
+            [sys.executable, "-m", "datafarm.adapters.process.ledger_exec", str(ledger.directory),
              worker_id, str(args.heartbeat_seconds), "--", *command],
             stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT,
             cwd=args.cwd or os.getcwd(), start_new_session=True,

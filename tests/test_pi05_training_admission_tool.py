@@ -1,4 +1,4 @@
-"""Launch-time admission and train/deploy parity in datafarm.training.launch."""
+"""Launch-time admission and train/deploy parity in datafarm.adapters.trainer.openpi.launch."""
 
 from __future__ import annotations
 
@@ -32,12 +32,12 @@ def load_tool(name: str):
     return module
 
 
-@unittest.skipIf(np is None, "numpy is required to import datafarm.training.launch")
+@unittest.skipIf(np is None, "numpy is required to import datafarm.adapters.trainer.openpi.launch")
 class Pi05LaunchAdmissionTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        from datafarm.training import launch
+        from datafarm.adapters.trainer.openpi import launch
         self.tool = launch
         self.issuer = load_tool("issue_admission_certificate")
         self.cohort = write_dense_cohort(self.root / "run")

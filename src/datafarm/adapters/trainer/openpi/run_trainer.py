@@ -10,7 +10,7 @@ import runpy
 import sys
 
 # 以路径方式启动：替换 sys.path 中的该目录，其模块不得遮蔽 trainer 的顶层导入。
-sys.path[0] = str(Path(__file__).resolve().parents[2])
+sys.path[0] = str(Path(__file__).resolve().parents[4])
 
 
 def main(argv=None):
@@ -24,7 +24,7 @@ def main(argv=None):
     if args.action_adapter == "joint":
         from datafarm.training.joint_actions import install
         install()
-    from datafarm.training.checkpoint_restore import install
+    from datafarm.adapters.trainer.openpi.checkpoint_restore import install
     namespace = runpy.run_path(str(Path(os.environ["DATAFARM_TRAINER_ROOT"]) / "scripts/train.py"))
     if args.action_adapter == "joint" and "ACTION_GROUPS" in namespace:
         from datafarm.training.joint_actions import action_groups

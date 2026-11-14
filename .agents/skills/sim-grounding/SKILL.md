@@ -40,7 +40,7 @@ and, per the deployment config, generate and validate it with USDCraft (`docs/re
 grounding.json uses the schema `datafarm.grounding/1`, and physical_quantities lists, item by item, the physical quantities the simulator uses:
 name, unit, value, label (measured/fitted/assumed/unknown). measured/fitted must bind an evidence
 file (path/sha256); assumed/unknown must give a randomization (low/high containing the nominal value, or at least two
-choices), or state not_randomized_reason. Delivery validation checks each item (src/datafarm/core/grounding.py).
+choices), or state not_randomized_reason. Delivery validation checks each item (src/datafarm/grounding/quantities.py).
 
 Output grounding.json/md, the scene/camera/physics config, the probe commands, the raw observations and a qualification report.
 If the scale/calibration cannot be determined from the existing evidence, state clearly which measurement could disambiguate it; do not fake a calibration, and do not vaguely ask

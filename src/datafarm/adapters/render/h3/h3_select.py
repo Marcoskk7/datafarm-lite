@@ -12,7 +12,7 @@ VLM 筛选未给出有效答案时的回退方案）。每个 view，对照该 c
   missing  = carrier 彩色像素（经腐蚀）在 9 px 内没有生成的彩色像素
 penalty = 该 chunk 的 keep 范围内 (frame, view) 的 invented + 0.5 x missing 最差四分之一值的均值，
 再加上到第一条 full-view 真实参考的逐 view Lab 距离均值的 0.01 倍（全局漂移，例如黑色桌面）。
-机器人项假设 carrier 中是深色机器人（需先给白色机器人重新上色，white_replay `@robot`）。像素
+机器人项假设 carrier 中是深色机器人（需先给白色机器人重新上色，sapien_replay `@robot`）。像素
 惩罚会漏掉 VLM 能看出的内容错误（线缆、白色手臂）；回退方案会记录在包的 selection 中。
 
   python h3_select.py --cands <pkg_s0> <pkg_s1> ... --recipe <run>/recipes/<name>.json [--choice-file <choice.json>]

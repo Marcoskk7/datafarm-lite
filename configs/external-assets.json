@@ -59,7 +59,7 @@
       ],
       "sha256": "9e642fc8749c74f8da5e2382877ab5c7aa37b9a73b7fd0d6d457bd1b3cb1ae99",
       "bytes": 1383677768,
-      "acquisition": "Hugging Face lightx2v/Minimax-h3-Turbo, file minimax_h3_ref2v_turbo_4step_v0.1_bf16.safetensors; fused by the worker (src/datafarm/render/h3/h3_lora.py)."
+      "acquisition": "Hugging Face lightx2v/Minimax-h3-Turbo, file minimax_h3_ref2v_turbo_4step_v0.1_bf16.safetensors; fused by the worker (src/datafarm/adapters/render/h3/h3_lora.py)."
     },
     {
       "name": "h3-control/ControlNetHED.pth",

@@ -1,9 +1,9 @@
 import json
 import pytest
-from datafarm.agent.native_codex import save
+from datafarm.adapters.agent_harness.native_codex import save
 from datafarm.agent.progress import publish, refresh_external_jobs
 from datafarm.agent.cost_budget import TaskBudget, budget_for_work
-from datafarm.simulation.usdcraft import run_for_task, plan
+from datafarm.adapters.sim.usdcraft import run_for_task, plan
 from test_usdcraft_bridge import setup, exports
 
 
@@ -63,7 +63,7 @@ def test_task_bound_asset_enforced_refused_before_launch(tmp_path):
 
 def test_concurrent_task_build_leaves_status_and_budget_untouched(tmp_path):
     import fcntl
-    from datafarm.simulation.usdcraft import BuildLocked
+    from datafarm.adapters.sim.usdcraft import BuildLocked
     root,c,o,b=setup(tmp_path);plan(c,o,b);task_policy(tmp_path,'advisory')
     save(tmp_path/'state.json',{'status':'working'})
     with (b/'.lock').open('a') as lock:

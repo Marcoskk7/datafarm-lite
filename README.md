@@ -258,17 +258,21 @@ Policies are trained with pi0.5, a 50-step action horizon, batch size 128 and 50
 prompts/               role instructions, runtime instructions, session messages and render templates
 docs/                  quickstart, deployment, architecture and one reference note per component
 src/datafarm/
-  core/                artifacts, schema, store, source locks, grounding ledger, admission certificates
-  agent/               agent context, runtime and sessions, cost ledger, call log
-  task/                task contract and delivery check, white delivery
+  kernel/              shared kernel: I/O helpers, artifacts, schema, store, file binding and source locks
+  grounding/           grounding ledger: labelled physical quantities
+  core/                admission certificates
+  agent/               agent runtime and sessions, phases, progress, cost ledger
+  task/                task contract checks, review-independence proof, white delivery
   expert/              sandboxed expert development, hidden judge and held-out seeds
-  simulation/          simulator qualification, joint-margin audit, randomization plans, USDCraft adapter
-  render/              render contract, H3 control hybrid (render/h3) and Seedance client (render/seedance)
+  simulation/          simulator qualification, joint-margin audit, randomization plans
+  render/              render contract and rendered-delivery check
   verify/              spec-driven render verifier, counterfactual suite, reviewer calibration
   batch/               batch supervisor
   ledger/              run ledger
-  training/            certificate-gated pi0.5 launch and dataset contracts
+  training/            launch, dataset and action-mode contracts
   evolution/           capability evolution store and controller
+  adapters/            outer technology: agent CLIs and call log, OS sandbox, subprocess wrappers,
+                       H3 and Seedance renderers, SAPIEN replay and USDCraft, openpi launcher, LeRobot import
 tools/                 CLIs: pipeline_agent.py, pipeline_phases.py, pipeline_evolve.py, build_usd_asset.py (USDCraft), expert_harness.py, datafarm_runs.py,
                        supervise_batch.py, verify_render.py, launch_pi05_training.py, ...
 configs/               general policy files, render recipes and one template per config folder; see configs/README.md

@@ -25,13 +25,14 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
-from datafarm.agent.call_log import read_calls, summarize
+from datafarm.adapters.agent_harness.call_log import read_calls, summarize
 
 from datafarm.expert.adapter import HoldoutSeed, TaskAdapter, write_holdout_seeds
 from datafarm.expert.brief import lint_file
 from datafarm.expert.handoff import build_handoff
 from datafarm.expert.holdout import evaluate_holdout
-from datafarm.expert.isolation import probe_available
+from datafarm.adapters.sandbox.isolation import probe_available
+import datafarm.adapters.fakes as fake_package
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.library import ExpertLibrary, add_from_round
 from datafarm.expert.manifest import build_manifest, diff_manifests
@@ -92,7 +93,7 @@ def pick_isolation(requested: str) -> str:
 def build_world(root: Path) -> dict[str, Path]:
     root.mkdir(parents=True, exist_ok=True)
     os.chmod(root, 0o755)
-    fakes = Path(__file__).resolve().parent / "fakes"
+    fakes = Path(fake_package.__file__).resolve().parent
     world = {"root": root, "judge": root / "judge", "sim": root / "sim", "secrets": root / "secrets",
              "private": root / "private", "docs": root / "docs", "fakes": fakes}
     for key in ("judge", "sim", "secrets", "private", "docs"):

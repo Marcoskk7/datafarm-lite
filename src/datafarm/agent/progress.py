@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import time
 
-from datafarm.agent.native_codex import save
+from datafarm.adapters.agent_harness.native_codex import save
 from datafarm.kernel.io import sha256_text
 
 

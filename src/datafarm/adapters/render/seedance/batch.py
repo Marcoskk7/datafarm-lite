@@ -15,9 +15,9 @@ import requests
 
 from datafarm.render.policy import check_seedance_payload, load_contract, submission_contract_path
 
-from datafarm.render.seedance import client
-from datafarm.render.seedance.common import finalize, now, read, sha, validate_clock, verify_file, write
-from datafarm.render.seedance.references import contract as input_contract
+from datafarm.adapters.render.seedance import client
+from datafarm.adapters.render.seedance.common import finalize, now, read, sha, validate_clock, verify_file, write
+from datafarm.adapters.render.seedance.references import contract as input_contract
 
 
 def verify_resumed_contract(saved, expected):

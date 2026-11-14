@@ -2,8 +2,8 @@ import json,tempfile,unittest,urllib.request,urllib.error
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from datafarm.expert.session import MeteredCodexBackend,SessionSpec,ParsedSession,make_agent_backend,classify_errors
-from datafarm.agent import metered_provider as mp
+from datafarm.adapters.agent_harness.agent_cli import MeteredCodexBackend,SessionSpec,ParsedSession,make_agent_backend,classify_errors
+from datafarm.adapters.agent_harness import metered_provider as mp
 # Test-only price table (no built-in default exists): USD per million tokens.
 PRICING_CFG={'model':'metered-test-model','source':'test fixture','usd_per_million_tokens':{'input':10,'cached_input':1,'cache_write':12.5,'output':50},'long_context':{'above_input_tokens':272000,'input_factor':2,'output_factor':1.5}}
 PRICING=mp.load_pricing(PRICING_CFG)
@@ -77,7 +77,7 @@ class MeteredTests(unittest.TestCase):
  def request(self,b):
   r=urllib.request.Request(b.gateway.url+'/responses',data=json.dumps({'model':'metered-test-model','stream':True}).encode(),headers={'Content-Type':'application/json'})
   return urllib.request.urlopen(r).read()
- def creds(self):return patch('datafarm.agent.credentials.KeysFileCredentials',return_value=lambda:SimpleNamespace(endpoint='https://fixture',api_key='test-only-secret'))
+ def creds(self):return patch('datafarm.adapters.agent_harness.credentials.KeysFileCredentials',return_value=lambda:SimpleNamespace(endpoint='https://fixture',api_key='test-only-secret'))
  def test_upstream_receipt_overrides_forged_cli_cost_and_config_hides_key(self):
   with tempfile.TemporaryDirectory() as d,self.creds(),patch.object(mp.requests,'Session',return_value=Remote()):
    b=self.backend();spec=SessionSpec(1,'brief',d,max_budget_usd=2)
@@ -312,7 +312,7 @@ print(json.dumps({'type':'turn.completed','usage':{'input_tokens':0,'output_toke
    class Backend(MeteredCodexBackend):
     def command(self,spec):return [sys.executable,str(script),self.gateway.url]
    backend=Backend({'model':'metered-test-model','credentials_file':'/protected/fake','pricing':PRICING_CFG})
-   with patch('datafarm.agent.credentials.KeysFileCredentials',return_value=lambda:SimpleNamespace(endpoint='https://fixture',api_key='test-only-secret')),patch.object(mp.requests,'Session',return_value=Broken()):
+   with patch('datafarm.adapters.agent_harness.credentials.KeysFileCredentials',return_value=lambda:SimpleNamespace(endpoint='https://fixture',api_key='test-only-secret')),patch.object(mp.requests,'Session',return_value=Broken()):
     runner=RoundRunner(paths,adapter,agent_backend=backend,rollout_backend=FakeRolloutBackend(),approve_agent_spend=True,clock=clock,tick_interval_s=.01,poll_interval_s=0)
     result=runner.run()
    state=json.loads(paths.state.read_text())

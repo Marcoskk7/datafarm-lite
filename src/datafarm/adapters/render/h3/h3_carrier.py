@@ -4,7 +4,7 @@
   compose  把三个同步的 white 视图（head 1280x720，wrists 640x360）合成为一张 1280x1080 的 T 形布局
            carrier，速率与各视图自身一致（24 或 30 fps）。视图可以是视频，也可以是 replay 的 ffmpeg
            concat PNG 帧列表（`<camera>.concat`，从 attempt 目录改写到 replay 目录）。低于 MIN_WHITE_FPS
-           的 white 会被拒绝：应密集地重新渲染（datafarm.simulation.white_replay 配 image_stride），
+           的 white 会被拒绝：应密集地重新渲染（datafarm.adapters.sim.sapien_replay 配 image_stride），
            绝不对其插值。运动插值会扭曲并拖拽快速移动的物体，H3 会把这些漂移复制进输出。
   check    给出可预测 H3 失败的 carrier 测量值，由 `h3_bundle.py check` 以 warning 形式报告：
            frame rate，以及 head 视图是否存在 control 可见的 room seam（wall/table 边缘）。soft-HED
@@ -117,7 +117,7 @@ def compose(views: dict, out: Path) -> dict:
     if any(abs(r - fps) > 0.01 for r in rates.values()):
         raise SystemExit(f"views have different frame rates {rates}")
     if fps < MIN_WHITE_FPS:
-        raise SystemExit(f"white at {fps:g} fps is below {MIN_WHITE_FPS:g}: re-render it densely (white_replay "
+        raise SystemExit(f"white at {fps:g} fps is below {MIN_WHITE_FPS:g}: re-render it densely (sapien_replay "
                          "image_stride); a motion-interpolated carrier makes H3 copy warped, drifting objects")
     rate = min(CARRIER_FPS, key=lambda r: abs(r - fps))
     if abs(rate - fps) > 0.01:
@@ -170,7 +170,7 @@ def check(carrier: Path, samples: int = 5) -> dict:
     fps = float(Fraction(info.rate))
     warnings = []
     if fps < MIN_WHITE_FPS:
-        warnings.append(f"carrier at {fps:g} fps: re-render the white densely (white_replay image_stride)")
+        warnings.append(f"carrier at {fps:g} fps: re-render the white densely (sapien_replay image_stride)")
     cap = cv2.VideoCapture(str(carrier))
     seams = []
     for k in range(samples):
@@ -185,7 +185,7 @@ def check(carrier: Path, samples: int = 5) -> dict:
     if seams and with_seam == 0:
         warnings.append("head view has no wall/table seam with a luminance step above the control gate (tau 25): "
                         "H3 tends to invent a wall or table edge; shade the white scene (distinct table and wall "
-                        "brightness) or dress it with white_replay extras")
+                        "brightness) or dress it with sapien_replay extras")
     return {"carrier": str(carrier), "fps": fps, "frames": info.frames, "sampled_frames": len(seams),
             "frames_with_room_seam": with_seam, "longest_seam": max((s[0] for s in seams if s),
                                                                     key=lambda x: x["length"], default=None),
@@ -199,7 +199,7 @@ def main() -> int:
     c.add_argument("--head")
     c.add_argument("--left")
     c.add_argument("--right")
-    c.add_argument("--replay", type=Path, help="white replay directory (datafarm.simulation.white_replay OUT_DIR)")
+    c.add_argument("--replay", type=Path, help="white replay directory (datafarm.adapters.sim.sapien_replay OUT_DIR)")
     c.add_argument("--attempt", type=Path, help="the replayed attempt (for its concat lists and frame rate)")
     c.add_argument("--out", required=True, type=Path)
     k = sub.add_parser("check")

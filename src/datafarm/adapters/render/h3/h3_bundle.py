@@ -144,7 +144,7 @@ def cmd_check(args) -> int:
             row["carrier"] = probe(ep["carrier"])
             fps = h3_carrier.fps_of(ep["carrier"])
             if fps < h3_carrier.MIN_WHITE_FPS:
-                problems.append(f"{ep['id']}: carrier at {fps:g} fps; re-render the white densely (white_replay "
+                problems.append(f"{ep['id']}: carrier at {fps:g} fps; re-render the white densely (sapien_replay "
                                 "image_stride), never interpolate it")
             elif abs(fps - float(b.get("carrier_fps") or 0)) > 0.5:
                 problems.append(f"{ep['id']}: carrier is {fps:g} fps but carrier_fps is {b.get('carrier_fps')}")

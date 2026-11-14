@@ -566,7 +566,7 @@ def build_train_command(spec: dict[str, Any], paths: dict[str, Any]) -> list[str
         adapter = "joint"
     return [
         str(paths["trainer_python"]),
-        str(ROOT / "src/datafarm/training/run_trainer.py"), "--action-adapter", adapter, spec["base_config"],
+        str(ROOT / "src/datafarm/adapters/trainer/openpi/run_trainer.py"), "--action-adapter", adapter, spec["base_config"],
         "--project-name", spec["project_name"],
         "--exp-name", spec["exp_name"],
         "--data.repo-id", spec["repo_id"],
@@ -679,8 +679,8 @@ def write_launch_manifest(spec_path: Path, spec: dict[str, Any], paths: dict[str
         "runtime_source_sha256": {
             str(path.relative_to(ROOT)): sha256_file(path)
             for path in [
-                ROOT / "src/datafarm/training/run_trainer.py",
-                ROOT / "src/datafarm/training/checkpoint_restore.py",
+                ROOT / "src/datafarm/adapters/trainer/openpi/run_trainer.py",
+                ROOT / "src/datafarm/adapters/trainer/openpi/checkpoint_restore.py",
                 ROOT / "src/datafarm/training/delta_eef.py",
                 ROOT / "src/datafarm/training/joint_actions.py",
             ]

@@ -35,7 +35,7 @@ from datafarm.batch.supervisor import (  # noqa: E402
     BatchPolicy,
     BatchSupervisor,
 )
-from datafarm.batch.subprocess_task import (  # noqa: E402
+from datafarm.adapters.process.subprocess_task import (  # noqa: E402
     SubprocessTask,
     TaskConfigError,
     load_task_config,

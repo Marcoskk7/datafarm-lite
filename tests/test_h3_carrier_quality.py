@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-HYBRID = ROOT / 'src/datafarm/render/h3'
+HYBRID = ROOT / 'src/datafarm/adapters/render/h3'
 FFMPEG = bool(shutil.which('ffmpeg') and shutil.which('ffprobe'))
 needs_ffmpeg = pytest.mark.skipif(not FFMPEG, reason='needs ffmpeg/ffprobe')
 
@@ -40,7 +40,7 @@ def write_video(path, frames, fps=24):
 
 
 # ------------------------------------------------------------------ white replay (no simulator)
-from datafarm.simulation import white_replay as wr  # noqa: E402
+from datafarm.adapters.sim import sapien_replay as wr  # noqa: E402
 
 
 def good_spec():

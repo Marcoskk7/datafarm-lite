@@ -33,8 +33,8 @@ The following is procedure, carried out by the agent and its reviewers:
 
 | Location | Content |
 |---|---|
-| `src/datafarm/render/h3/` | Render and post-processing tools; see its `README.md` for a step-by-tool table |
-| `src/datafarm/render/h3/BUNDLE-SCHEMA.md` | Task bundle format |
+| `src/datafarm/adapters/render/h3/` | Render and post-processing tools; see its `README.md` for a step-by-tool table |
+| `src/datafarm/adapters/render/h3/BUNDLE-SCHEMA.md` | Task bundle format |
 | `vendor/videox_fun/` | Patch from upstream VideoX-Fun that adds `MiniMaxH3ControlPipeline` |
 | `configs/render/h3-control-hybrid-v1.json` | Task-independent default recipe, including the reference policy |
 | `configs/render/h3-ood-restyle-v1.json` | OOD edit of tabletop material and light colour |
@@ -46,7 +46,7 @@ The following is procedure, carried out by the agent and its reviewers:
 
 ```text
 Captured white attempt + the task's real episode
-  │ datafarm.simulation.white_replay  (render-only: real robot colour, object shapes, scene dressing, dense image
+  │ datafarm.adapters.sim.sapien_replay  (render-only: real robot colour, object shapes, scene dressing, dense image
   │   rate, wide wrist cameras; the state log must stay identical)  →  h3_carrier.py compose / check
   │ h3_episode_references.py build  (f0, robot-visible frame, robot / object / wrist sheets within the memory budget)
   ▼
@@ -106,8 +106,8 @@ h3_gate.py record/status: 2 prefixes → canary (≥ 75% accepted, no blocking k
 The renderer copies what the carrier shows, so most visible render failures are fixed in the white, not in the prompt. Evidence for every step below is independent blind review of the 2026-11 production renders (dual-arm Piper drum, weigh-apple and stack-cups; RealBot-01 scoop-cereal), where each step turned a rejection into an acceptance or removed a reviewer-named defect.
 
 1. **Real references.** Write `tasks/<task>/episode-references.json` and run `h3_episode_references.py build`. It derives the start frame, the frame where the real robot is most visible, the robot sheet, the object close-up sheet (with a second tile for an object whose appearance changes) and the stacked wrist sheet from the task's own real episode, within the 25 MP budget. The robot pixels come from a dark-robot heuristic; for a light-coloured robot or dark furniture, first make projected label masks with `h3_robot_masks.py` from the task's validated kinematics and set `robot_masks`. For white-on-white or split objects, give `object_boxes`. Leave `object_sheet` off when an object leaves the view during the task.
-2. **Replay spec.** `h3_episode_references.py robot-colors` writes `@robot` (and `@robot_links` with masks) for the white replay. Add render-only object shapes where the simulator proxy differs from the real object, render-only `extras` where the white lacks the real wall, counter or props (a bright real wall the simulator lights dimly needs `emission`), `image_stride` for a white captured below 20 fps, and `wrist_fov_factor` 0.65 for wide wrist views (only when the narrow wrist view makes H3 invent room edges; it softens wrist detail). Validate with `python -m datafarm.simulation.white_replay --check-spec`.
-3. **Replay.** `python -m datafarm.simulation.white_replay <attempt> <out> --spec <spec>` on a host that can render. It refuses success when the state log differs from the attempt's or a requested change was not applied. Watch for coplanar visual parts (z-fighting) and seams between dressing parts, which H3 draws as sticks.
+2. **Replay spec.** `h3_episode_references.py robot-colors` writes `@robot` (and `@robot_links` with masks) for the white replay. Add render-only object shapes where the simulator proxy differs from the real object, render-only `extras` where the white lacks the real wall, counter or props (a bright real wall the simulator lights dimly needs `emission`), `image_stride` for a white captured below 20 fps, and `wrist_fov_factor` 0.65 for wide wrist views (only when the narrow wrist view makes H3 invent room edges; it softens wrist detail). Validate with `python -m datafarm.adapters.sim.sapien_replay --check-spec`.
+3. **Replay.** `python -m datafarm.adapters.sim.sapien_replay <attempt> <out> --spec <spec>` on a host that can render. It refuses success when the state log differs from the attempt's or a requested change was not applied. Watch for coplanar visual parts (z-fighting) and seams between dressing parts, which H3 draws as sticks.
 4. **Carrier.** `h3_carrier.py compose --replay <out> --attempt <attempt> --out <carrier>`, then `h3_carrier.py check <carrier>`. Record `wide_wrist` (factor and the wrist principal points from the replay report) on the bundle episode.
 5. **Keep regions** (only when a task state is a small detail the model renders at the wrong time): write a `h3.keep-regions/1` spec, put its `states` into the replay colours as `@states`, and name it as the episode's `keep_regions`.
 
@@ -124,7 +124,7 @@ The bundle, reference images, episode list, OOD variants, recipe copy and seed-s
 5. Select seeds, assemble, score, lock, pack and review. Production first runs 2 complete-episode prefixes and then a fixed set of 8 canaries, with a fixed denominator and all failures kept. `h3_gate.py init` fixes the three lists before the first render; enqueue with `--gate`, and `record` every final package (or a render failure) as it finishes. The gate reads only the blind-review verdicts. When the seed-screen session fails or leaves a partial `choice.json`, `h3_finalize.py select` falls back to the occupancy screen and records why; the episode still goes to blind review.
 
 ```bash
-export H3_RUN=/data/runs/<run> ; H=<datafarm>/src/datafarm/render/h3
+export H3_RUN=/data/runs/<run> ; H=<datafarm>/src/datafarm/adapters/render/h3
 python $H/h3_gate.py init --gate <name>-g1 --recipe <name> --task <task> --prefix <e1> <e2> \
   --canary <e3> <e4> <e5> <e6> <e7> <e8> <e9> <e10> --rest <e11> ...
 python $H/h3_enqueue.py --recipe $H3_RUN/recipes/<name>.json --tasks <task> --gate <name>-g1 \
@@ -148,10 +148,10 @@ python $H/h3_gate.py status --gate <name>-g1      # stage, verdicts, the episode
 Single-package commands:
 
 ```bash
-H3_RUN=<run> python src/datafarm/render/h3/h3_package.py build --bundle <run>/tasks/<task>/bundle.json \
+H3_RUN=<run> python src/datafarm/adapters/render/h3/h3_package.py build --bundle <run>/tasks/<task>/bundle.json \
   --recipe <run>/recipes/<name>.json --episode <ep> --mode sim2real --out <run>/pkgs/<name>/<task>/<ep>-sim2real
-python src/datafarm/render/h3/h3_package.py check <package>
-python src/datafarm/render/h3/h3_paths.py show
+python src/datafarm/adapters/render/h3/h3_package.py check <package>
+python src/datafarm/adapters/render/h3/h3_paths.py show
 python evaluations/render-h3/h3eval.py score --generated <final.mp4> --carrier <carrier.mp4> --out <score.json>
 ```
 
@@ -168,7 +168,7 @@ The alternative renders the sim2real recipe with an OOD contract, using the same
 - **GPU:** each worker takes one GPU with free memory of at least 172 GB by default (`H3_MIN_FREE_MB`) for a 1024x768 canvas with 192-frame chunks fully resident.
 - **Python** (`H3_PYTHON`): torch, diffusers, transformers, omegaconf, safetensors, opencv-python, numpy; system `ffmpeg` and `ffprobe`. Packaging, seed selection and the exposure lock need only numpy and opencv.
 - **External assets** (`configs/external-assets.json`, doctor profile `h3-control`): the MiniMax-H3 Ref2VA directory, the H3-Fun ControlNet-Union weights, the MiniMax-H3 Turbo 4-step LoRA, the ControlNetHED annotator weights, the VideoX-Fun repository with `videox-fun-datafarm.patch` applied (see `vendor/videox_fun/README.md`), the ControlNet v1.1 annotator source, DINOv2-base (EVAL-v1) and SAM2.1-hiera-large (OOD only).
-- **Bindings** (environment variable, then `DATAFARM_<KEY>`, then the bindings file; no built-in default, and a missing key or path fails): `H3_RUN` (or `--run-dir`), `H3_PYTHON` (default: the current interpreter), `H3_MODELS`, `H3_VIDEOX_FUN`, `H3_TURBO_LORA`, `GPU_SCHEDULER`, `H3_EVAL_DINO`, `H3_SAM2`, `H3_HED_ANNOTATOR_REPO`. `python3 src/datafarm/render/h3/h3_paths.py show` prints what resolves.
+- **Bindings** (environment variable, then `DATAFARM_<KEY>`, then the bindings file; no built-in default, and a missing key or path fails): `H3_RUN` (or `--run-dir`), `H3_PYTHON` (default: the current interpreter), `H3_MODELS`, `H3_VIDEOX_FUN`, `H3_TURBO_LORA`, `GPU_SCHEDULER`, `H3_EVAL_DINO`, `H3_SAM2`, `H3_HED_ANNOTATOR_REPO`. `python3 src/datafarm/adapters/render/h3/h3_paths.py show` prints what resolves.
 - **Scheduling:** `launch_control_worker.sh` calls `$GPU_SCHEDULER submit`, with hosts from `<run>/queue/ALLOWED_HOSTS`. The interface is in [deployment](../deployment.md#gpu-scheduling). Local mode (`H3_LOCAL_GPU=<index>`, or `local_gpus` + `local_host` in `pool.json`) runs the same worker on a GPU of a dedicated node without the scheduler; nothing then stops another user's job from taking that GPU, so use it only on a node the run owns.
 
 ### Guarantees
@@ -182,10 +182,10 @@ The alternative renders the sim2real recipe with an OOD contract, using the same
 7. **Deployment paths fail closed.** A missing or nonexistent value raises `MissingBinding`.
 8. **Capability evolution cannot change the evaluator.** `evaluations/` is in the evolution controller's protected list.
 9. **Padding never reaches the output.** With `tail_pad`, the canvas carrier and chunk plan cover the episode plus the held frames; `h3_assemble.py` and `h3_exposure_lock.py` cut the output back to `frames`, so output frame *i* is carrier frame *i* and the counts match the carrier clip.
-10. **A white replay is accepted only with an identical trajectory.** `white_replay` compares the replay's state log with the attempt's (every field except the PhysX contact report, or every array of `log.npz`) and exits 2 when it differs or when a requested camera, colour, stride, shape or dressing change was not applied.
+10. **A white replay is accepted only with an identical trajectory.** `sapien_replay` compares the replay's state log with the attempt's (every field except the PhysX contact report, or every array of `log.npz`) and exits 2 when it differs or when a requested camera, colour, stride, shape or dressing change was not applied.
 11. **Keep regions patch before the audit.** `h3_package.py build` patches the chunk inpaint video and repaint mask when the episode names `keep_regions`, records the frames kept per region, and stops when the regions appear in no white frame; the audit then hashes the patched inputs.
 
-Code: `src/datafarm/render/h3/`, `src/datafarm/render/policy.py`.
+Code: `src/datafarm/adapters/render/h3/`, `src/datafarm/render/policy.py`.
 
 ### Data model
 
@@ -233,7 +233,7 @@ MiniMax-H3 LICENSE §V.3 prohibits using MiniMax-H3 Works or their Outputs to im
 
 ## Seedance
 
-`src/datafarm/render/seedance/` executes edit requests, source upload with remote SHA verification, rate limiting, task-ID query and download, and single-shot create with a fixed source identity.
+`src/datafarm/adapters/render/seedance/` executes edit requests, source upload with remote SHA verification, rate limiting, task-ID query and download, and single-shot create with a fixed source identity.
 
 - **Route and profile.** Direct video-to-video appearance rewriting uses an explicit `edit` route. Ordinary and high-throughput endpoints are separate profiles; a high-throughput profile's concurrency affects scheduling only and inherits no quality qualification. A change of endpoint, model or quota needs a new profile. The 697-frame limit below belongs to Seedance and does not limit H3.
 - **Clock.** Canonical frame `i` is simulator frame `i`. The same frames are sent at 24 FPS, and the 30 FPS training clock is restored with the same index afterwards. Frames added to fit the transport grid may only copy a terminal raster the simulator proved static.
@@ -242,7 +242,7 @@ MiniMax-H3 LICENSE §V.3 prohibits using MiniMax-H3 Works or their Outputs to im
 - **Repair.** An ordinary repair redraws only the rejected identity or phase, then goes through the same seam and semantic gates. A panel may be repaired by copying the last frame before the cut only when the simulator's camera pose, robot state and per-frame images jointly prove it static over the whole tail. Using Seedance output to train another renderer needs explicit written authorization and a recorded rights basis.
 
 ```bash
-python -m datafarm.render.seedance.batch --run <seedance-run> --phase canary --workers 8
+python -m datafarm.adapters.render.seedance.batch --run <seedance-run> --phase canary --workers 8
 ```
 
 ### Guarantees
@@ -252,7 +252,7 @@ python -m datafarm.render.seedance.batch --run <seedance-run> --phase canary --w
 3. **Bulk submission requires a canary review bound to this batch.** `--phase canary` (the default) submits only `canary_ids`. `--phase all` requires `canary-review.json` with a truthy `continue_exploration` and `batch_sha256` equal to the sha256 of the current `batch.json`.
 4. **Every source frame is kept, and nothing is retimed.** With `clock` from `batch.json`, a source row must satisfy `0 < frames <= transport_frames <= max_transport_frames` (697 in the supported profile), `transport_frames % 8 == 1`, and fewer than 8 padding frames. The provider output must have exactly `transport_frames` frames. `finalize` trims the padding and writes `render-24fps.mp4` and `render-30fps.mp4` with `setpts=N/(fps*TB)`, so output frame *i* is source frame *i*.
 
-Code: `src/datafarm/render/seedance/`.
+Code: `src/datafarm/adapters/render/seedance/`.
 
 ### Data model and configuration
 
@@ -272,7 +272,7 @@ Worker exceptions are written to `episodes/<id>/failure.json`, and the batch con
 
 ### Limitations
 
-- **No pause on recurring failure in the adapter.** `datafarm.render.seedance.batch` records failures and keeps going. The stop lives in the [batch supervisor](batch-supervisor.md), so run through it for that behaviour.
+- **No pause on recurring failure in the adapter.** `datafarm.adapters.render.seedance.batch` records failures and keeps going. The stop lives in the [batch supervisor](batch-supervisor.md), so run through it for that behaviour.
 - **Upload precedes the policy check.** The carrier is uploaded before `check_seedance_payload` runs, and the uploaded carrier is public until it expires (24 h).
 
 ## Comparing the routes

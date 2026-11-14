@@ -11,7 +11,7 @@ import argparse, json, os, subprocess, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from datafarm.agent.metered_provider import Meter, MeteredGateway, load_pricing
+from datafarm.adapters.agent_harness.metered_provider import Meter, MeteredGateway, load_pricing
 
 
 def main():
@@ -31,7 +31,7 @@ def main():
         parser.error("--pricing or DATAFARM_METERED_PRICING is required (metered model id and price table; no default)")
     pricing = load_pricing(args.pricing)
     sys.path.insert(0, str(Path(args.source) / "src"))
-    from datafarm.agent.credentials import KeysFileCredentials
+    from datafarm.adapters.agent_harness.credentials import KeysFileCredentials
 
     creds = KeysFileCredentials(args.credentials)()
     receipt = Path(os.environ["DATAFARM_COST_RECEIPT"])

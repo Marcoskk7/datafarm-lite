@@ -10,7 +10,7 @@ simulators, services or data that it does not contain.
 |---|---|---|---|
 | `vendor/trainer/` | [openpi](https://github.com/Physical-Intelligence/openpi) (Physical Intelligence) | Apache-2.0 (`vendor/trainer/LICENSE`) | Modified by the DataFarm authors (Apache-2.0 section 4(b)): dataset adapters, joint/EEF action modes, admission-bound training entry points; see `vendor/trainer/README.md`. Only the files that this project trains with are included, and each modified file carries a notice. `LICENSE_GEMMA.txt` applies to PaliGemma weights, which are not included. |
 | `vendor/videox_fun/` | [VideoX-Fun](https://github.com/aigc-apps/VideoX-Fun) | Apache-2.0 | A patch against upstream for the control pipeline and edge (HED) control preparation; see the README in that directory. |
-| `src/datafarm/render/h3/h3_lora.py` | Sol-H3 `h3_runtime/lora.py` | Not yet confirmed | Unmodified copy (sha256 `0e8222b76e086f8f100092e325a08e86bfc8bd33fb404c8b8b0cdd4d3d56362c`). Not covered by the MIT License of this repository until its terms are confirmed. |
+| `src/datafarm/adapters/render/h3/h3_lora.py` | Sol-H3 `h3_runtime/lora.py` | Not yet confirmed | Unmodified copy (sha256 `0e8222b76e086f8f100092e325a08e86bfc8bd33fb404c8b8b0cdd4d3d56362c`). Not covered by the MIT License of this repository until its terms are confirmed. |
 
 
 ## Not included, obtained separately

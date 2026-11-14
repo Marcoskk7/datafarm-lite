@@ -2,7 +2,7 @@
 import hashlib
 import json
 
-from datafarm.render.seedance.common import verify_file
+from datafarm.adapters.render.seedance.common import verify_file
 
 # 设备状态外观 reference（例如显示器熄灭 / 点亮）。它们展示某状态和产品的
 # 外观，绝不表示设备所在的位置。局部产品形状来自真实 reference；摆放、

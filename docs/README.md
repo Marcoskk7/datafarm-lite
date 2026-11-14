@@ -10,13 +10,13 @@ One note per component. Each states what the code guarantees and what it does no
 | Component | Note | Code |
 |---|---|---|
 | Capability layer, context compiler, instruction audit, source pinning | [capability-layer](reference/capability-layer.md) | `src/datafarm/instructions.py`, `tools/audit_instruction_layers.py`, `src/datafarm/evolution/integration.py` |
-| Agent runtime: prepare, drive, supervise, review queue, recovery | [agent-runtime](reference/agent-runtime.md) | `tools/pipeline_agent.py`, `src/datafarm/agent/runtime.py`, `src/datafarm/agent/native_codex.py` |
+| Agent runtime: prepare, drive, supervise, review queue, recovery | [agent-runtime](reference/agent-runtime.md) | `tools/pipeline_agent.py`, `src/datafarm/agent/runtime.py`, `src/datafarm/adapters/agent_harness/native_codex.py` |
 | Phased runs: fresh sessions with USD caps | [phased-runs](reference/phased-runs.md) | `tools/pipeline_phases.py`, `src/datafarm/agent/phases.py` |
-| Model-call ledger and VLM reviewer calibration | [agent-calls](reference/agent-calls.md) | `src/datafarm/agent/call_log.py`, `src/datafarm/verify/reviewer_calibration.py` |
+| Model-call ledger and VLM reviewer calibration | [agent-calls](reference/agent-calls.md) | `src/datafarm/adapters/agent_harness/call_log.py`, `src/datafarm/verify/reviewer_calibration.py` |
 | Run ledger | [run-ledger](reference/run-ledger.md) | `src/datafarm/ledger/` |
 | Batch supervisor | [batch-supervisor](reference/batch-supervisor.md) | `src/datafarm/batch/` |
 | Grounding and the physical-quantity ledger | [grounding](reference/grounding.md) | `src/datafarm/grounding/quantities.py` |
-| Object assets (optional) | [usdcraft](reference/usdcraft.md) | `src/datafarm/simulation/usdcraft.py` |
+| Object assets (optional) | [usdcraft](reference/usdcraft.md) | `src/datafarm/adapters/sim/usdcraft.py` |
 | Simulator qualification | [simulator-qualification](reference/simulator-qualification.md) | `src/datafarm/simulation/sim_qualification.py` |
 | Task contract, frozen judge, expert harness | [expert-harness](reference/expert-harness.md) | `src/datafarm/expert/` |
 | CaP repair search, action evidence and verified repair skills | [cap-search](reference/cap-search.md) | `src/datafarm/cap/`, `tools/cap_search.py` |
@@ -24,7 +24,7 @@ One note per component. Each states what the code guarantees and what it does no
 | B-line interface design: Isaac Lab 3.0, robot API, judge and episode (draft) | [b-control-interfaces](reference/b-control-interfaces.md) | Not implemented yet; reuses the existing CaP and core IR |
 | Robot API auto-discovery, semantic config and Isaac Lab instance binding | [robot-auto-binding](reference/robot-auto-binding.md) | `simulation/robot_binding.py`, `simulation/isaac_robot.py`, `tools/discover_robot.py` |
 | Render contract | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
-| H3 control hybrid and Seedance | [rendering](reference/rendering.md) | `src/datafarm/render/h3/`, `src/datafarm/render/seedance/` |
+| H3 control hybrid and Seedance | [rendering](reference/rendering.md) | `src/datafarm/adapters/render/h3/`, `src/datafarm/adapters/render/seedance/` |
 | Render verifier | [render-verifier](reference/render-verifier.md) | `src/datafarm/verify/` |
 | Review, delivery and admission | [delivery-and-admission](reference/delivery-and-admission.md) | `src/datafarm/render/delivery.py`, `src/datafarm/task/contract.py`, `src/datafarm/task/white_delivery.py`, `src/datafarm/core/admission.py` |
 | Policy training (pi0.5) | [policy-training](reference/policy-training.md) | `tools/launch_pi05_training.py`, `src/datafarm/training/` |

@@ -29,18 +29,18 @@ import uuid
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
-from datafarm.agent.call_log import AgentCallRecord, append_call, new_call_id, read_calls, summarize
+from datafarm.adapters.agent_harness.call_log import AgentCallRecord, append_call, new_call_id, read_calls, summarize
 
 from datafarm.expert.adapter import TaskAdapter, load_holdout_seeds, validate_holdout_against_dev, write_holdout_seeds
 from datafarm.expert.audit import audit_expert_source
 from datafarm.expert.brief import lint_brief, render_brief
 from datafarm.expert.handoff import assert_no_seed_leak, handoff_markdown, load_bundle
-from datafarm.expert.isolation import SandboxSpec, chown_tree, make_empty_file, resolve_spec, run_probe, sandbox_env, wrap
+from datafarm.adapters.sandbox.isolation import SandboxSpec, chown_tree, make_empty_file, resolve_spec, run_probe, sandbox_env, wrap
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.library import ExpertLibrary
 from datafarm.expert.manifest import ManifestGuard
 from datafarm.expert.rollout import make_backend
-from datafarm.expert.session import AgentBackend, SessionRunner, SessionSpec, classify_errors, make_agent_backend
+from datafarm.adapters.agent_harness.agent_cli import AgentBackend, SessionRunner, SessionSpec, classify_errors, make_agent_backend
 from datafarm.expert.state import TERMINAL, EventLog, RoundState
 from datafarm.expert.toolbox import Broker
 from datafarm.expert.util import (Clock, ConfigError, HarnessError, UnsafePathError, atomic_write_bytes,

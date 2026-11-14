@@ -77,7 +77,7 @@ really a photograph or that the model followed the prompt.
     Every job must use the same reference list. A chunk-visibility job's prompt is recomputed
     from its closed-schema `chunk_facts`; any other job must reuse the manifest prompt.
 
-Code: `src/datafarm/render/policy.py`, `src/datafarm/render/seedance/client.py`, `src/datafarm/render/seedance/batch.py`, `tools/render_policy.py`.
+Code: `src/datafarm/render/policy.py`, `src/datafarm/adapters/render/seedance/client.py`, `src/datafarm/adapters/render/seedance/batch.py`, `tools/render_policy.py`.
 
 ## Data model
 
@@ -165,13 +165,13 @@ Each command prints `{"schema": ..., "valid": true}` and exits 0, or prints
   bounds. It cannot tell a real photo from a rendered image that is labelled `real-photo`.
 - **The Seedance source video is only checked for presence.** `check_seedance_payload` does
   not hash the `video_url` target. The carrier bytes are bound separately: the upload is
-  re-downloaded and hashed (`src/datafarm/render/seedance/upload_transport.py::exchange`), and the recipe pins
+  re-downloaded and hashed (`src/datafarm/adapters/render/seedance/upload_transport.py::exchange`), and the recipe pins
   `source_sha256`.
 - **In `batch.run_one`, the carrier upload happens before the policy check.** A job with a
   broken contract has already published its carrier to the opt-in upload host when
   `create_once` refuses it.
 - **Images after the real-reference prefix are not checked here.** Structure and continuity
-  images are validated by `src/datafarm/render/seedance/references.py::images`, not by
+  images are validated by `src/datafarm/adapters/render/seedance/references.py::images`, not by
   `render_policy`.
 - **H3 chunk facts are trusted as written.** `check_h3_payload` recomputes each chunk prompt
   from the manifest's `chunk_facts`. It does not re-measure those facts from the carrier and

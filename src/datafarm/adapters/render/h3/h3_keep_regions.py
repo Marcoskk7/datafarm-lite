@@ -4,7 +4,7 @@
 有些任务状态只表现为生成器无法从 white carrier 推导出的小细节，例如任务会点亮的厨房秤显示屏：H3 会把它
 点亮得过早、过晚或完全不亮。keep-region spec（任务产物，schema h3.keep-regions/1）声明
 
-  states    用于 white replay 的仅渲染状态颜色（datafarm.simulation.white_replay 的 "@states"），使 white
+  states    用于 white replay 的仅渲染状态颜色（datafarm.adapters.sim.sapien_replay 的 "@states"），使 white
             carrier 只在状态持续的那些帧中，以显眼的近白矩形显示该状态；
   regions   逐区域声明：如何在 white chunk 帧中找到它（`white`：一个明亮、低饱和、较宽的矩形），以及在
             那里保留哪些真实像素（`texture`：在 `source` 的真实 head 帧 `frame` 的 `box` 内，匹配 `rule`
@@ -189,7 +189,7 @@ def apply(jobs: list, spec_path, cache: Path) -> dict:
             total[k] = total.get(k, 0) + v
     if not any(total.values()):
         raise SystemExit(f"keep regions found nothing in any white chunk ({spec_path}); is the state colour replayed "
-                         "into the white (spec states -> white_replay colors @states)?")
+                         "into the white (spec states -> sapien_replay colors @states)?")
     return {"spec": str(spec_path), "spec_sha256": spec_sha, "frames": total}
 
 

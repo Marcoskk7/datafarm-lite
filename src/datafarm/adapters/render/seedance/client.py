@@ -5,9 +5,9 @@ import os
 import time
 from pathlib import Path
 import requests
-from datafarm.render.seedance.common import read, write, now, sha
-from datafarm.render.seedance.references import images
-from datafarm.render.seedance.upload_transport import exchange, UploadError
+from datafarm.adapters.render.seedance.common import read, write, now, sha
+from datafarm.adapters.render.seedance.references import images
+from datafarm.adapters.render.seedance.upload_transport import exchange, UploadError
 from datafarm.render.policy import check_seedance_payload, submission_contract_path
 
 ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks'

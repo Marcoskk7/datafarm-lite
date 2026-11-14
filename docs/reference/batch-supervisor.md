@@ -160,8 +160,8 @@ recorded as events and never stop the batch.
 
 ## 8. Generic CLI: a supervisor becomes a config
 
-`tools/supervise_batch.py` drives the controller with `src/datafarm/batch/subprocess_task.py`.
-Each attempt is one command run through `batch_exec.py` in its own session and directory
+`tools/supervise_batch.py` drives the controller with `src/datafarm/adapters/process/subprocess_task.py`.
+Each attempt is one command run through `adapters/process/batch_exec.py` in its own session and directory
 `<work_dir>/attempts/<launch_id>/` (`attempt.json`, `handle.json`, `started.json`, `exit.json`,
 `log.txt`), so a restarted supervisor can tell finished, crashed and running apart without being
 the attempt's parent. Commands:

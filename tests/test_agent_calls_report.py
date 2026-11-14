@@ -9,8 +9,8 @@ import shutil
 import tempfile
 import unittest
 
-from datafarm.agent.call_log import AgentCallRecord, append_call
-from datafarm.agent.call_report import (
+from datafarm.adapters.agent_harness.call_log import AgentCallRecord, append_call
+from datafarm.adapters.agent_harness.call_report import (
     build_report,
     expand_paths,
     group_rows,

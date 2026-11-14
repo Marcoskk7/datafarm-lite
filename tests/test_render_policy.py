@@ -3,7 +3,7 @@ import json
 import pytest
 from render_policy_fixtures import ROOT, policy_fixture
 
-from datafarm.render.seedance.client import create_once
+from datafarm.adapters.render.seedance.client import create_once
 from datafarm.render.policy import (
     check_h3_payload,
     check_seedance_payload,

@@ -118,7 +118,7 @@ def drive(args):
         raise ValueError('session/time budget must be positive')
     driver = json.loads(args.driver.read_text())
     native = driver.get('type') == 'codex'
-    argv = ([sys.executable, str(ROOT / 'src/datafarm/agent/native_codex.py')]
+    argv = ([sys.executable, str(ROOT / 'src/datafarm/adapters/agent_harness/native_codex.py')]
             if native else driver.get('argv'))
     if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):
         raise ValueError('driver argv must be a nonempty array of strings; no shell command')

@@ -4,7 +4,7 @@
 在命令存活期间更新 heartbeat，转发 SIGTERM/SIGINT，并把
 退出码记入 run ledger，因此意外退出总是可见的。
 
-用法：python -m datafarm.ledger.ledger_exec RUN_DIR WORKER_ID HEARTBEAT_SECONDS -- CMD...
+用法：python -m datafarm.adapters.process.ledger_exec RUN_DIR WORKER_ID HEARTBEAT_SECONDS -- CMD...
 """
 
 from __future__ import annotations

@@ -20,7 +20,7 @@ PROTECTED = ('AGENTS.md', 'prompts/instructions/authority-and-scope.md',
              # 以及准入证书签发器。修改它们属于评估器修订，
              # 永远不是优化候选。
              'src/datafarm/expert/holdout.py',
-             'src/datafarm/expert/isolation.py', 'src/datafarm/expert/audit.py',
+             'src/datafarm/adapters/sandbox/isolation.py', 'src/datafarm/expert/audit.py',
              'tools/issue_admission_certificate.py',
              # 门控本身：已晋升的候选不得改写后续候选的评判方式。
              'src/datafarm/evolution/', 'tools/pipeline_evolve.py')

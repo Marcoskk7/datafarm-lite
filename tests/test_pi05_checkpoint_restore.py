@@ -15,7 +15,7 @@ from jax.sharding import Mesh, NamedSharding, PartitionSpec
 from openpi.training import checkpoints, utils
 from openpi.shared import array_typing as at
 
-from datafarm.training.checkpoint_restore import restore_state, with_target_sharding
+from datafarm.adapters.trainer.openpi.checkpoint_restore import restore_state, with_target_sharding
 
 
 class CheckpointRestoreTest(unittest.TestCase):

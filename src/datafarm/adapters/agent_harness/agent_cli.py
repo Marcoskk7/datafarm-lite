@@ -390,8 +390,8 @@ class MeteredCodexBackend(CodexExecBackend):
 
     @contextlib.contextmanager
     def session(self, spec: SessionSpec, directory: Path):
-        from datafarm.agent.credentials import KeysFileCredentials
-        from datafarm.agent.metered_provider import Meter, MeteredGateway, load_pricing
+        from datafarm.adapters.agent_harness.credentials import KeysFileCredentials
+        from datafarm.adapters.agent_harness.metered_provider import Meter, MeteredGateway, load_pricing
         if spec.max_budget_usd is None or spec.max_budget_usd <= 0:
             raise ConfigError('metered backend requires a finite positive session budget')
         try:  # agent.pricing：JSON 对象或文件，指定计量 model 及其价格；无默认值
@@ -471,7 +471,7 @@ class FakeAgentBackend(AgentBackend):
 
     def command(self, spec: SessionSpec) -> list[str]:
         cfg = self.cfg
-        script = cfg.get("script") or str(Path(__file__).resolve().parent / "fakes" / "fake_agent.py")
+        script = cfg.get("script") or str(Path(__file__).resolve().parents[1] / "fakes" / "fake_agent.py")
         argv = [cfg.get("python", sys.executable), script, "--plan", cfg["plan"],
                 "--session-index", str(spec.index), "--model", self.model]
         if spec.resume_id:

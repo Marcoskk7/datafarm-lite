@@ -1,6 +1,6 @@
 # Policy training (pi0.5)
 
-Training is downstream of admission. `tools/launch_pi05_training.py` (`src/datafarm/training/launch.py`) turns a JSON
+Training is downstream of admission. `tools/launch_pi05_training.py` (`src/datafarm/adapters/trainer/openpi/launch.py`) turns a JSON
 training spec, started from `configs/training/template.json`, into a launch manifest and a scheduler command
 for the vendored openpi trainer (`vendor/trainer/`). First it validates the dataset, the action representation, the state
 conditioning mode, the distribution claim and the admission binding. It writes nothing
@@ -70,7 +70,7 @@ In the PI0.5 tokenizer, `discrete_state_input=False` passes `state=None` to the 
    - match the spec's `allowed_semantic_waivers`, `repo_id` and `dataset_fps` (default 30).
 5. **The action representation is declared and matches the trainer config.** `action_representation` is
    required and must agree with the `base_config` suffix (`_delta_eef_current_rpy_v1`,
-   `_delta_joint_current_v1`, `_absolute_joint_v1`, or none). The command runs `src/datafarm/training/run_trainer.py` with
+   `_delta_joint_current_v1`, `_absolute_joint_v1`, or none). The command runs `src/datafarm/adapters/trainer/openpi/run_trainer.py` with
    `--action-adapter delta-eef`, `joint` or `none`. The joint adapter registers both joint configs for every
    Piper base config, without editing the trainer checkout.
 6. **Joint actions have exact, declared semantics.** The dataset stores absolute joint

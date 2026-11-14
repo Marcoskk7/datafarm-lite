@@ -20,14 +20,14 @@ simulator qualification  a variant certified for the task's skills (datafarm.sim
 task contract, expert  frozen judge, sandboxed author, held-out seeds (datafarm.task.contract, datafarm.expert)
   ▼
 rendering              render contract and provider payload checks (datafarm.render.policy),
-  │                    H3 control hybrid or Seedance (datafarm.render)
+  │                    H3 control hybrid or Seedance (datafarm.adapters.render)
   ▼
 verification, review   render verifier and independent review (datafarm.verify, datafarm.task.contract)
   │                    bounded per-item batches around all of the above (datafarm.batch)
   ▼
 delivery, admission    tools/pipeline_agent.py verify; admission certificate (datafarm.core.admission)
   ▼
-training (on request)  certificate-gated pi0.5 launch (datafarm.training)
+training (on request)  certificate-gated pi0.5 launch (datafarm.adapters.trainer.openpi, datafarm.training)
 
 the run ledger (datafarm.ledger) records requests, items, workers and verdicts throughout
 ```
@@ -73,16 +73,17 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 | `kernel` | Shared kernel: standard-library I/O helpers, artifact documents and receipts, schema checks, content-addressed store, file binding and source locks |
 | `grounding` | Grounding ledger: labelled physical quantities and their validated record |
 | `core` | Admission certificates |
-| `agent` | Run and resume agent sessions, meter usage, keep the cost ledger and call log |
+| `agent` | Run and resume agent sessions, phases, progress, keep the cost ledger |
 | `task` | Task contract checks, review-independence proof (`task/review_identity.py`), white delivery |
 | `expert` | Expert harness: sandboxed author sessions, rollout broker, frozen judge, held-out evaluation, expert library |
-| `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans, USDCraft adapter |
-| `render` | Render contract (`render/policy.py`), rendered-delivery check (`render/delivery.py`) and renderers: the H3 control hybrid (`render/h3`) and the Seedance client (`render/seedance`) |
+| `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans |
+| `render` | Render contract (`render/policy.py`), rendered-delivery check (`render/delivery.py`); the renderers live in `adapters/render` |
 | `verify` | Spec-driven render verifier, counterfactual calibration, reviewer calibration |
-| `batch` | Batch supervisor: bounded per-item launch, poll, verify and retry |
+| `batch` | Batch supervisor: bounded per-item launch, poll, verify and retry (the subprocess task is `adapters/process`) |
 | `ledger` | Run ledger: fixed item denominator, derived run status, launch sentinel |
-| `training` | Certificate-gated pi0.5 launch, dataset and action-mode contracts, cohort auditors |
+| `training` | Launch, dataset and action-mode contracts, cohort auditors |
 | `evolution` | Feedback store and controller that evaluates and activates capability-layer changes |
+| `adapters` | Outer technology: agent CLIs, metered provider, credentials and call log (`agent_harness`); OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
 | `instructions.py`, `runtime.py`, `doctor.py`, `cli.py` | Role context compiler, runtime bindings, prerequisite checks, the `datafarm` command |
 
 ## Top-level directories

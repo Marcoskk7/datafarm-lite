@@ -17,7 +17,7 @@ import sys
 import time
 
 from datafarm.kernel.io import sha256_file
-from datafarm.expert.session import ClaudeStreamParser, CodexJsonParser
+from datafarm.adapters.agent_harness.agent_cli import ClaudeStreamParser, CodexJsonParser
 
 ROOT = Path(__file__).resolve().parents[3]
 TEMPLATES = ROOT / 'prompts/phases'

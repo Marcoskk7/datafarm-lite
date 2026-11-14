@@ -13,7 +13,7 @@ import pytest
 from datafarm.agent.runtime import (supervise, recover_inflight, process_identity,
     review_request)
 from datafarm.task.review_identity import runtime_dir
-from datafarm.agent.native_codex import command, run, save
+from datafarm.adapters.agent_harness.native_codex import command, run, save
 from datafarm.agent.cost_budget import TaskBudget
 from test_task_cost_budget import workspace, driver_module, drive_args, receipt
 

@@ -1,4 +1,4 @@
-"""CPU-only checks of the vendored H3 control-hybrid backend (src/datafarm/render/h3).
+"""CPU-only checks of the vendored H3 control-hybrid backend (src/datafarm/adapters/render/h3).
 
 No GPU, model, provider or network: modules compile/import, CLIs answer --help without torch or bindings,
 deployment paths fail closed, the default recipes are valid for the vendored builder, the builder's CPU part
@@ -20,7 +20,7 @@ from render_policy_fixtures import policy_fixture
 
 MACHINE_PATH = re.compile(r'/home/|/mnt/|ssh -o ')
 ROOT = Path(__file__).resolve().parents[1]
-HYBRID = ROOT / 'src/datafarm/render/h3'
+HYBRID = ROOT / 'src/datafarm/adapters/render/h3'
 EVAL = ROOT / 'evaluations/render-h3'
 CONFIGS = ROOT / 'configs/render'
 PY_FILES = sorted(p.relative_to(HYBRID).as_posix() for p in HYBRID.rglob('*.py'))

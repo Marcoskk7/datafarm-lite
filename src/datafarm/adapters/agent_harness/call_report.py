@@ -11,7 +11,7 @@ import math
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from datafarm.agent.call_log import AgentCallRecord, read_calls, summarize
+from datafarm.adapters.agent_harness.call_log import AgentCallRecord, read_calls, summarize
 
 REPORT_SCHEMA = "datafarm.agent-calls-report/1"
 LEDGER_NAME = "agent-calls.jsonl"

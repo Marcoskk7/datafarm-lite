@@ -10,7 +10,7 @@ import pytest
 
 from datafarm.simulation import placement
 from datafarm.simulation.robot_package import PackageError, check_package, safe_extract
-from datafarm.task.lerobot_episode import EpisodeImportError, import_episode
+from datafarm.adapters.inputs.lerobot_episode import EpisodeImportError, import_episode
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV = {**os.environ, 'PYTHONPATH': str(ROOT / 'src')}

@@ -29,9 +29,9 @@ H3 渲染器复制 white carrier 所展示的内容：浅色的模拟器机器�
 OUT/white-replay.json。当日志不一致或请求的更改未生效时，工具以 2 退出。重放
 仅是渲染输入；它绝不替代该 attempt、其 judge 裁决或其准入。
 
-  python -m datafarm.simulation.white_replay ATTEMPT_DIR OUT_DIR --spec replay.json
-  python -m datafarm.simulation.white_replay ATTEMPT_DIR OUT_DIR --verify-only
-  python -m datafarm.simulation.white_replay --check-spec replay.json
+  python -m datafarm.adapters.sim.sapien_replay ATTEMPT_DIR OUT_DIR --spec replay.json
+  python -m datafarm.adapters.sim.sapien_replay ATTEMPT_DIR OUT_DIR --verify-only
+  python -m datafarm.adapters.sim.sapien_replay --check-spec replay.json
 
 在能够渲染的 host 上，用任务的模拟器解释器运行它（SAPIEN）。该 spec 是任务产物
 （schema "datafarm.white-replay/1"）；参见 docs/reference/rendering.md 的 "Preparing the white carrier"。

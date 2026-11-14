@@ -32,7 +32,7 @@ DEFAULT_COPY = ("REPORT.md", "NOTES.md")
 
 def _calls_summary(paths: RoundPaths) -> dict[str, Any]:
     try:
-        from datafarm.agent.call_log import read_calls, summarize
+        from datafarm.adapters.agent_harness.call_log import read_calls, summarize
     except ImportError:  # pragma: no cover - the shared ledger module ships with the repo
         return {}
     return summarize(read_calls(paths.agent_calls))
