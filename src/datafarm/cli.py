@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from datafarm.kernel.artifacts import ArtifactDocument, GateReceipt
+from datafarm.grounding.quantities import validate_grounding_artifact
+from datafarm.kernel.artifacts import ArtifactDocument, GateReceipt, IRKind
 from datafarm.kernel.schema import canonical_json_bytes, validate_artifact, validate_gate_receipt
 from datafarm.doctor import add_parsers as add_doctor_parser, handle as handle_doctor
 from datafarm.kernel.io import sha256_bytes
@@ -24,7 +25,11 @@ def _validate(path: Path) -> int:
     if schema == "datafarm.gate-receipt":
         validate_gate_receipt(GateReceipt.from_dict(value))
     elif isinstance(schema, str) and schema.startswith("datafarm."):
-        validate_artifact(ArtifactDocument.from_dict(value))
+        document = ArtifactDocument.from_dict(value)
+        if document.kind is IRKind.GROUNDING:
+            validate_grounding_artifact(document)
+        else:
+            validate_artifact(document)
     else:
         raise ValueError(f"unsupported schema {schema!r}")
     digest = sha256_bytes(canonical_json_bytes(value))

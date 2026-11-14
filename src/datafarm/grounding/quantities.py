@@ -14,10 +14,13 @@ assumed 或 unknown 的量必须被随机化覆盖（一个范围或一组选项
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Callable
 
+from datafarm.kernel.artifacts import ArtifactDocument, IRKind
 from datafarm.kernel.io import is_finite_number
+from datafarm.kernel.schema import SchemaError, validate_artifact, validate_ref
 
 GROUNDING_SCHEMA = 'datafarm.grounding/1'
 QUANTITY_LABELS = ('measured', 'fitted', 'assumed', 'unknown')
@@ -103,3 +106,19 @@ def validate_grounding(document: Any, *, bind: Callable[[dict], Any] | None = No
 def load_grounding(path: Path, *, bind: Callable[[dict], Any] | None = None) -> dict[str, int]:
     import json
     return validate_grounding(json.loads(Path(path).read_text()), bind=bind)
+
+
+def validate_grounding_artifact(document: ArtifactDocument | Mapping[str, Any]) -> None:
+    """校验 grounding IR：先做 kernel 的通用信封/引用/可移植性检查，再校验其物理量账本。"""
+    validate_artifact(document)
+    parsed = document if isinstance(document, ArtifactDocument) else ArtifactDocument.from_dict(dict(document))
+    if parsed.kind is not IRKind.GROUNDING:
+        raise SchemaError(f"expected a grounding artifact, got {parsed.kind.value}")
+    identification = parsed.payload["system_identification"]
+    if not isinstance(identification, Mapping) or "physical_quantities" not in identification:
+        raise SchemaError("grounding system_identification must list physical_quantities")
+    try:
+        validate_quantities(identification["physical_quantities"],
+                            bind=lambda ref: validate_ref(ref, "system_identification evidence"))
+    except GroundingError as exc:
+        raise SchemaError(f"grounding system_identification: {exc}") from exc

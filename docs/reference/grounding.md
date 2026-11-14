@@ -48,6 +48,9 @@ Code: `src/datafarm/grounding/quantities.py`, `src/datafarm/kernel/schema.py`, `
 - **Grounding IR** (`IRKind.GROUNDING`, `src/datafarm/kernel/schema.py::REQUIRED_PAYLOAD_KEYS`):
   payload sections `source`, `transfer_scope`, `camera_clock`, `reference_roles`,
   `system_identification`, `rights`; ledger evidence entries are `{kind, sha256, media_type}`.
+  `kernel.schema.validate_artifact` checks only the generic envelope; the ledger inside
+  `system_identification` is checked by `grounding/quantities.py::validate_grounding_artifact`
+  (used by `datafarm validate`).
 - **Real reference** (`intent.real_references[]` in a render intent, `datafarm.render-intent/1`):
   `path`, `sha256`, `provenance {kind, source {path, sha256}, frame?, description}`,
   `scope` (`full-view` | `local-detail`), `views`, `view_regions {view: [x, y, w, h]}`,

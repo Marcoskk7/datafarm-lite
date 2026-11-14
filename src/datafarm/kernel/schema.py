@@ -8,7 +8,6 @@ from pathlib import PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit
 
-from datafarm.grounding.quantities import GroundingError, validate_quantities
 from datafarm.kernel.artifacts import ArtifactDocument, GateReceipt, IRKind
 from datafarm.kernel.io import canonical_json_bytes as _canonical_json_bytes
 from datafarm.kernel.io import is_sha256
@@ -178,7 +177,7 @@ def identity_sha256(document: ArtifactDocument) -> str:
     return sha256_hex(canonical_json_bytes(value))
 
 
-def _validate_ref(value: Mapping[str, Any], label: str) -> None:
+def validate_ref(value: Mapping[str, Any], label: str) -> None:
     required = {"kind", "sha256", "media_type"}
     if set(value) != required:
         raise SchemaError(f"{label} must contain exactly {sorted(required)}")
@@ -222,7 +221,7 @@ def validate_artifact(document: ArtifactDocument | Mapping[str, Any]) -> None:
         for index, item in enumerate(items):
             if not isinstance(item, Mapping):
                 raise SchemaError(f"{field_name}[{index}] must be an object")
-            _validate_ref(item, f"{field_name}[{index}]")
+            validate_ref(item, f"{field_name}[{index}]")
     if not isinstance(parsed.payload, Mapping):
         raise SchemaError("payload must be an object")
     missing = REQUIRED_PAYLOAD_KEYS[parsed.kind] - set(parsed.payload)
@@ -230,15 +229,6 @@ def validate_artifact(document: ArtifactDocument | Mapping[str, Any]) -> None:
         raise SchemaError(
             f"{parsed.kind.value} payload is missing required sections: {sorted(missing)}"
         )
-    if parsed.kind is IRKind.GROUNDING:
-        identification = parsed.payload["system_identification"]
-        if not isinstance(identification, Mapping) or "physical_quantities" not in identification:
-            raise SchemaError("grounding system_identification must list physical_quantities")
-        try:
-            validate_quantities(identification["physical_quantities"],
-                                bind=lambda ref: _validate_ref(ref, "system_identification evidence"))
-        except GroundingError as exc:
-            raise SchemaError(f"grounding system_identification: {exc}") from exc
     _validate_portable_value(value)
 
 
@@ -275,6 +265,6 @@ def validate_gate_receipt(receipt: GateReceipt | Mapping[str, Any]) -> None:
         raise SchemaError("a passing receipt cannot contain a failed check")
     _validate_timestamp(parsed.created_at, "created_at")
     for index, item in enumerate(value["evidence"]):
-        _validate_ref(item, f"evidence[{index}]")
+        validate_ref(item, f"evidence[{index}]")
     _validate_portable_value(value)
 
