@@ -1,0 +1,1526 @@
+{
+  "binding": {
+    "schema_version": "robot-binding/2",
+    "descriptor": {
+      "schema_version": "robot-descriptor/2",
+      "source_sha256": "d6aa3c4b194211adf9f2334c35c9ff928efca2ba270322b89e8b8af9510da17e",
+      "robot_name": "airbot_g2_left",
+      "root_link": "left_base_link",
+      "links": [
+        "left_base_link",
+        "left_link1",
+        "left_link2",
+        "left_link3",
+        "left_link4",
+        "left_link5",
+        "left_link6",
+        "left_eef_connect_base_link",
+        "left_g2_base_link",
+        "left_g2_left_link",
+        "left_g2_right_link",
+        "left_end_link",
+        "left_g2_virtual_link",
+        "left_mount_plate_link",
+        "left_camera_bracket_link",
+        "left_camera_link",
+        "left_wrist_cam_link",
+        "left_wrist_cam_color_optical_frame"
+      ],
+      "joints": [
+        {
+          "name": "left_joint1",
+          "type": "revolute",
+          "parent": "left_base_link",
+          "child": "left_link1",
+          "unit": "rad",
+          "limits": {
+            "position": [
+              -3.1416,
+              2.0944
+            ],
+            "velocity": 3.14,
+            "effort": 18.0
+          },
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.1127
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "left_joint2",
+          "type": "revolute",
+          "parent": "left_link1",
+          "child": "left_link2",
+          "unit": "rad",
+          "limits": {
+            "position": [
+              -2.9671,
+              0.17453
+            ],
+            "velocity": 3.14,
+            "effort": 18.0
+          },
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.1358711302557462,
+              -0.6939313632833966,
+              0.6939298124821854,
+              0.1358665314310754
+            ]
+          },
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "left_joint3",
+          "type": "revolute",
+          "parent": "left_link2",
+          "child": "left_link3",
+          "unit": "rad",
+          "limits": {
+            "position": [
+              -0.087266,
+              3.1416
+            ],
+            "velocity": 3.14,
+            "effort": 18.0
+          },
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.27009,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.8298004436638489,
+              0.55806023303518
+            ]
+          },
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "left_joint4",
+          "type": "revolute",
+          "parent": "left_link3",
+          "child": "left_link4",
+          "unit": "rad",
+          "limits": {
+            "position": [
+              -3.0107,
+              3.0107
+            ],
+            "velocity": 6.28,
+            "effort": 3.0
+          },
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.29015,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              -0.49999999999662686,
+              -0.49999999999662686,
+              -0.5000018366025516,
+              0.4999981633974483
+            ]
+          },
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "left_joint5",
+          "type": "revolute",
+          "parent": "left_link4",
+          "child": "left_link5",
+          "unit": "rad",
+          "limits": {
+            "position": [
+              -1.7628,
+              1.7628
+            ],
+            "velocity": 6.28,
+            "effort": 3.0
+          },
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.7071080798594735,
+              0.0,
+              0.0,
+              0.7071054825112363
+            ]
+          },
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "left_joint6",
+          "type": "revolute",
+          "parent": "left_link5",
+          "child": "left_link6",
+          "unit": "rad",
+          "limits": {
+            "position": [
+              -3.0107,
+              3.0107
+            ],
+            "velocity": 6.28,
+            "effort": 3.0
+          },
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              -0.7071080798594735,
+              0.0,
+              0.0,
+              0.7071054825112363
+            ]
+          },
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "left_arm_connect_joint",
+          "type": "fixed",
+          "parent": "left_link6",
+          "child": "left_eef_connect_base_link",
+          "unit": "rad",
+          "limits": null,
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0955
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "left_g2_left_joint",
+          "type": "prismatic",
+          "parent": "left_g2_base_link",
+          "child": "left_g2_left_link",
+          "unit": "m",
+          "limits": {
+            "position": [
+              0.0,
+              0.0366
+            ],
+            "velocity": 0.2,
+            "effort": 10.0
+          },
+          "mimic": {
+            "joint": "left_g2_joint",
+            "multiplier": 0.5,
+            "offset": 0.0
+          },
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0705
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              -0.7071080798594735,
+              0.0,
+              0.7071054825112363
+            ]
+          },
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "left_g2_right_joint",
+          "type": "prismatic",
+          "parent": "left_g2_base_link",
+          "child": "left_g2_right_link",
+          "unit": "m",
+          "limits": {
+            "position": [
+              0.0,
+              0.0366
+            ],
+            "velocity": 0.2,
+            "effort": 10.0
+          },
+          "mimic": {
+            "joint": "left_g2_joint",
+            "multiplier": 0.5,
+            "offset": 0.0
+          },
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0705
+            ],
+            "quaternion_xyzw": [
+              0.707105482506466,
+              2.597353007557415e-06,
+              0.7071080798547033,
+              -2.5973434669646147e-06
+            ]
+          },
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "left_connect_eef_joint",
+          "type": "fixed",
+          "parent": "left_eef_connect_base_link",
+          "child": "left_g2_base_link",
+          "unit": "rad",
+          "limits": null,
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "left_end_joint",
+          "type": "fixed",
+          "parent": "left_link6",
+          "child": "left_end_link",
+          "unit": "rad",
+          "limits": null,
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.2466
+            ],
+            "quaternion_xyzw": [
+              0.49999999999662686,
+              -0.49999999999662686,
+              0.5000018366025516,
+              0.4999981633974483
+            ]
+          },
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "left_g2_joint",
+          "type": "prismatic",
+          "parent": "left_g2_base_link",
+          "child": "left_g2_virtual_link",
+          "unit": "m",
+          "limits": {
+            "position": [
+              0.0,
+              0.072
+            ],
+            "velocity": 0.2,
+            "effort": 10.0
+          },
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "left_mount_plate_joint",
+          "type": "fixed",
+          "parent": "left_base_link",
+          "child": "left_mount_plate_link",
+          "unit": "rad",
+          "limits": null,
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "left_camera_bracket_joint",
+          "type": "fixed",
+          "parent": "left_eef_connect_base_link",
+          "child": "left_camera_bracket_link",
+          "unit": "rad",
+          "limits": null,
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "left_camera_joint",
+          "type": "fixed",
+          "parent": "left_camera_bracket_link",
+          "child": "left_camera_link",
+          "unit": "rad",
+          "limits": null,
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              -0.0175001,
+              -0.0824543,
+              0.0239127
+            ],
+            "quaternion_xyzw": [
+              0.3535547897207008,
+              -0.35355349104382805,
+              0.6123731274869127,
+              0.6123708781189469
+            ]
+          },
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "left_wrist_cam_joint",
+          "type": "fixed",
+          "parent": "left_end_link",
+          "child": "left_wrist_cam_link",
+          "unit": "rad",
+          "limits": null,
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              -0.13582216,
+              0.0331541342,
+              0.0935900638
+            ],
+            "quaternion_xyzw": [
+              -0.0027450320610856987,
+              0.189983425864254,
+              0.0017094563358424123,
+              0.9817819719545176
+            ]
+          },
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "left_wrist_cam_optical_joint",
+          "type": "fixed",
+          "parent": "left_wrist_cam_link",
+          "child": "left_wrist_cam_color_optical_frame",
+          "unit": "rad",
+          "limits": null,
+          "mimic": null,
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              -0.5,
+              0.5000000016025516,
+              -0.5,
+              0.4999999983974483
+            ]
+          },
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "collision_models": [
+        {
+          "link": "left_base_link",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/base_link.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_link1",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/link1.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_link2",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/link2.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_link3",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/link3.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_link4",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/link4.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_link5",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/link5.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_link6",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/link6.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_eef_connect_base_link",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/eef_connect_base_link.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_g2_base_link",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/g2_base_link.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_g2_left_link",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/g2_left_link.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_g2_right_link",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/g2_right_link.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_mount_plate_link",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/mount_plate_link.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_camera_bracket_link",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/camera_bracket_link.STL"
+              }
+            }
+          ]
+        },
+        {
+          "link": "left_camera_link",
+          "origin": {
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "shapes": [
+            {
+              "type": "mesh",
+              "attributes": {
+                "filename": "meshes/camera_link.STL"
+              }
+            }
+          ]
+        }
+      ],
+      "model_semantics": {
+        "tcp_candidates": [
+          {
+            "link": "left_end_link",
+            "position_m": [
+              0,
+              0,
+              0
+            ],
+            "quaternion_xyzw": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "source_ref": {
+              "kind": "robot-model",
+              "sha256": "d6aa3c4b194211adf9f2334c35c9ff928efca2ba270322b89e8b8af9510da17e",
+              "media_type": "application/urdf+xml"
+            },
+            "verification": "named_model_frame"
+          }
+        ],
+        "gripper_candidates": [
+          {
+            "master_joint": "left_g2_joint",
+            "width_range_m": [
+              0.0,
+              0.07199978989218349
+            ],
+            "joint_per_m": 1.0000000000067464,
+            "joint_offset": 2.1010733077404163e-07,
+            "source_ref": {
+              "kind": "robot-model",
+              "sha256": "d6aa3c4b194211adf9f2334c35c9ff928efca2ba270322b89e8b8af9510da17e",
+              "media_type": "application/urdf+xml"
+            },
+            "verification": "model_geometry_only",
+            "width_semantics": "collision_envelope_gap",
+            "finger_joints": [
+              "left_g2_left_joint",
+              "left_g2_right_joint"
+            ],
+            "width_observation": {
+              "offset_m": -2.101073307726242e-07,
+              "joint_coefficients": {
+                "left_g2_left_joint": 0.9999999999932537,
+                "left_g2_right_joint": 0.9999999999932537
+              }
+            },
+            "geometry_refs": [
+              {
+                "uri": "meshes/g2_left_link.STL",
+                "sha256": "5c58507404839552ccb38312e0920554da6abd93a2f508cb8812e88712aaacf9",
+                "media_type": "model/stl"
+              },
+              {
+                "uri": "meshes/g2_right_link.STL",
+                "sha256": "5c58507404839552ccb38312e0920554da6abd93a2f508cb8812e88712aaacf9",
+                "media_type": "model/stl"
+              }
+            ]
+          }
+        ],
+        "diagnostics": [],
+        "geometry_refs": [
+          {
+            "uri": "meshes/g2_left_link.STL",
+            "sha256": "5c58507404839552ccb38312e0920554da6abd93a2f508cb8812e88712aaacf9",
+            "media_type": "model/stl"
+          },
+          {
+            "uri": "meshes/g2_right_link.STL",
+            "sha256": "5c58507404839552ccb38312e0920554da6abd93a2f508cb8812e88712aaacf9",
+            "media_type": "model/stl"
+          }
+        ]
+      },
+      "verification": "source_structure_and_model_semantics_only"
+    },
+    "profile": {
+      "schema_version": "robot-profile/2"
+    },
+    "semantics": {
+      "tcp": {
+        "link": "left_link6",
+        "position_m": [
+          0.0,
+          0.0,
+          0.2466
+        ],
+        "quaternion_xyzw": [
+          0.49999999999662686,
+          -0.49999999999662686,
+          0.5000018366025516,
+          0.4999981633974483
+        ],
+        "source_ref": {
+          "kind": "robot-model",
+          "sha256": "d6aa3c4b194211adf9f2334c35c9ff928efca2ba270322b89e8b8af9510da17e",
+          "media_type": "application/urdf+xml"
+        },
+        "verification": "named_model_frame",
+        "selection_source": "model",
+        "model_frame": "left_end_link"
+      },
+      "gripper": {
+        "master_joint": "left_g2_joint",
+        "width_range_m": [
+          0.0,
+          0.07199978989218349
+        ],
+        "joint_per_m": 1.0000000000067464,
+        "joint_offset": 2.1010733077404163e-07,
+        "source_ref": {
+          "kind": "robot-model",
+          "sha256": "d6aa3c4b194211adf9f2334c35c9ff928efca2ba270322b89e8b8af9510da17e",
+          "media_type": "application/urdf+xml"
+        },
+        "verification": "model_geometry_only",
+        "width_semantics": "collision_envelope_gap",
+        "finger_joints": [
+          "left_g2_left_joint",
+          "left_g2_right_joint"
+        ],
+        "width_observation": {
+          "offset_m": -2.101073307726242e-07,
+          "joint_coefficients": {
+            "left_g2_left_joint": 0.9999999999932537,
+            "left_g2_right_joint": 0.9999999999932537
+          }
+        },
+        "geometry_refs": [
+          {
+            "uri": "meshes/g2_left_link.STL",
+            "sha256": "5c58507404839552ccb38312e0920554da6abd93a2f508cb8812e88712aaacf9",
+            "media_type": "model/stl"
+          },
+          {
+            "uri": "meshes/g2_right_link.STL",
+            "sha256": "5c58507404839552ccb38312e0920554da6abd93a2f508cb8812e88712aaacf9",
+            "media_type": "model/stl"
+          }
+        ],
+        "selection_source": "model"
+      }
+    },
+    "semantic_diagnostics": [],
+    "control_mode": "position",
+    "effective_position_limits": {
+      "left_joint1": [
+        -3.1416,
+        2.0944
+      ],
+      "left_joint2": [
+        -2.9671,
+        0.17453
+      ],
+      "left_joint3": [
+        -0.087266,
+        3.1416
+      ],
+      "left_joint4": [
+        -3.0107,
+        3.0107
+      ],
+      "left_joint5": [
+        -1.7628,
+        1.7628
+      ],
+      "left_joint6": [
+        -3.0107,
+        3.0107
+      ],
+      "left_g2_left_joint": [
+        0.0,
+        0.0366
+      ],
+      "left_g2_right_joint": [
+        0.0,
+        0.0366
+      ],
+      "left_g2_joint": [
+        0.0,
+        0.072
+      ]
+    },
+    "joint_names": [
+      "left_joint1",
+      "left_joint2",
+      "left_joint3",
+      "left_joint4",
+      "left_joint5",
+      "left_joint6",
+      "left_g2_joint",
+      "left_g2_left_joint",
+      "left_g2_right_joint"
+    ],
+    "body_names": [
+      "left_base_link",
+      "left_link1",
+      "left_link2",
+      "left_link3",
+      "left_link4",
+      "left_link5",
+      "left_link6",
+      "left_g2_virtual_link",
+      "left_g2_left_link",
+      "left_g2_right_link"
+    ],
+    "joint_index": {
+      "left_joint1": 0,
+      "left_joint2": 1,
+      "left_joint3": 2,
+      "left_joint4": 3,
+      "left_joint5": 4,
+      "left_joint6": 5,
+      "left_g2_joint": 6,
+      "left_g2_left_joint": 7,
+      "left_g2_right_joint": 8
+    },
+    "controllable_joints": [
+      "left_joint1",
+      "left_joint2",
+      "left_joint3",
+      "left_joint4",
+      "left_joint5",
+      "left_joint6",
+      "left_g2_joint"
+    ],
+    "groups": {},
+    "runtime_bound": true,
+    "capabilities": {
+      "control_mode": "position",
+      "joint_state": true,
+      "joint_position_target": true,
+      "tcp_pose": true,
+      "move_tcp": false,
+      "set_gripper": true,
+      "contacts": "unavailable",
+      "cameras": "not_discovered"
+    },
+    "position_driven_joints": [
+      "left_joint1",
+      "left_joint2",
+      "left_joint3",
+      "left_joint4",
+      "left_joint5",
+      "left_joint6",
+      "left_g2_joint"
+    ],
+    "runtime_parameters": {
+      "position_limits": [
+        [
+          -3.1416001319885254,
+          2.094399929046631
+        ],
+        [
+          -2.967099905014038,
+          0.1745299994945526
+        ],
+        [
+          -0.0872659981250763,
+          3.1416001319885254
+        ],
+        [
+          -3.010699987411499,
+          3.010699987411499
+        ],
+        [
+          -1.7627999782562256,
+          1.7627999782562256
+        ],
+        [
+          -3.010699987411499,
+          3.010699987411499
+        ],
+        [
+          0.0,
+          0.07199999690055847
+        ],
+        [
+          0.0,
+          0.03660000115633011
+        ],
+        [
+          0.0,
+          0.03660000115633011
+        ]
+      ],
+      "joint_stiffness": [
+        500.0,
+        500.0,
+        500.0,
+        500.0,
+        500.0,
+        500.0,
+        6000.0,
+        0.0,
+        0.0
+      ],
+      "joint_damping": [
+        30.0,
+        30.0,
+        30.0,
+        30.0,
+        30.0,
+        30.0,
+        35.0,
+        0.0,
+        0.0
+      ],
+      "joint_effort_limits": [
+        18.0,
+        18.0,
+        18.0,
+        3.0,
+        3.0,
+        3.0,
+        10.0,
+        10.0,
+        10.0
+      ]
+    },
+    "binding_sha256": "6fce56b016ee4171e54f7561ef0914a51fb08126f35012ea78dcbddd2a14ccdf"
+  },
+  "before": {
+    "joint_names": [
+      "left_joint1",
+      "left_joint2",
+      "left_joint3",
+      "left_joint4",
+      "left_joint5",
+      "left_joint6",
+      "left_g2_joint",
+      "left_g2_left_joint",
+      "left_g2_right_joint"
+    ],
+    "q": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "dq": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "contacts": {
+      "availability": "unavailable"
+    },
+    "gripper": {
+      "width_m": -2.101073307726242e-07,
+      "width_range_m": [
+        0.0,
+        0.07199978989218349
+      ],
+      "state_source": "measured_finger_joints",
+      "verification": "model_geometry_only",
+      "within_defined_range": false
+    },
+    "tcp_pose": {
+      "frame_id": "world",
+      "position_m": [
+        0.28660374879837036,
+        1.3463377399602905e-06,
+        0.21456123888492584
+      ],
+      "quaternion_xyzw": [
+        -1.6987323760986328e-06,
+        -2.980789304274367e-08,
+        -4.7981734496715944e-06,
+        -1.0
+      ]
+    }
+  },
+  "after": {
+    "joint_names": [
+      "left_joint1",
+      "left_joint2",
+      "left_joint3",
+      "left_joint4",
+      "left_joint5",
+      "left_joint6",
+      "left_g2_joint",
+      "left_g2_left_joint",
+      "left_g2_right_joint"
+    ],
+    "q": [
+      9.795263622436323e-07,
+      0.00028525516972877085,
+      -0.0007872463320381939,
+      -9.71855058651272e-08,
+      -2.8128503970492602e-08,
+      -6.370528637944517e-08,
+      -3.8613472952420125e-07,
+      4.6941190703364555e-06,
+      4.96304619446164e-06
+    ],
+    "dq": [
+      5.4487896704813465e-05,
+      0.03769431263208389,
+      -0.13025018572807312,
+      -1.7274187484872527e-05,
+      1.8574311980046332e-05,
+      -1.1943638128286693e-05,
+      -1.572780092828907e-05,
+      0.0007772056269459426,
+      0.000778076471760869
+    ],
+    "contacts": {
+      "availability": "unavailable"
+    },
+    "gripper": {
+      "width_m": 9.44705793396032e-06,
+      "width_range_m": [
+        0.0,
+        0.07199978989218349
+      ],
+      "state_source": "measured_finger_joints",
+      "verification": "model_geometry_only",
+      "within_defined_range": true
+    },
+    "tcp_pose": {
+      "frame_id": "world",
+      "position_m": [
+        0.28657472133636475,
+        1.650455942581175e-06,
+        0.21422037482261658
+      ],
+      "quaternion_xyzw": [
+        -1.6842953982632025e-06,
+        -0.00025106966495513916,
+        -5.2596460591303185e-06,
+        -1.0
+      ]
+    }
+  },
+  "command": {
+    "status": "staged",
+    "targets": {
+      "left_joint1": 0.0,
+      "left_joint2": 0.0,
+      "left_joint3": 0.0,
+      "left_joint4": 0.0,
+      "left_joint5": 0.0,
+      "left_joint6": 0.0,
+      "left_g2_joint": 0.0
+    }
+  },
+  "passive_commands_rejected": [
+    "left_g2_left_joint",
+    "left_g2_right_joint"
+  ],
+  "model_semantics_checks": [
+    {
+      "requested_width_m": 0.014399957978436698,
+      "measured": {
+        "width_m": 0.014400087202775393,
+        "width_range_m": [
+          0.0,
+          0.07199978989218349
+        ],
+        "state_source": "measured_finger_joints",
+        "verification": "model_geometry_only",
+        "within_defined_range": true
+      },
+      "joint_names": [
+        "left_joint1",
+        "left_joint2",
+        "left_joint3",
+        "left_joint4",
+        "left_joint5",
+        "left_joint6",
+        "left_g2_joint",
+        "left_g2_left_joint",
+        "left_g2_right_joint"
+      ],
+      "q": [
+        -3.45258896342418e-14,
+        0.000877856626175344,
+        -0.012745993211865425,
+        -1.5542466371698538e-06,
+        -1.28339117111409e-08,
+        -1.0836417914106278e-06,
+        0.014400266110897064,
+        0.007200144696980715,
+        0.007200152613222599
+      ],
+      "ramp_steps": 18,
+      "width_error_m": 1.2922433869494432e-07,
+      "passed": true,
+      "tcp_fk": {
+        "position_error_m": 8.193906755936058e-08,
+        "rotation_error_rad": 2.148172820629418e-07,
+        "passed": true
+      },
+      "command": {
+        "status": "staged",
+        "targets": {
+          "left_g2_joint": 0.014400168085864619
+        }
+      }
+    },
+    {
+      "requested_width_m": 0.035999894946091744,
+      "measured": {
+        "width_m": 0.036000011860123506,
+        "width_range_m": [
+          0.0,
+          0.07199978989218349
+        ],
+        "state_source": "measured_finger_joints",
+        "verification": "model_geometry_only",
+        "within_defined_range": true
+      },
+      "joint_names": [
+        "left_joint1",
+        "left_joint2",
+        "left_joint3",
+        "left_joint4",
+        "left_joint5",
+        "left_joint6",
+        "left_g2_joint",
+        "left_g2_left_joint",
+        "left_g2_right_joint"
+      ],
+      "q": [
+        -4.656123170397944e-15,
+        0.0008757319883443415,
+        -0.012748108245432377,
+        -1.5541694438070408e-06,
+        -1.2539304705683207e-08,
+        -1.083761389963911e-06,
+        0.03600020706653595,
+        0.018000107258558273,
+        0.01800011470913887
+      ],
+      "ramp_steps": 26,
+      "width_error_m": 1.1691403176139481e-07,
+      "passed": true,
+      "tcp_fk": {
+        "position_error_m": 7.63735440101884e-08,
+        "rotation_error_rad": 3.006372394280593e-07,
+        "passed": true
+      },
+      "command": {
+        "status": "staged",
+        "targets": {
+          "left_g2_joint": 0.03600010505366539
+        }
+      }
+    },
+    {
+      "requested_width_m": 0.05759983191374679,
+      "measured": {
+        "width_m": 0.05759994536503608,
+        "width_range_m": [
+          0.0,
+          0.07199978989218349
+        ],
+        "state_source": "measured_finger_joints",
+        "verification": "model_geometry_only",
+        "within_defined_range": true
+      },
+      "joint_names": [
+        "left_joint1",
+        "left_joint2",
+        "left_joint3",
+        "left_joint4",
+        "left_joint5",
+        "left_joint6",
+        "left_g2_joint",
+        "left_g2_left_joint",
+        "left_g2_right_joint"
+      ],
+      "q": [
+        5.186060440001651e-15,
+        0.0008735968731343746,
+        -0.012750227004289627,
+        -1.5540389313173364e-06,
+        -1.2568474261342999e-08,
+        -1.0837054560397519e-06,
+        0.05760014429688454,
+        0.028800074011087418,
+        0.028800081461668015
+      ],
+      "ramp_steps": 26,
+      "width_error_m": 1.1345128928669235e-07,
+      "passed": true,
+      "tcp_fk": {
+        "position_error_m": 3.53020651512392e-08,
+        "rotation_error_rad": 1.7287132003578387e-07,
+        "passed": true
+      },
+      "command": {
+        "status": "staged",
+        "targets": {
+          "left_g2_joint": 0.05760004202146616
+        }
+      }
+    }
+  ],
+  "code_sha256": {
+    "check_isaac_robot_binding.py": "cc2574aa7584ee888e1c794db592ba05f6aaf298a1cafe8f5a872bcae6dcf92a",
+    "isaac_robot.py": "0a427e236b6a4264cedec56c1810ca20288585391234ffd129a22666a29ab628",
+    "robot_binding.py": "706766c06d9c25c5e73dbb06191bec7993b3ced8fed2bf81f985bef4fbb80fca",
+    "robot_semantics.py": "b564e8f01386a94e1cf58a70c7d4db45c07de28bf1bbe93751a92f4c58002a43"
+  },
+  "versions": {
+    "isaaclab": "28.0.0",
+    "torch": "2.11.0+cu130",
+    "newton": "1.6.1"
+  },
+  "scope": "live API integration; optional free-space width/FK check; no grasp/task acceptance"
+}

@@ -10,6 +10,8 @@ harness 是共享的、与任务无关的运行时，编码 agent 在其中针�
 
 ## 1. 角色与消息
 
+可选的 ASPIRE 式专家开发（动作证据检查、种群修复和经复验的修复技能复用）见 [CaP 搜索](cap-search.md)。它复用同一 broker，保留冻结 judge、隐藏留出集和专家准入机制。
+
 角色 prompt 位于 `prompts/roles/task-expert-author.md`，由 launcher 显式加载。首次、继续和最终 session 消息保持分离，
 后端和模型来自本轮 adapter。一轮就是一个程序：它的预算、沙箱和 rollout 都由代码强制执行，每个数字都来自同一份 config，
 每个结果都由 harness 而非 agent 记录。

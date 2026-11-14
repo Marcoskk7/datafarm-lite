@@ -1,0 +1,4 @@
+# Linux launch scripts and source-bound assets require canonical byte endings.
+*.sh text eol=lf
+*.py text eol=lf
+*.patch text eol=lf

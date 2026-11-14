@@ -1,0 +1,72 @@
+{
+  "date": "2026-11-14",
+  "cpu_tests": {
+    "new_tests_passed": 12,
+    "combined_tests_run": 29,
+    "combined_skipped_posix": 2,
+    "combined_passed": 27,
+    "known_flake": "Existing CaP broker fixture has a 30 ms deadline; one intermediate combined run timed out, final combined run passed."
+  },
+  "lint": "11 rules; zero violations",
+  "full_pytest": "not run: pytest unavailable in base Python",
+  "instruction_audit": "blocked by existing POSIX fcntl import in datafarm.common on Windows",
+  "static_assets": [
+    {
+      "asset": "airbot-dual-source",
+      "urdf_sha256": "87544e307494faf4fce4f498233aba848095c14e17403700aa717c07934972fc",
+      "moving_joints": 18
+    },
+    {
+      "asset": "airbot-single-source",
+      "urdf_sha256": "d6aa3c4b194211adf9f2334c35c9ff928efca2ba270322b89e8b8af9510da17e",
+      "moving_joints": 9
+    },
+    {
+      "asset": "dualxarm-source",
+      "urdf_sha256": "9bc2363fc1cc037e07dd18d10787515f7655f6eb8d3aaea3338c3f615f2074b8",
+      "moving_joints": 12
+    }
+  ],
+  "live_checks": [
+    {
+      "evidence": "runs/robot-binding-check/airbot-dual-final.json",
+      "sha256": "5006bf8ad806e6ef72f61e63de52ff65b798feb5009f940f7d7483c45605f656",
+      "binding_sha256": "9d01344c20e7e63bbfbb2d3d091c137cb9ec5ccb6930acc973c710b167bcb20d",
+      "moving_joints": 18,
+      "position_driven": 14,
+      "mimic_commands_rejected": 4,
+      "tcp_transform_fixture": false,
+      "versions": {
+        "isaaclab": "28.0.0",
+        "torch": "2.11.0+cu130",
+        "newton": "1.6.1"
+      },
+      "code_sha256": {
+        "check_isaac_robot_binding.py": "c29eb04bce7849dc180cb3ce762b7f0c1232fc8a1c65c5f9171eb1a99a44a2d2",
+        "isaac_robot.py": "2ad8b1d51503bce9b7ff8879e506ac25443ac6fe440c549921a9e27987b098ae",
+        "robot_binding.py": "b9799bbe15e3aca579e9e0b1bfa42cfa3bf0ad7a9cc9edeeffddaacad98f9ba7"
+      },
+      "scope": "one-step live API integration; no task acceptance"
+    },
+    {
+      "evidence": "runs/robot-binding-check/airbot-single-final.json",
+      "sha256": "a841c04ed5708bd73c667046bf4531721916bdf2b06771c49940d68c8301a093",
+      "binding_sha256": "7693d7bc8b63a22110a489b06e652578d87b9d35fa855c1a7f21ae8f5d69e07c",
+      "moving_joints": 9,
+      "position_driven": 7,
+      "mimic_commands_rejected": 2,
+      "tcp_transform_fixture": true,
+      "versions": {
+        "isaaclab": "28.0.0",
+        "torch": "2.11.0+cu130",
+        "newton": "1.6.1"
+      },
+      "code_sha256": {
+        "check_isaac_robot_binding.py": "c29eb04bce7849dc180cb3ce762b7f0c1232fc8a1c65c5f9171eb1a99a44a2d2",
+        "isaac_robot.py": "2ad8b1d51503bce9b7ff8879e506ac25443ac6fe440c549921a9e27987b098ae",
+        "robot_binding.py": "b9799bbe15e3aca579e9e0b1bfa42cfa3bf0ad7a9cc9edeeffddaacad98f9ba7"
+      },
+      "scope": "one-step live API integration; no task acceptance"
+    }
+  ]
+}

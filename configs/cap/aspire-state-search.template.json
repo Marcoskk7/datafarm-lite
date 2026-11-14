@@ -1,0 +1,12 @@
+{
+  "debug_seeds": [0, 1],
+  "validation_seeds": [10, 11],
+  "verification_seeds": [30, 31],
+  "max_generations": 50,
+  "population": 3,
+  "max_inspections": 2,
+  "max_model_calls": 400,
+  "observation_mode": "privileged_state",
+  "population_schedule": "generation",
+  "require_skill_attestation": true
+}

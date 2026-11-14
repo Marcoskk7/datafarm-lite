@@ -19,6 +19,10 @@
 | 物体资产（可选） | [usdcraft](reference/usdcraft.md) | `src/datafarm/simulation/usdcraft.py` |
 | 仿真器资格认定 | [simulator-qualification](reference/simulator-qualification.md) | `src/datafarm/simulation/sim_qualification.py` |
 | 任务契约、冻结 judge、expert harness | [expert-harness](reference/expert-harness.md) | `src/datafarm/expert/` |
+| CaP 修复搜索、动作证据与已验证修复技能 | [cap-search](reference/cap-search.md) | `src/datafarm/cap/`, `tools/cap_search.py` |
+| Codex CLI agent、ASPIRE 风格搜索与特权状态迭代 | [cap-codex-aspire](reference/cap-codex-aspire.md) | `cap/codex_provider.py`, `cap/state_feedback.py` |
+| B 线接口设计：Isaac Lab 3.0、Robot API、Judge 与 Episode（设计稿） | [b-control-interfaces](reference/b-control-interfaces.md) | 待实现；复用现有 CaP 和核心 IR |
+| Robot API 自动识别、语义配置与 Isaac Lab 实例绑定 | [robot-auto-binding](reference/robot-auto-binding.md) | `simulation/robot_binding.py`, `simulation/isaac_robot.py`, `tools/discover_robot.py` |
 | 渲染契约 | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
 | H3 control hybrid 与 Seedance | [rendering](reference/rendering.md) | `src/datafarm/render/h3/`, `src/datafarm/render/seedance/` |
 | 渲染 verifier | [render-verifier](reference/render-verifier.md) | `src/datafarm/verify/` |

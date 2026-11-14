@@ -1,0 +1,7 @@
+{
+  "work_root": "runs/my-task/codex-decisions",
+  "executable": "codex",
+  "timeout_s": 300,
+  "model": "gpt-6.1-sol",
+  "fyp_env_file": "path/to/original/FYP-user.env"
+}
