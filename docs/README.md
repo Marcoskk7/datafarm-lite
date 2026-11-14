@@ -22,6 +22,7 @@ One note per component. Each states what the code guarantees and what it does no
 | CaP repair search, action evidence and verified repair skills | [cap-search](reference/cap-search.md) | `src/datafarm/cap/`, `tools/cap_search.py` |
 | Codex CLI agent, ASPIRE-style search and privileged-state iteration | [cap-codex-aspire](reference/cap-codex-aspire.md) | `cap/codex_provider.py`, `cap/state_feedback.py` |
 | B-line interface design: Isaac Lab 3.0, robot API, judge and episode (draft) | [b-control-interfaces](reference/b-control-interfaces.md) | Not implemented yet; reuses the existing CaP and core IR |
+| A/B interface IR: asset record, scene graph, task contract, episode, render spec | [ir](ir/README.md) | Not implemented yet; validators belong in `src/datafarm/ir/`, reuse `kernel/` and `grounding/` |
 | Robot API auto-discovery, semantic config and Isaac Lab instance binding | [robot-auto-binding](reference/robot-auto-binding.md) | `simulation/robot_binding.py`, `simulation/isaac_robot.py`, `tools/discover_robot.py` |
 | Render contract | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
 | H3 control hybrid and Seedance | [rendering](reference/rendering.md) | `src/datafarm/adapters/render/h3/`, `src/datafarm/adapters/render/seedance/` |
