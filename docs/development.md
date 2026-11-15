@@ -1,6 +1,6 @@
 # Development rules
 
-Install with `pip install -e '.[dev,workflow]'`, then run `make test lint audit`. CI runs the same checks (`.github/workflows/ci.yml`).
+Install with `pip install -e '.[dev,workflow]'`, then run `make test lint audit`. CI runs the same checks (`.github/workflows/ci.yml`). Branch and merge-request naming is in [branching](branching.md): one feature per branch, `feat/A-…` / `feat/B-…` / `fix/…` / `docs/…` from current `main`.
 
 - Core tests must run with no simulator, network or credentials.
 - Runtime code must not contain experiment IDs or absolute filesystem paths.
