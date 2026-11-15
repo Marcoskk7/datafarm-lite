@@ -37,6 +37,20 @@ python tools/scene_assemble.py check --spec ... --work WORK --headless  # Isaac 
 
 退出码为 0 当且仅当静置、穿透、探针、可达性、占地全部通过。`WORK/store/` 是内容寻址的证据；主机路径只出现在 `prepared.json`，不会进入 IR。
 
+## 一条命令验证全链路
+
+`tools/verify_a_line.py` 把上面三段和检索、校验串起来，逐关给结论，报告写进 `WORK/verify-a-line.json`：
+
+```bash
+python tools/verify_a_line.py --spec examples/scene/plate-drawer-airbot.json \
+    --cache /data/simready-cache --robot-package /data/robot_assets_isaaclab3_validated_20261113 \
+    --tests-python /path/to/pytest-venv/bin/python --work WORK
+```
+
+关卡：`env`（pxr/coacd/isaaclab）→ `cache`（按 manifest 重哈希）→ `index`（联网检索与 probe，`--offline` 跳过）→ `prepare` → `plan` → `check` → `graph`（SceneGraph 过 IR 校验器）→ `source`（跑完后源资产字节未变）→ `tests`。Isaac venv 里通常没有 pytest，`--tests-python` 可指向另一个解释器。本机 lab30 的完整记录见 `verification/a-line/`。
+
+**缓存必须保持原始字节。** 变体选择写在 session layer，碰撞与修补只进 `WORK/collision/`；`source` 关就是为抓写回缓存这类来源绑定破坏。
+
 ## 限制
 
 - 物理量（质量、摩擦、恢复系数、抽屉阻尼）是 SimReady 作者值或假设值，标为 `assumed`，不是测量值。

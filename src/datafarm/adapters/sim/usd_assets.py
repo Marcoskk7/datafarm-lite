@@ -38,9 +38,13 @@ def root_usd(fetch_root: Path) -> tuple[dict[str, Any], Path]:
 
 
 def open_stage(path: Path, physics_variant: str = "Newton"):
-    """打开资产并只启用一个物理变体（Newton），与 Isaac Lab 3.0 + Newton 后端一致。"""
+    """打开资产并只启用一个物理变体（Newton），与 Isaac Lab 3.0 + Newton 后端一致。
+
+    变体选择写进 session layer：源资产是 BOM 校验收到的原始字节，检查与预处理不得改动它。
+    """
     _, _, Usd, _, _, _ = _pxr()
     stage = Usd.Stage.Open(str(path))
+    stage.SetEditTarget(Usd.EditTarget(stage.GetSessionLayer()))
     prim = stage.GetDefaultPrim()
     sets = prim.GetVariantSets()
     for name in sets.GetNames():
