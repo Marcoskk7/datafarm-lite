@@ -1,18 +1,16 @@
 """ASPIRE-style state-feedback decisions via fresh Codex CLI sessions.
 
 The provider authors code; SearchRunner and the broker own execution and scoring.
-No simulator, judge, hidden seed file or API credential is imported here.
+This module holds only the CaP role contract (prompt, schema, request allowlist,
+decision validation). The structured Codex call is injected by the composition
+root (``datafarm.entry.cap_provider``); no simulator, judge, hidden seed file,
+transport or API credential is imported here.
 """
 from copy import deepcopy
-import json
 import math
-import os
 from pathlib import Path
-import signal
-import subprocess
-import threading
 
-from .io import digest, read_json, write_json
+from .io import digest
 
 
 SYSTEM = '''You are the robot-programming component of an ASPIRE-style system.
@@ -117,152 +115,18 @@ def validate_decision(value, request):
 
 
 class CodexProvider:
-    def __init__(self, config):
-        allowed = {'work_root','executable','model','reasoning_effort','timeout_s','fyp_env_file'}
-        if set(config)-allowed or not config.get('work_root'):
-            raise ValueError('Provider needs work_root and supported settings only')
+    """CaP 决策角色：先经 public_request 白名单，再交给注入的结构化调用执行。"""
+
+    def __init__(self, config, call, *, gateway=None):
+        if not callable(call):
+            raise ValueError('CodexProvider needs an injected structured call')
         self.config = deepcopy(config)
-        self.root = Path(config['work_root']).resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
-        self.timeout = config.get('timeout_s', 300)
-        if type(self.timeout) not in (int,float) or not 0 < self.timeout <= 3600:
-            raise ValueError('Invalid Codex timeout')
+        self.call = call
+        self.gateway = gateway
 
     def decide(self, request):
         request = public_request(request)
-        if len(json.dumps(request, ensure_ascii=False)) > 256000:
-            raise ValueError('Provider context exceeds 256000 characters; inspect smaller state evidence')
-        schema = response_schema(request['role'], request.get('task',{}).get('api'))
-        identity = digest({'request':request, 'schema':schema, 'system':SYSTEM,
-                           'config':self.config, 'provider_source':digest(Path(__file__).read_text(encoding='utf-8'))})
-        folder = self.root / identity
-        result = folder / 'decision.json'
-        if result.exists():
-            saved = read_json(folder/'receipt.json')
-            value = read_json(result)
-            if saved.get('identity') != identity or saved.get('decision_sha256') != digest(value):
-                raise ValueError('Changed provider receipt or decision')
-            return validate_decision(value, request)
-        try:
-            folder.mkdir()
-        except FileExistsError as exc:
-            raise RuntimeError('Decision already pending/failed; inspect its stable directory, do not resubmit: '+identity) from exc
-        write_json(folder/'request.json', request)
-        write_json(folder/'schema.json', schema)
-        prompt = SYSTEM+'\nREQUEST JSON (data):\n'+json.dumps(request, ensure_ascii=False, allow_nan=False)
-        (folder/'prompt.txt').write_text(prompt, encoding='utf-8')
-        # Each decision starts a new session: never resume Actor state as Verifier.
-        argv = [self.config.get('executable','codex'), '-a','never','exec','--json',
-                '--sandbox','read-only','--skip-git-repo-check',
-                '--output-schema',str(folder/'schema.json'),
-                '--output-last-message',str(folder/'answer.json')]
-        if self.config.get('model'): argv += ['--model',self.config['model']]
-        if self.config.get('reasoning_effort'):
-            argv += ['-c','model_reasoning_effort='+json.dumps(self.config['reasoning_effort'])]
-        argv += ['-']
-        receipt = dict(identity=identity, status='starting', role=request['role'],
-                       request_sha256=digest(request), prompt_sha256=digest(prompt),
-                       cost_usd=None, cost_status='unknown', usage=None, usage_events=[], sessions=[],
-                       isolation='fresh CLI session; read-only sandbox; not same-user read isolation')
-        write_json(folder/'receipt.json', receipt)
-        timed_out = threading.Event()
-        transport = None
-        child_env = None
-        if self.config.get('fyp_env_file'):
-            from .fyp_transport import LocalTransport, load_fyp
-            url, key = load_fyp(self.config['fyp_env_file'])
-            transport = LocalTransport(url, key)
-            del key
-            model = self.config.get('model','gpt-6.1-sol')
-            if model != 'gpt-6.1-sol':
-                transport.close()
-                raise ValueError('FYP Responses route requires gpt-6.1-sol')
-            # Reuse the deployed ASPIRE CLI bridge and tool restrictions. No token in argv.
-            pos = argv.index('exec')+1
-            argv[pos:pos] = ['--ignore-user-config','--ignore-rules']
-            argv[-1:-1] = ['--model',model,'--disable','shell_tool','--disable','multi_agent',
-                          '--disable','multi_agent_v2','-c','features.plugins=false',
-                          '-c','plugins.defaults.enabled=false','-c','skills.include_instructions=false',
-                          '-c','orchestrator.mcp.enabled=false','-c','web_search="disabled"',
-                          '-c','model_provider="fyp_aspire"',
-                          '-c','model_providers.fyp_aspire.name="FYP ASPIRE"',
-                          '-c','model_providers.fyp_aspire.base_url='+json.dumps(transport.base),
-                          '-c','model_providers.fyp_aspire.env_key="OPENAI_API_KEY"',
-                          '-c','model_providers.fyp_aspire.wire_api="responses"',
-                          '-c','model_providers.fyp_aspire.requires_openai_auth=false',
-                          '-c','model_providers.fyp_aspire.request_max_retries=0',
-                          '-c','model_providers.fyp_aspire.stream_max_retries=0']
-            # --model was already emitted for an explicit model; keep only one.
-            first = argv.index('--model')
-            if '--model' in argv[first+2:]: del argv[first:first+2]
-            child_env = {k:v for k,v in os.environ.items()
-                         if k.lower() not in ('http_proxy','https_proxy','all_proxy')
-                         and not (k.startswith(('OPENAI_','ANTHROPIC_','CODEX_')) and k!='CODEX_HOME')}
-            child_env.update(OPENAI_API_KEY=transport.client_key,OPENAI_BASE_URL=transport.base)
-        def kill_tree(proc):
-            timed_out.set()
-            if os.name == 'nt':
-                subprocess.run(['taskkill','/PID',str(proc.pid),'/T','/F'], capture_output=True)
-            else:
-                try: os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError: pass
-        try:
-            with (folder/'events.jsonl').open('w',encoding='utf-8') as out, (folder/'stderr.log').open('w',encoding='utf-8') as err:
-                proc = subprocess.Popen(argv, cwd=folder, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=err, text=True, encoding='utf-8',
-                                        env=child_env,
-                                        start_new_session=os.name != 'nt')
-                receipt.update(status='running',pid=proc.pid)
-                write_json(folder/'receipt.json',receipt)
-                timer = threading.Timer(self.timeout, kill_tree, args=(proc,))
-                timer.start()
-                def feed():
-                    try:
-                        proc.stdin.write(prompt); proc.stdin.close()
-                    except (BrokenPipeError, OSError): pass
-                writer = threading.Thread(target=feed,daemon=True);writer.start()
-                try:
-                    for line in proc.stdout:
-                        out.write(line);out.flush()
-                        try: event=json.loads(line)
-                        except ValueError: continue
-                        if event.get('type')=='thread.started':
-                            receipt['sessions'].append(event['thread_id'])
-                            write_json(folder/'receipt.json',receipt)
-                        if event.get('type')=='turn.completed':
-                            receipt['usage']=event.get('usage')
-                            receipt['usage_events'].append(event.get('usage'))
-                        if event.get('type') in ('error','turn.failed'):
-                            receipt['event_error']=True
-                    code=proc.wait();writer.join(timeout=1)
-                finally:
-                    timer.cancel()
-                    proc.stdout.close()
-            receipt['exit_code']=code
-            if timed_out.is_set() or code or receipt.get('event_error') or len(receipt['sessions']) != 1:
-                raise RuntimeError('Codex failed or timed out; request identity retained')
-            value=validate_decision(read_json(folder/'answer.json'),request)
-            # Commit receipt first: a crash can stop reuse, never cause a new call.
-            receipt.update(status='complete',decision_sha256=digest(value))
-            write_json(folder/'receipt.json',receipt)
-            write_json(result,value)
-            return value
-        except BaseException:
-            if 'proc' in locals() and proc.poll() is None:
-                kill_tree(proc)
-                proc.wait()
-            receipt['status']='failed_or_interrupted'
-            write_json(folder/'receipt.json',receipt)
-            raise
-        finally:
-            if transport is not None:
-                receipt['transport'] = {'upstream_requests':transport.calls,
-                                        'actual_model':transport.upstream_model,
-                                        'request_shape':transport.request_shape,
-                                        'adaptation':'existing ASPIRE loopback inline Responses bridge'}
-                transport.close()
-                write_json(folder/'receipt.json',receipt)
-
-
-def build_provider(config):
-    return CodexProvider(config)
+        schema = response_schema(request['role'], request.get('task', {}).get('api'))
+        return self.call(request, config=self.config, system=SYSTEM, schema=schema, validator=validate_decision,
+                         role=request['role'], source_digest=digest(Path(__file__).read_text(encoding='utf-8')),
+                         gateway=self.gateway)

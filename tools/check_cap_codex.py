@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from datafarm.cap.codex_provider import build_provider
+from datafarm.entry.cap_provider import build_provider
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--request',type=Path,required=True)

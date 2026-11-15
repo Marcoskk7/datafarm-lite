@@ -8,12 +8,15 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from datafarm.cap.codex_provider import build_provider, public_request, response_schema
+from datafarm.cap.codex_provider import public_request, response_schema
+from datafarm.entry.cap_provider import build_provider
 from datafarm.cap.io import read_json, write_json
 from datafarm.cap.search import SearchConfig, SearchRunner
 from datafarm.cap.library import SkillLibrary
 from datafarm.cap.state_feedback import feedback
 from test_cap_search import Actor, Engine, TASK as LEGACY_TASK
+
+POPEN='datafarm.adapters.agent_harness.codex.structured.subprocess.Popen'
 
 
 STATE = {'schema_version':'privileged-state/1','control_step':0,
@@ -72,7 +75,7 @@ class CodexProviderTests(unittest.TestCase):
         engine=StateEngine()
         config=SearchConfig(max_generations=1,observation_mode='privileged_state',
                             population_schedule='generation',require_skill_attestation=True)
-        with patch('datafarm.cap.codex_provider.subprocess.Popen',self.launch):
+        with patch(POPEN,self.launch):
             report=SearchRunner(self.provider,engine,SkillLibrary(self.root/'skills'),config).run(TASK,self.root/'run')
         self.assertEqual(report['skill_admission']['status'],'sound')
         self.assertTrue(report['ready_for_harness_submission'])
@@ -86,7 +89,7 @@ class CodexProviderTests(unittest.TestCase):
         self.assertTrue(all(r['cost_usd'] is None for r in receipts))
 
     def test_cached_result_and_tampering(self):
-        with patch('datafarm.cap.codex_provider.subprocess.Popen',self.launch):
+        with patch(POPEN,self.launch):
             first=self.provider.decide(self.request())
             self.assertEqual(self.provider.decide(self.request()),first)
         self.assertEqual(len(self.launches),1)
@@ -95,7 +98,7 @@ class CodexProviderTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.provider.decide(self.request())
 
     def test_failed_start_is_not_resubmitted(self):
-        with patch('datafarm.cap.codex_provider.subprocess.Popen',side_effect=OSError('missing CLI')):
+        with patch(POPEN,side_effect=OSError('missing CLI')):
             with self.assertRaises(OSError): self.provider.decide(self.request())
         with self.assertRaisesRegex(RuntimeError,'pending/failed'):
             self.provider.decide(self.request())
@@ -142,36 +145,38 @@ class CodexProviderTests(unittest.TestCase):
             if argv[0]=='taskkill': return self.popen(argv,**kwargs)
             return self.popen([sys.executable,str(self.root/'sleep.py')],**kwargs)
         provider=build_provider({'work_root':str(self.root/'timeout'),'timeout_s':.1})
-        with patch('datafarm.cap.codex_provider.subprocess.Popen',sleep_cli):
+        with patch(POPEN,sleep_cli):
             with self.assertRaisesRegex(RuntimeError,'timed out'):
                 provider.decide(self.request())
         with self.assertRaisesRegex(RuntimeError,'pending/failed'):
             provider.decide(self.request())
 
-    def test_fyp_uses_loopback_key_and_exec_flags(self):
-        class Transport:
+    def test_injected_gateway_uses_loopback_key_and_exec_flags(self):
+        class Gateway:
             base='http://127.0.0.1:12345/v1'
             client_key='temporary-loopback-only'
-            calls=1
-            upstream_model='gpt-6.1-sol'
+            calls=0
+            upstream_model='gateway-model'
             request_shape={'tools':[]}
-            def __init__(self,*args):pass
-            def close(self):pass
+            max_output_tokens=None
+        gateway=Gateway()
         def launch(argv,**kwargs):
             self.assertNotIn('personal-token',str(argv))
             self.assertNotIn('personal-token',str(kwargs['env']))
             self.assertEqual(kwargs['env']['OPENAI_API_KEY'],'temporary-loopback-only')
             self.assertGreater(argv.index('--ignore-user-config'),argv.index('exec'))
             self.assertEqual(argv.count('--model'),1)
+            gateway.calls+=1
             return self.launch(argv,**kwargs)
-        provider=build_provider({'work_root':str(self.root/'fyp'),
-                                 'fyp_env_file':'unused.env','model':'gpt-6.1-sol'})
-        with patch('datafarm.cap.fyp_transport.LocalTransport',Transport), \
-             patch('datafarm.cap.fyp_transport.load_fyp',return_value=('https://authorized.invalid','personal-token')), \
-             patch('datafarm.cap.codex_provider.subprocess.Popen',launch):
+        provider=build_provider({'work_root':str(self.root/'gateway'),'model':'gateway-model'},gateway=gateway)
+        with patch.dict('os.environ',{'OPENAI_API_KEY':'personal-token'}), patch(POPEN,launch):
             provider.decide(self.request())
-        receipt=read_json(next((self.root/'fyp').glob('*/receipt.json')))
+        receipt=read_json(next((self.root/'gateway').glob('*/receipt.json')))
         self.assertEqual(receipt['transport']['upstream_requests'],1)
+        self.assertEqual(gateway.max_output_tokens,5000)
 
+    def test_removed_settings_are_rejected(self):
+        with self.assertRaises(ValueError):
+            build_provider({'work_root':str(self.root/'x'),'fyp_env_file':'unused.env'})
 
 if __name__=='__main__': unittest.main()
