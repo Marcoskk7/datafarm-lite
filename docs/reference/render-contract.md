@@ -1,5 +1,7 @@
 # Render contract
 
+> **上游能力，本 fork 不执行。** 本 fork 的渲染请求是 [RenderSpec](../ir/render-spec.md)（`engine: isaac_rtx`），渲染器为 Isaac RTX / Replicator；本文的 seedance/h3 契约只描述上游代码。见 [`AGENTS.md`](../../AGENTS.md) "Fork scope"。
+
 Every render request is bound to a per-task *render contract*. The agent writes a render
 intent (mode, authorized appearance changes, real reference images, appearance requirements)
 and a five-slot task overlay. `render_policy` validates both and expands them through fixed

@@ -83,19 +83,21 @@ bowl_f01 是宽浅陶瓷碗；bigPlate_a01 是蓝色方形浅盘；table_metal_s
 | `source.uri` / `license` / `upstream_id` | `packaging.json` 的 `package_id`、`license`（短名单全是 `CC-BY-4.0`） | 无 |
 | `files[].artifact.sha256` | `bom.json` 逐文件 sha256 | 无 |
 | `joints[]` | `physics.usda` 的 `PhysicsPrismaticJoint` / `PhysicsRevoluteJoint`：`axis`、`lowerLimit`、`upperLimit`、`body0/body1`、`localPos0` | 无 |
-| `collision.kind` | 每个资产带碰撞几何，但只给 `mesh` 代理 | 代理较粗（方盘 = 一块 0.24 m 薄板），要用前自己看一眼 |
-| `bbox_m` | **不提供**。`base.usda` 的 `extent` 是子网格局部范围，直接并集算出来是错的 | 导入时用 `pxr.UsdGeom.BBoxCache` 现算 |
-| `physical_quantities.mass` | 只给`密度`（`physics:density`：陶瓷 2600、塑料 950、木 700、金属 8000），柜体额外给显式 mass + 惯量 | 餐具/盘子的质量要按密度 × 碰撞体积推，账本记 `fitted` 而不是 `measured` |
+| `collision.kind` | 每个资产带碰撞几何，但只给 `mesh` 代理 | 已解决：准备阶段换成 CoACD 凸包（`collision.kind = mesh`，凸包写进包装层），方盘的薄板代理不再使用 |
+| `bbox_m` | **不提供**。`base.usda` 的 `extent` 是子网格局部范围，直接并集算出来是错的 | 已解决：准备阶段用 `BBoxCache` 现算，记为资产根坐标系下的包围盒 |
+| `physical_quantities.mass` | 只给`密度`（`physics:density`：陶瓷 2600、塑料 950、木 700、金属 8000），柜体额外给显式 mass + 惯量 | 按密度 × 碰撞体积推，账本记 `assumed`（作者值，不是实测也不是拟合） |
 | `physical_quantities.friction_static` | 有（柜体 0.4–0.5、碗 0.35、盘 0.4） | 无 |
-| restitution | 有，但塑料盘 0.4 偏高，落桌会弹；随机化清单里应该收窄 | 需在账本里标 `assumed` 或改写 |
+| restitution | 有，但塑料盘 0.4 偏高，落桌会弹 | 记为 `assumed`；随机化清单里应优先收窄这一项 |
 
-## 6. 第 1 天待核（只能在 GPU 机器上做）
+## 6. 第 1 天待核：已核（2026-11-15，lab30 / Isaac Lab 3.0 + Newton）
 
-1. `fixture_cabinet_b01` 用 Newton payload 导入后，是否被识别成一个 2 自由度 Articulation，抽屉行程是否真到 0.462 m。
-2. 抽屉内腔净尺寸（缩略图看着够，但没有数值证据）；盘子 0.24 m 要放进去。
-3. 台面高度与 AIRBOT 可达性：关节挂点在 body 系 z = 0.65 / 0.81 m，需实测整柜 bbox。
-4. 方盘的碰撞代理是否需要重做；碗的碰撞代理能否支撑二指夹爪抓沿。
-5. G2 夹爪开口 vs 碗沿直径。
+1. **是不是 2 自由度 Articulation、行程够不够**：是。导入后识别为 articulation，两个 prismatic 关节，写入 `joint_state` 后读回 `[0.40, 0.00]` 与目标一致。`plan`/`check` 都用 0.40 m 开度，没到极限 0.46218 m。
+2. **抽屉内腔净尺寸够不够放盘子**：够。把盘子投放到打开的抽屉里，落点 z = 0.759 m（抽屉内底），X/Y 落在抽屉中心 ±1 mm 内，只与柜体接触。
+3. **台面高度与 AIRBOT 可达性**：实测桌面包围盒顶面 z = 0.80421 m（含支撑间隙），柜体整体 0.9285 m 高。机器人基座碰撞体底面贴桌面后，盘子与抽屉内部 10 个目标点全部求得逆解，最大位置误差 0.8 mm。
+4. **方盘碰撞代理要不要重做**：已重做。上游的薄板代理不再使用，改为 CoACD 凸包（质量随之从网格移到刚体，盘 0.186 kg）；凸包包围盒也用来定支撑高度。
+5. **G2 夹爪开口 vs 盘沿直径**：**未核**。夹爪几何映射只有模型级推导，没有实测标定，按 B 线的说法夹爪能力保持关闭。
+
+细节与证据见 [scene-assembly](reference/scene-assembly.md) 与 `verification/a-line/`。
 
 ## 7. 许可与体积
 

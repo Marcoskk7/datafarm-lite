@@ -1,5 +1,7 @@
 # Simulator qualification
 
+> **本 fork 不使用。** 后端固定为 Isaac Lab 3.0 + Newton/MJWarp，取消了后端选择探针与探针证书（见 [B 线接口设计](b-control-interfaces.md)）。`simulation/sim_qualification.py` 是上游代码，保留但不在本 fork 的流水线里。
+
 Simulator qualification checks, before an expert is written, that the simulator can carry out
 the skills a task needs. Scripted skill probes run over candidate simulator variants (dotted-key
 patches of the material and scene files plus optional runtime flags such as a gripper contact

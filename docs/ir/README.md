@@ -107,7 +107,9 @@ camera.head         robot.airbot
 
 ## 9. 落地
 
-validator 放 `src/datafarm/ir/`，照 kernel 风格：模块级 `SCHEMA` 常量 + `validate()`，错误信息给人读。A 线文档的校验器除了调 `validate_quantities(bind=...)` 还要复用 kernel 的可移植性检查（`canonical_json_bytes`）。这个目录尚未创建。
+validator 放 `src/datafarm/ir/`，照 kernel 风格：模块级 `SCHEMA` 常量 + `validate()`，错误信息给人读。A 线文档的校验器除了调 `validate_quantities(bind=...)` 还要复用 kernel 的可移植性检查（`canonical_json_bytes`）。
+
+已落地：`ir/asset_record.py`（`datafarm.asset-record/1`）与 `ir/scene_graph.py`（`datafarm.scene-graph/1`），由 `tools/scene_assemble.py` 的 `plan`/`check` 生成并校验。`TaskContract`、`Episode`、`RenderSpec` 仍是纸面定义，校验器未写。
 
 ## 10. 文档
 

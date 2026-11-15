@@ -21,7 +21,7 @@ One note per component. Each states what the code guarantees and what it does no
 | Task contract, frozen judge, expert harness | [expert-harness](reference/expert-harness.md) | `src/datafarm/expert/` |
 | CaP repair search, action evidence and verified repair skills | [cap-search](reference/cap-search.md) | `src/datafarm/cap/`, `tools/cap_search.py` |
 | Codex CLI agent, ASPIRE-style search and privileged-state iteration | [cap-codex-aspire](reference/cap-codex-aspire.md) | `cap/codex_provider.py`, `cap/state_feedback.py` |
-| B-line interface design: Isaac Lab 3.0, robot API, judge and episode (draft) | [b-control-interfaces](reference/b-control-interfaces.md) | Not implemented yet; reuses the existing CaP and core IR |
+| B-line interface design: Isaac Lab 3.0, robot API, judge and episode (draft) | [b-control-interfaces](reference/b-control-interfaces.md) | Robot binding implemented and verified; judge generation/freeze on `feat/b-control`; TCP IK, planning and contact judging not implemented |
 | A/B interface IR: asset record, scene graph, task contract, episode, render spec | [ir](ir/README.md) | AssetRecord and SceneGraph validators in `src/datafarm/ir/`; the other documents are not implemented yet |
 | A line: SimReady retrieval, collision prep, layout, reachability, Isaac Lab scene checks | [scene-assembly](reference/scene-assembly.md) | `tools/simready.py`, `tools/scene_assemble.py`, `src/datafarm/scene/`, `src/datafarm/adapters/assets/` |
 | Robot API auto-discovery, semantic config and Isaac Lab instance binding | [robot-auto-binding](reference/robot-auto-binding.md) | `simulation/robot_binding.py`, `simulation/isaac_robot.py`, `tools/discover_robot.py` |

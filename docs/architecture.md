@@ -75,14 +75,16 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 | `task` | Task contract checks, review-independence proof (`task/review_identity.py`), white delivery |
 | `expert` | Expert harness: sandboxed author sessions, rollout broker, frozen judge, held-out evaluation, expert library |
 | `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans |
+| `ir` | A/B interface documents: `AssetRecord` and `SceneGraph` validators (`ir/asset_record.py`, `ir/scene_graph.py`); `TaskContract`, `Episode` and `RenderSpec` are specified in `docs/ir/` but not validated here yet |
 | `render` | Render contract (`render/policy.py`), rendered-delivery check (`render/delivery.py`), spec-driven render verifier with counterfactual and reviewer calibration (`render/verify`); the renderers live in `adapters/render` |
+| `scene` | A-line scene assembly: SimReady asset records and their assumed-physical-quantity ledger, layout on support surfaces with footprint checks, multi-start IK reachability, `SceneGraph` construction (`tools/scene_assemble.py`) |
 | `ledger` | Run ledger: fixed item denominator, derived run status, launch sentinel |
 | `training` | Admission certificates (`training/admission.py`), launch, dataset and action-mode contracts, cohort auditors, PI0.5 dataset builder (`training/pi05_build.py`) |
 | `evolution` | Feedback store and controller that evaluates and activates capability-layer changes |
 | `orchestration` | Prepare and drive task workspaces (`orchestration/driver.py`), run and resume agent sessions, phases, progress, the task cost ledger, and the batch supervisor (`orchestration/batch.py`: bounded per-item launch, poll, verify and retry) |
 | `entry` | Composition roots: the `datafarm` command (`entry/cli.py`), prerequisite checks (`entry/doctor.py`), expert-harness command and dry run (`entry/expert_cli.py`, `entry/expert_dryrun.py`), run-ledger command (`entry/runs_cli.py`) |
 | `cap` | CaP skill search and library (B-line) |
-| `adapters` | Outer technology: agent CLIs split by vendor (`agent_harness`: vendor-neutral `session`, `claude_code`, `codex/` with the exec backend, native runner and metered gateway, `fake`), credentials and call log; OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
+| `adapters` | Outer technology: agent CLIs split by vendor (`agent_harness`: vendor-neutral `session`, `claude_code`, `codex/` with the exec backend, native runner and metered gateway, `fake`), credentials and call log; OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); SimReady retrieval (`assets`); USD inspection, CoACD collision wrappers and the Isaac Lab 3.0 scene (`sim`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
 | `instructions.py`, `config.py` | Role context compiler; environment/runtime path bindings |
 | `batch_protocol.py` | Contract shared by the batch supervisor and its task implementations: policy, poll and verdict results, `BatchTask`, launch exceptions |
 
@@ -92,11 +94,11 @@ Imports point downward only. `make lint` enforces this with [import-linter](http
 the contracts are `[tool.importlinter]` in [`pyproject.toml`](../pyproject.toml).
 
 1. Layers, top to bottom: `entry` > `orchestration` > `adapters` > (`training`, `expert`, `evolution`, `simulation`,
-   `ledger`, `cap`) > `render` > `task` > `grounding` > (`instructions`, `config`, `batch_protocol`) > `kernel`.
-   A module may import its own layer or any layer below it.
+   `ledger`, `cap`, `scene`) > `render` > `task` > `ir` > `grounding` > (`instructions`, `config`,
+   `batch_protocol`) > `kernel`. A module may import its own layer or any layer below it.
 2. `adapters` never import `orchestration` or `entry`.
-3. Business packages (`grounding`, `task`, `render`, `training`, `expert`, `evolution`, `simulation`, `ledger`, `cap`)
-   never import `orchestration` or `entry`.
+3. Business packages (`grounding`, `ir`, `task`, `render`, `training`, `expert`, `evolution`, `simulation`,
+   `ledger`, `cap`, `scene`) never import `orchestration` or `entry`.
 4. One-way business chain `training` -> `render` -> `task` -> `grounding`: `task` does not import `render`,
    `training` or `expert`; `render` does not import `training`; `grounding` does not import `task`, `render` or
    `training`. `kernel` imports nothing else in `datafarm`.

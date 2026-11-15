@@ -1,5 +1,7 @@
 # Grounding from the calibration episode
 
+> **本 fork 的 grounding 输入是请求 YAML，不是真实校准片段。** `datafarm.grounding/1` 的物理量账本照旧使用：A 线的 AssetRecord 从资产检查生成 `physical_quantities`，没有实测依据的标 `assumed` 并给随机化区间。真实片段驱动的 skills（`sim-grounding`、`build-observed-object`）是上游能力，不在本 fork 的流水线里。见 [AGENTS.md](../../AGENTS.md) "Fork scope" 与 [scene-assembly](scene-assembly.md)。
+
 Grounding turns the real calibration episode into the record G that the simulator and the
 renderer consume: the physical quantities the simulator uses, the camera/scale fit, the
 real-world appearance references for rendering and, optionally, newly built object assets (see [usdcraft](usdcraft.md)).

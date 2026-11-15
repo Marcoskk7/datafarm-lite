@@ -1,5 +1,7 @@
 # Rendering: H3 control hybrid (default) and Seedance
 
+> **本 fork 不使用这两个渲染器。** datafarm-lite 的渲染是 Isaac RTX / Replicator，从记录的仿真状态出图；H3 与 Seedance 属于上游能力，代码保留但不在本 fork 的流水线里，规范见 [`AGENTS.md`](../../AGENTS.md) 的 "Fork scope"。本文描述上游行为，读它之前先看 [RenderSpec](../ir/render-spec.md)。
+
 The renderers turn a simulated white carrier video (actions, objects and timing already fixed) into photographic multi-camera video. The default renderer is the **H3 control hybrid**: MiniMax-H3 Ref2VA with an H3-Fun ControlNet-Union branch driven by gated soft-HED edges of the carrier and a white inpaint source. It renders independent chunks on a tiled canvas, with 8 seeds per chunk selected by a VLM, minimum-difference seams and a first-chunk exposure lock. The second renderer is the hosted **Seedance** API. Each request is bound to the task's [render contract](render-contract.md). The agent's rules for canaries and review are in [`prompts/instructions/render.md`](../../prompts/instructions/render.md).
 
 ## Rules shared by both renderers

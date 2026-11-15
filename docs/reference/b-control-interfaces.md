@@ -2,7 +2,7 @@
 
 版本：`b-control/0.1.0-draft`。日期：2026-11-14（Asia/Shanghai）。状态：可评审的设计稿；A/B 交接字段保持原有定义，补充当前实现说明。
 
-实现进展：URDF 结构/运动链、模型 TCP 与夹爪几何映射、profile 覆盖、Isaac Lab 实例绑定、状态读取与位置目标暂存已实现，见 [自动绑定说明](robot-auto-binding.md)。场景碰撞判定与 TCP IK/规划执行仍待接入；其他模块的设计不因本文更新而自动视为通过验收。
+实现进展：URDF 结构/运动链、模型 TCP 与夹爪几何映射、profile 覆盖、Isaac Lab 实例绑定、状态读取与位置目标暂存已实现，见 [自动绑定说明](robot-auto-binding.md)。判定器生成、独立审核与冻结的管线已在分支 `feat/b-control` 上实现（`src/datafarm/judge/`、`tools/judge_pipeline.py`，证据 `verification/judge-pipeline-20261114/`），尚未合入 `main`。CaP 全链路（broker、搜索、蒸馏、独立 Verifier、冻结判定器、留出种子）在「非接触关节路点控制」上实跑通过，见 `verification/server-cap-state-20261114/`；该轮没有抓取、没有资产检索与场景组装。场景碰撞判定与 TCP IK/规划执行仍待接入；其他模块的设计不因本文更新而自动视为通过验收。
 
 本文落实用户确定的路线：以 `translate-view` 为基线，仿真框架固定 Isaac Lab 3.0，复用已有 Newton + MJWarp 配置；取消独立后端选择探针、10 次抓放前置门槛和 SAPIEN 回退路径。设计不新增付费调用、远程运行或训练任务。
 

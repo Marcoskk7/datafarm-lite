@@ -1,6 +1,6 @@
 # B 线开发基线
 
-更新日期：2026-11-13（Asia/Shanghai）。
+更新日期：2026-11-13（Asia/Shanghai）。**这是当天的开发快照，不是当前状态。** 当前实现在 [B 线接口设计](reference/b-control-interfaces.md) 的"实现进展"一节，机器人绑定见 [自动绑定说明](reference/robot-auto-binding.md)，实测记录见 `verification/robot-binding-20261114/`、`verification/judge-pipeline-20261114/`、`verification/server-cap-state-20261114/`。
 
 用户要求：以同学在 GitHub 上传的新分支为基线继续开发。
 
