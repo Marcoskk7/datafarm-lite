@@ -1,0 +1,402 @@
+{
+  "footprint": {
+    "ok": true,
+    "problems": [],
+    "xy_corners_m": {
+      "object.cabinet": [
+        [
+          0.9139,
+          0.5594
+        ],
+        [
+          0.9139,
+          -0.128
+        ],
+        [
+          1.6861,
+          -0.128
+        ],
+        [
+          1.6861,
+          0.5594
+        ]
+      ],
+      "object.plate": [
+        [
+          0.433,
+          -0.2895
+        ],
+        [
+          0.607,
+          -0.2895
+        ],
+        [
+          0.607,
+          -0.1105
+        ],
+        [
+          0.433,
+          -0.1105
+        ]
+      ],
+      "object.table": [
+        [
+          -0.9104,
+          -0.3602
+        ],
+        [
+          0.9093,
+          -0.3602
+        ],
+        [
+          0.9093,
+          0.3582
+        ],
+        [
+          -0.9104,
+          0.3582
+        ]
+      ],
+      "robot.airbot": [
+        [
+          0.7068,
+          -0.2385
+        ],
+        [
+          0.8962,
+          -0.2385
+        ],
+        [
+          0.8962,
+          0.0385
+        ],
+        [
+          0.7068,
+          0.0385
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "asset_id": "object.table_stainless",
+      "node_id": "object.table",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.0,
+          0.0,
+          0.80421
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "semantic_tag": "table"
+    },
+    {
+      "asset_id": "object.cabinet_drawer",
+      "joint_state": {
+        "joint_part_01_joint_00": 0.4,
+        "joint_part_02_joint_00": 0.0
+      },
+      "node_id": "object.cabinet",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          1.3,
+          0.215,
+          0.00537
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          -0.707106781,
+          0.707106781
+        ]
+      },
+      "semantic_tag": "drawer"
+    },
+    {
+      "asset_id": "object.plate",
+      "node_id": "object.plate",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.52,
+          -0.2,
+          0.87095
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "randomization": {
+        "position_jitter_m": 0.03,
+        "yaw_range_deg": [
+          -180,
+          180
+        ]
+      },
+      "semantic_tag": "plate"
+    }
+  ],
+  "reachability": {
+    "checked": true,
+    "notes": "10/10 targets solved by multi-start damped least-squares IK on the left_end_link model TCP, approach from above, joint-limit margin 0.05 rad; no collision-aware planning",
+    "ok": true,
+    "targets": [
+      {
+        "iterations": 11,
+        "name": "plate_center_above",
+        "ok": true,
+        "position_error_m": 9.9e-05,
+        "q": [
+          -2.839032,
+          -1.473399,
+          0.999773,
+          -1.57074,
+          1.097152,
+          1.873313
+        ],
+        "rotation_error_rad": 6e-05,
+        "seed_index": 4,
+        "world_m": [
+          0.52,
+          -0.2,
+          0.97095
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 10,
+        "name": "plate_rim_near",
+        "ok": true,
+        "position_error_m": 0.00079,
+        "q": [
+          -2.644869,
+          -1.729969,
+          1.043496,
+          -1.567121,
+          0.88379,
+          2.064802
+        ],
+        "rotation_error_rad": 0.002921,
+        "seed_index": 4,
+        "world_m": [
+          0.52,
+          -0.275,
+          0.89095
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 10,
+        "name": "plate_rim_far",
+        "ok": true,
+        "position_error_m": 0.000373,
+        "q": [
+          -3.064698,
+          -1.606321,
+          0.847251,
+          -1.570302,
+          0.811706,
+          1.647212
+        ],
+        "rotation_error_rad": 0.000391,
+        "seed_index": 4,
+        "world_m": [
+          0.52,
+          -0.125,
+          0.89095
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 11,
+        "name": "plate_rim_left",
+        "ok": true,
+        "position_error_m": 0.000189,
+        "q": [
+          -2.89415,
+          -1.857723,
+          1.254927,
+          -1.570516,
+          0.967889,
+          1.817973
+        ],
+        "rotation_error_rad": 0.000283,
+        "seed_index": 4,
+        "world_m": [
+          0.445,
+          -0.2,
+          0.89095
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 20,
+        "name": "drawer_center_release",
+        "ok": true,
+        "position_error_m": 0.00029,
+        "q": [
+          -0.214126,
+          -2.199069,
+          1.608476,
+          -1.570783,
+          0.980116,
+          -1.784924
+        ],
+        "rotation_error_rad": 8.9e-05,
+        "seed_index": 0,
+        "world_m": [
+          1.3,
+          -0.2,
+          0.82537
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 19,
+        "name": "drawer_center_above",
+        "ok": true,
+        "position_error_m": 0.000113,
+        "q": [
+          -0.21414,
+          -2.059663,
+          1.625512,
+          -1.570768,
+          1.136617,
+          -1.784973
+        ],
+        "rotation_error_rad": 4.7e-05,
+        "seed_index": 0,
+        "world_m": [
+          1.3,
+          -0.2,
+          0.89537
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 21,
+        "name": "drawer_front_release",
+        "ok": true,
+        "position_error_m": 0.000311,
+        "q": [
+          -0.437258,
+          -2.339267,
+          1.881985,
+          -1.570782,
+          1.113432,
+          -2.008056
+        ],
+        "rotation_error_rad": 8.4e-05,
+        "seed_index": 0,
+        "world_m": [
+          1.3,
+          -0.315,
+          0.82537
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 20,
+        "name": "drawer_back_release",
+        "ok": true,
+        "position_error_m": 0.000226,
+        "q": [
+          0.032595,
+          -2.164779,
+          1.541483,
+          -1.570792,
+          0.947433,
+          -1.538197
+        ],
+        "rotation_error_rad": 6.7e-05,
+        "seed_index": 0,
+        "world_m": [
+          1.3,
+          -0.085,
+          0.82537
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 19,
+        "name": "drawer_side_near_release",
+        "ok": true,
+        "position_error_m": 0.000508,
+        "q": [
+          -0.246059,
+          -2.022886,
+          1.26611,
+          -1.569949,
+          0.812794,
+          -1.818148
+        ],
+        "rotation_error_rad": 0.001547,
+        "seed_index": 0,
+        "world_m": [
+          1.24,
+          -0.2,
+          0.82537
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 22,
+        "name": "drawer_side_far_release",
+        "ok": true,
+        "position_error_m": 0.000449,
+        "q": [
+          -0.189996,
+          -2.444892,
+          2.087671,
+          -1.57079,
+          1.213453,
+          -1.760787
+        ],
+        "rotation_error_rad": 0.000122,
+        "seed_index": 0,
+        "world_m": [
+          1.36,
+          -0.2,
+          0.82537
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      }
+    ]
+  },
+  "robot_base_pose": {
+    "frame_id": "world",
+    "position_m": [
+      0.84,
+      -0.1,
+      0.97835
+    ],
+    "quaternion_xyzw": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  },
+  "spec_sha256": "4cf26c28b5c0bf30a18ead5da13a5c664f558aed9199a111625c6a185bb750be"
+}
