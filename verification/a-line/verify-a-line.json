@@ -442,7 +442,7 @@
       "status": "PASS"
     },
     {
-      "detail": "drift 0.001077 m, penetration 0.000133 m, probes ok",
+      "detail": "drift 0.001037 m, penetration 4.7e-05 m, probes ok",
       "evidence": {
         "initial_joint_state": {
           "object.cabinet": [
@@ -489,7 +489,7 @@
             "ran": true,
             "tolerance_m": 0.003
           },
-          "max_depth_m": 0.000133,
+          "max_depth_m": 4.7e-05,
           "ok": true,
           "pairs": {
             "None | object.cabinet": {
@@ -518,7 +518,7 @@
                 "body_01_obj_00",
                 "sm_table_metal_stainless_a03_obj_00"
               ],
-              "depth_m": 0.000133
+              "depth_m": 4.7e-05
             },
             "object.table | robot.airbot": {
               "bodies": [
@@ -533,7 +533,7 @@
         },
         "probes": [
           {
-            "end_speed_mps": 0.000855,
+            "end_speed_mps": 0.000531,
             "expected_rest_z_m": [
               0.74,
               0.8
@@ -547,9 +547,9 @@
               0.80537
             ],
             "rest_m": [
-              1.30009,
-              -0.199965,
-              0.759294
+              1.300068,
+              -0.200124,
+              0.759293
             ],
             "support_node": "object.cabinet",
             "touching": [
@@ -558,8 +558,8 @@
           }
         ],
         "settle": {
-          "max_drift_m": 0.001077,
-          "max_end_speed_mps": 0.001401,
+          "max_drift_m": 0.001037,
+          "max_end_speed_mps": 0.000674,
           "max_joint_drift": 0.0,
           "nodes": {
             "object.cabinet": {
@@ -589,13 +589,13 @@
               ]
             },
             "object.plate": {
-              "drift_m": 0.001077,
+              "drift_m": 0.001037,
               "end_m": [
-                0.519994,
-                -0.200007,
-                0.869961
+                0.51999,
+                -0.200008,
+                0.870001
               ],
-              "end_speed_mps": 0.001401,
+              "end_speed_mps": 0.000674,
               "start_m": [
                 0.52,
                 -0.2,
@@ -618,7 +618,7 @@
             "robot.airbot": {
               "joint_drift": 0.012745,
               "joint_end": [
-                -0.0,
+                0.0,
                 0.000879,
                 -0.012745,
                 -2e-06,
@@ -673,7 +673,7 @@
       "evidence": {
         "checks": {
           "penetration": {
-            "max_depth_m": 0.000133,
+            "max_depth_m": 4.7e-05,
             "ok": true,
             "ran": true
           },
@@ -683,13 +683,13 @@
             "ok": true
           },
           "settle": {
-            "max_drift_m": 0.001077,
+            "max_drift_m": 0.001037,
             "ran": true,
             "stable": true,
             "steps": 240
           }
         },
-        "sha256": "ea057518b493c34434d3fbf283186b86c366be16b3e4799c48503fc2e48064a5"
+        "sha256": "04ce05182d6de6adc79a86d89336256c3811bc102b6f799ebd0af46a17427c5f"
       },
       "gate": "graph",
       "status": "PASS"
@@ -731,7 +731,7 @@
       "status": "PASS"
     },
     {
-      "detail": "/opt/data/private/isaaclab/datafarm-lite/.venv/bin/python: 6s; ..................                                                       [100%] | 18 passed in 5.58s",
+      "detail": "/opt/data/private/isaaclab/datafarm-lite/.venv/bin/python: 6s; ..................                                                       [100%] | 18 passed in 5.42s",
       "evidence": {},
       "gate": "tests",
       "status": "PASS"

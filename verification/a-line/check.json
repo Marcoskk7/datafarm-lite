@@ -2,7 +2,7 @@
   "evidence": {
     "kind": "scene.check-evidence",
     "media_type": "application/json",
-    "sha256": "6d3075c08e0c496a335dac8a83278a9389087ab760491f1ab0d9d14452574f6e"
+    "sha256": "fb355057e87b8d7d7adce9bdeca8800df3aae8aba63563edd0b3e526c387c92b"
   },
   "initial_joint_state": {
     "object.cabinet": [
@@ -49,7 +49,7 @@
       "ran": true,
       "tolerance_m": 0.003
     },
-    "max_depth_m": 0.000133,
+    "max_depth_m": 4.7e-05,
     "ok": true,
     "pairs": {
       "None | object.cabinet": {
@@ -78,7 +78,7 @@
           "body_01_obj_00",
           "sm_table_metal_stainless_a03_obj_00"
         ],
-        "depth_m": 0.000133
+        "depth_m": 4.7e-05
       },
       "object.table | robot.airbot": {
         "bodies": [
@@ -93,7 +93,7 @@
   },
   "probes": [
     {
-      "end_speed_mps": 0.000855,
+      "end_speed_mps": 0.000531,
       "expected_rest_z_m": [
         0.74,
         0.8
@@ -107,9 +107,9 @@
         0.80537
       ],
       "rest_m": [
-        1.30009,
-        -0.199965,
-        0.759294
+        1.300068,
+        -0.200124,
+        0.759293
       ],
       "support_node": "object.cabinet",
       "touching": [
@@ -121,11 +121,11 @@
   "scene_graph": {
     "kind": "ir.scene-graph",
     "media_type": "application/json",
-    "sha256": "01588e382a32d7fff23f27c5a1fa39e6bd65f4cfa6ce8f93e797f280bf9b1cf3"
+    "sha256": "8cb5744d37d2192cacb78e9c7d330e80e2f486d15bbba454d45e3fd86bc49785"
   },
   "settle": {
-    "max_drift_m": 0.001077,
-    "max_end_speed_mps": 0.001401,
+    "max_drift_m": 0.001037,
+    "max_end_speed_mps": 0.000674,
     "max_joint_drift": 0.0,
     "nodes": {
       "object.cabinet": {
@@ -155,13 +155,13 @@
         ]
       },
       "object.plate": {
-        "drift_m": 0.001077,
+        "drift_m": 0.001037,
         "end_m": [
-          0.519994,
-          -0.200007,
-          0.869961
+          0.51999,
+          -0.200008,
+          0.870001
         ],
-        "end_speed_mps": 0.001401,
+        "end_speed_mps": 0.000674,
         "start_m": [
           0.52,
           -0.2,
@@ -184,7 +184,7 @@
       "robot.airbot": {
         "joint_drift": 0.012745,
         "joint_end": [
-          -0.0,
+          0.0,
           0.000879,
           -0.012745,
           -2e-06,
