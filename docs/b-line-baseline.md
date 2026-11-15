@@ -1,46 +1,46 @@
-# B 线开发基线
+# B-line development baseline
 
-更新日期：2026-11-13（Asia/Shanghai）。
+Updated: 2026-11-13 (Asia/Shanghai).
 
-用户要求：以同学在 GitHub 上传的新分支为基线继续开发。
+User requirement: continue development from the new branch a teammate pushed to GitHub.
 
-## 来源与分支
+## Source and branches
 
-- 仓库：https://github.com/Marcoskk7/datafarm-lite
-- 基线分支：`translate-view`
-- 基线提交：`73669e9d9f0a805ef0acdbb0a2e7511dbfa67fc7`
-- 本地开发分支：`feat/b-control`
-- 合入已有 CaP 功能提交：`f937fc8d10db0453236a644816a4de256ae97adc`
-- 基线包含两次中文翻译提交，覆盖文档、提示词、注释和文档字符串；不能视为新增机器人任务验收。
-- 合并保留中文文档，并补回 CaP 文档索引和 expert-harness 入口。原分支保留。
+- Repository: https://github.com/Marcoskk7/datafarm-lite
+- Baseline branch: `translate-view`
+- Baseline commit: `73669e9d9f0a805ef0acdbb0a2e7511dbfa67fc7`
+- Local development branch: `feat/b-control`
+- Merged existing CaP feature commit: `f937fc8d10db0453236a644816a4de256ae97adc`
+- The baseline contains two Chinese translation commits covering documentation, prompts, comments and docstrings; they are not acceptance of any new robot task.
+- The merge kept the Chinese documentation and restored the CaP documentation index and the expert-harness entry point. The original branch is kept.
 
-## 软件验证
+## Software verification
 
-在工作区临时目录下运行 `python -m unittest test_cap_search test_cap_xh test_cap_broker_integration -q`：17 项，15 项通过、2 项因 Windows 的 POSIX broker 限制跳过。
+`python -m unittest test_cap_search test_cap_xh test_cap_broker_integration -q`, run from a temporary directory inside the workspace: 17 tests, 15 passed and 2 skipped because of the POSIX broker limitation on Windows.
 
-默认沙箱临时目录曾导致原子文件替换 WinError 650，改用工作区 `tmp/b-control-tests` 后解决；首次复跑有一项 30 ms broker 测试超时，再次运行全部可运行项通过，保留为测试时序不稳定风险，未修改产品代码或测试期限。
+The default sandbox temporary directory once caused WinError 650 during atomic file replacement; switching to the workspace directory `tmp/b-control-tests` fixed it. On the first rerun one 30 ms broker test timed out; running again, every runnable test passed. This is kept as a test-timing flakiness risk; no product code or test deadline was changed.
 
-`python tools/lint_standing_rules.py`：11 条规则，无违规。
+`python tools/lint_standing_rules.py`: 11 rules, no violations.
 
-完整 pytest 尚未执行：当前普通 Python 缺少 pytest。指令层审计因上游 `datafarm.common` 在 Windows 导入 `fcntl` 失败，尚未通过。这里的 CPU 检查不证明机器人抓放、LLM 成功率或物理重放通过。
+The full pytest suite was not run: the plain Python used at the time lacked pytest. The instruction-layer audit did not pass because the upstream `datafarm.common` failed to import `fcntl` on Windows. These CPU checks do not show that robot pick-and-place, LLM success rate or physical replay pass.
 
-## 已确定的仿真后端
+## Simulation backend decision
 
-用户在本次对话明确要求：“这部分探针取消，直接确定使用Issac lab3.0作为仿真后端”。此决定替代之前通过抓放探针选择或切换后端的建议。
+The user explicitly asked in this conversation to "cancel this probe and directly use Isaac Lab 3.0 as the simulation backend". This replaces the earlier proposal to choose or switch backends through a pick-and-place probe.
 
-- 仿真框架固定为 Isaac Lab 3.0，复用工作区 `IsaacLab-3.0` 的独立环境及已验证机器人资产。
-- 物理解算沿用现有已验证配置 Newton + MJWarp（`newton_mjwarp`）；Isaac Lab 是仿真框架，Newton/MJWarp 是其物理后端配置。
-- 取消独立的后端选择／抓放探针阶段和“10 次至少 8 次成功后再决定后端”的前置门槛，取消 SAPIEN 回退开发路径。
-- 后续开发直接进入 Robot API、任务契约与 Episode 接口；任务成功率、记录准确性及重放验收仍在相应开发阶段实测。
-- 当前资产验收范围为无界面机器人动力学基线；相机、任务抓放和完整场景集成尚未验收。
+- The simulation framework is fixed to Isaac Lab 3.0, reusing the standalone environment in the workspace `IsaacLab-3.0` and its validated robot assets.
+- Physics keeps the existing validated configuration Newton + MJWarp (`newton_mjwarp`); Isaac Lab is the simulation framework and Newton/MJWarp is its physics backend configuration.
+- The separate backend-selection / pick-and-place probe stage, the "at least 8 successes out of 10 before choosing a backend" gate and the SAPIEN fallback development path are cancelled.
+- Development goes straight to the Robot API, task contract and Episode interfaces; task success rate, recording accuracy and replay acceptance are measured in the corresponding development stages.
+- The current asset acceptance covers a headless robot-dynamics baseline only; cameras, task pick-and-place and full scene integration are not yet accepted.
 
-## B 线接续路径
+## B-line continuation path
 
-接口评审依据见 [B 线接口设计](reference/b-control-interfaces.md)（2026-11-14，`b-control/0.1.0-draft`）。该文档包含 A/B 交接字段、坐标与时间约定、Robot API、Judge、Episode、重放/HDF5 和人工协议示例；实现状态按各模块的实际测试证据判断。场景碰撞沿用原有资产/实体/碰撞组字段。
+The interface review is based on the [B-line interface design](reference/b-control-interfaces.md) (2026-11-14, `b-control/0.1.0-draft`). It contains the A/B handoff fields, coordinate and time conventions, Robot API, Judge, Episode, replay/HDF5 and a hand-written protocol example; the implementation status of each module is judged by its actual test evidence. Scene collision keeps the existing asset/entity/collision-group fields.
 
-1. 与 A 线固定 SceneGraph 交接字段，以及 Judge/Episode 的单位、坐标系、四元数、时间和关节语义。
-2. 在固定的 Isaac Lab 3.0 环境中，复用 `IsaacLab-3.0/validated_usd/airbot_single/robot.usda` 和 `robot_profiles.py`，直接实现 Robot API 的复位、观测、末端控制、夹爪、步进与接触读取，并对接 A 线场景。
-3. 接入已有 `src/datafarm/cap/`，冻结 Judge，分离开发和隐藏评估种子。
-4. 隐藏评估达到 80% 后，先采一条 Episode 与 A 线联调，完成位置重放误差不超过 1 cm 的检查和 HDF5 导出，再扩到 20 条。
+1. Fix the SceneGraph handoff fields with the A line, and the units, frames, quaternions, time and joint semantics for Judge/Episode.
+2. In the fixed Isaac Lab 3.0 environment, reuse `IsaacLab-3.0/validated_usd/airbot_single/robot.usda` and `robot_profiles.py` to implement the Robot API directly: reset, observation, end-effector control, gripper, stepping and contact reading, and connect it to the A-line scene.
+3. Connect the existing `src/datafarm/cap/`, freeze the Judge, and separate development and hidden-evaluation seeds.
+4. Once hidden evaluation reaches 80%, first collect one Episode for integration with the A line, complete the replay check (position error at most 1 cm) and HDF5 export, then scale to 20.
 
-工作区 `DataFarm-MVP` 与 `aspire-agent` 是参考实现，不是本分支的新基线。旧推盘入屉与非接触任务的通过记录不能代替完整抓放验收。
+The workspace `DataFarm-MVP` and `aspire-agent` are reference implementations, not a new baseline for this branch. Earlier pass records for push-plate-into-drawer and non-contact tasks do not replace full pick-and-place acceptance.
