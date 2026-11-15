@@ -1,0 +1,219 @@
+{
+ "assets": [
+  {
+   "asset": "table_metal_stainless_a03",
+   "files": 36,
+   "license": "CC-BY-4.0",
+   "ok": true,
+   "package_id": "simready.hf.nvidia.simready-assets.table_metal_stainless_a03.2026.10.09_174629469614",
+   "retrieved_at": "2026-11-15T09:03:00Z",
+   "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+  },
+  {
+   "asset": "fixture_cabinet_b01",
+   "files": 46,
+   "license": "CC-BY-4.0",
+   "ok": true,
+   "package_id": "simready.hf.nvidia.simready-assets.fixture_cabinet_b01.2026.10.09_230820079872",
+   "retrieved_at": "2026-11-15T09:03:16Z",
+   "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+  },
+  {
+   "asset": "dishware_plastic_bigPlate_a01",
+   "files": 26,
+   "license": "CC-BY-4.0",
+   "ok": true,
+   "package_id": "simready.hf.nvidia.simready-assets.dishware_plastic_bigPlate_a01.2026.10.09_005722263920",
+   "retrieved_at": "2026-11-15T09:03:30Z",
+   "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+  }
+ ],
+ "date": "2026-11-15",
+ "endpoint": "https://hf-mirror.com",
+ "gates": [
+  {
+   "detail": "python 3.12.16 at /home/isaac/IsaacLab30/.venv/bin/python; pxr=True coacd=True isaaclab=True",
+   "gate": "env",
+   "status": "PASS"
+  },
+  {
+   "detail": "table_metal_stainless_a03 ok; fixture_cabinet_b01 ok; dishware_plastic_bigPlate_a01 ok",
+   "gate": "cache",
+   "status": "PASS"
+  },
+  {
+   "detail": "revision 7879e0e50423; table_metal_stainless_a03 0j CC-BY-4.0; fixture_cabinet_b01 2j CC-BY-4.0; dishware_plastic_bigPlate_a01 0j CC-BY-4.0",
+   "gate": "index",
+   "status": "PASS"
+  },
+  {
+   "detail": "object.cabinet_drawer=articulation, object.plate=rigid, object.table_stainless=kinematic, robot.airbot_g2_left=robot; records reload from store; 111 bundle files",
+   "gate": "prepare",
+   "status": "PASS"
+  },
+  {
+   "detail": "10/10 targets reachable, footprint ok",
+   "gate": "plan",
+   "status": "PASS"
+  },
+  {
+   "detail": "drift 0.001037 m, penetration 4.7e-05 m, probes ok",
+   "gate": "check",
+   "status": "PASS"
+  },
+  {
+   "detail": "datafarm.scene-graph/1 4 nodes, backend isaaclab 3.0.0",
+   "gate": "graph",
+   "status": "PASS"
+  },
+  {
+   "detail": "table_metal_stainless_a03 ok; fixture_cabinet_b01 ok; dishware_plastic_bigPlate_a01 ok",
+   "gate": "source",
+   "status": "PASS"
+  },
+  {
+   "detail": "/opt/data/private/isaaclab/datafarm-lite/.venv/bin/python: 6s; ..................                                                       [100%] | 18 passed in 5.42s",
+   "gate": "tests",
+   "status": "PASS"
+  }
+ ],
+ "host": "lab30run (PlatforMAX, RTX 4090, Isaac Lab 3.0 / Isaac Sim 6.2 / Newton)",
+ "offline": false,
+ "passed": true,
+ "penetration": {
+  "max_depth_m": 4.7e-05,
+  "ok": true,
+  "ran": true
+ },
+ "reach_targets": [
+  {
+   "error_m": 9.9e-05,
+   "name": "plate_center_above",
+   "ok": true,
+   "world_m": [
+    0.52,
+    -0.2,
+    0.97095
+   ]
+  },
+  {
+   "error_m": 0.00079,
+   "name": "plate_rim_near",
+   "ok": true,
+   "world_m": [
+    0.52,
+    -0.275,
+    0.89095
+   ]
+  },
+  {
+   "error_m": 0.000373,
+   "name": "plate_rim_far",
+   "ok": true,
+   "world_m": [
+    0.52,
+    -0.125,
+    0.89095
+   ]
+  },
+  {
+   "error_m": 0.000189,
+   "name": "plate_rim_left",
+   "ok": true,
+   "world_m": [
+    0.445,
+    -0.2,
+    0.89095
+   ]
+  },
+  {
+   "error_m": 0.00029,
+   "name": "drawer_center_release",
+   "ok": true,
+   "world_m": [
+    1.3,
+    -0.2,
+    0.82537
+   ]
+  },
+  {
+   "error_m": 0.000113,
+   "name": "drawer_center_above",
+   "ok": true,
+   "world_m": [
+    1.3,
+    -0.2,
+    0.89537
+   ]
+  },
+  {
+   "error_m": 0.000311,
+   "name": "drawer_front_release",
+   "ok": true,
+   "world_m": [
+    1.3,
+    -0.315,
+    0.82537
+   ]
+  },
+  {
+   "error_m": 0.000226,
+   "name": "drawer_back_release",
+   "ok": true,
+   "world_m": [
+    1.3,
+    -0.085,
+    0.82537
+   ]
+  },
+  {
+   "error_m": 0.000508,
+   "name": "drawer_side_near_release",
+   "ok": true,
+   "world_m": [
+    1.24,
+    -0.2,
+    0.82537
+   ]
+  },
+  {
+   "error_m": 0.000449,
+   "name": "drawer_side_far_release",
+   "ok": true,
+   "world_m": [
+    1.36,
+    -0.2,
+    0.82537
+   ]
+  }
+ ],
+ "reachability": {
+  "checked": true,
+  "notes": "10/10 targets solved by multi-start damped least-squares IK on the left_end_link model TCP, approach from above, joint-limit margin 0.05 rad; no collision-aware planning",
+  "ok": true
+ },
+ "robot_base_pose": {
+  "frame_id": "world",
+  "position_m": [
+   0.84,
+   -0.1,
+   0.97835
+  ],
+  "quaternion_xyzw": [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ },
+ "scene_graph_sha256": "04ce05182d6de6adc79a86d89336256c3811bc102b6f799ebd0af46a17427c5f",
+ "schema": "datafarm.a-line-verification-summary/1",
+ "settle": {
+  "max_drift_m": 0.001037,
+  "ran": true,
+  "stable": true,
+  "steps": 240
+ },
+ "spec": "examples/scene/plate-drawer-airbot.json",
+ "spec_sha256": "4cf26c28b5c0bf30a18ead5da13a5c664f558aed9199a111625c6a185bb750be"
+}

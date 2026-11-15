@@ -53,9 +53,10 @@ layers = [
     "entry",
     "orchestration",
     "adapters",
-    "training : expert : evolution : simulation : ledger : cap",
+    "training : expert : evolution : simulation : ledger : cap : scene",
     "render",
     "task",
+    "ir",
     "grounding",
     "instructions : config : batch_protocol",
     "kernel",
@@ -83,8 +84,9 @@ id = "business-not-upward"
 name = "Business packages do not import orchestration or entry"
 type = "forbidden"
 source_modules = [
-    "datafarm.grounding", "datafarm.task", "datafarm.render", "datafarm.training",
+    "datafarm.grounding", "datafarm.ir", "datafarm.task", "datafarm.render", "datafarm.training",
     "datafarm.expert", "datafarm.evolution", "datafarm.simulation", "datafarm.ledger", "datafarm.cap",
+    "datafarm.scene",
 ]
 forbidden_modules = ["datafarm.orchestration", "datafarm.entry"]
 
@@ -116,7 +118,7 @@ type = "forbidden"
 source_modules = ["datafarm.kernel"]
 forbidden_modules = [
     "datafarm.adapters", "datafarm.batch_protocol", "datafarm.cap", "datafarm.config", "datafarm.entry",
-    "datafarm.evolution", "datafarm.expert", "datafarm.grounding", "datafarm.instructions",
-    "datafarm.ledger", "datafarm.orchestration", "datafarm.render", "datafarm.simulation",
+    "datafarm.evolution", "datafarm.expert", "datafarm.grounding", "datafarm.instructions", "datafarm.ir",
+    "datafarm.ledger", "datafarm.orchestration", "datafarm.render", "datafarm.scene", "datafarm.simulation",
     "datafarm.task", "datafarm.training",
 ]

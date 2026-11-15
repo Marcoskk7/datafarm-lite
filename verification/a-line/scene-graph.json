@@ -1,0 +1,291 @@
+{
+  "asset_bundle": {
+    "kind": "scene.asset-bundle",
+    "media_type": "application/json",
+    "sha256": "d9df81e774e1c8c66ddfb4d976c3eaba900fd1b9b550c8140ee6d972dc25b4d9"
+  },
+  "assets": [
+    {
+      "asset_id": "object.cabinet_drawer",
+      "record": {
+        "kind": "ir.asset-record",
+        "media_type": "application/json",
+        "sha256": "1503968821d753267d039cf3af3c032c04df3e77c269b79f3d5b89c780f8faff"
+      }
+    },
+    {
+      "asset_id": "object.plate",
+      "record": {
+        "kind": "ir.asset-record",
+        "media_type": "application/json",
+        "sha256": "fc9685367139a74511e9ea665a11fb4b287338b8a56544c7fa26ed21c95bc377"
+      }
+    },
+    {
+      "asset_id": "object.table_stainless",
+      "record": {
+        "kind": "ir.asset-record",
+        "media_type": "application/json",
+        "sha256": "7fec427008e3ea1c5f619ce9c19280eb17885be9be2e3f090a52cbf42ff39a3e"
+      }
+    },
+    {
+      "asset_id": "robot.airbot_g2_left",
+      "record": {
+        "kind": "ir.asset-record",
+        "media_type": "application/json",
+        "sha256": "70f4d33d29f70270dfac9825162511e535e8e5b7ba1f0bccefc0b990a0873537"
+      }
+    }
+  ],
+  "backend": {
+    "name": "isaaclab",
+    "physics": "newton_mjwarp",
+    "version": "3.0.0"
+  },
+  "cameras": [],
+  "checks": {
+    "penetration": {
+      "max_depth_m": 4.7e-05,
+      "ok": true,
+      "ran": true
+    },
+    "reachability": {
+      "checked": true,
+      "notes": "10/10 targets solved by multi-start damped least-squares IK on the left_end_link model TCP, approach from above, joint-limit margin 0.05 rad; no collision-aware planning",
+      "ok": true
+    },
+    "settle": {
+      "max_drift_m": 0.001037,
+      "ran": true,
+      "stable": true,
+      "steps": 240
+    }
+  },
+  "collision_groups": {
+    "environment": {
+      "contact_with": [],
+      "entities": [
+        "object.table",
+        "object.cabinet"
+      ],
+      "forbidden_with": [
+        "robot.airbot"
+      ]
+    },
+    "robot_self": {
+      "contact_with": [],
+      "entities": [
+        "robot.airbot"
+      ],
+      "forbidden_with": [
+        "robot.airbot"
+      ]
+    },
+    "task_contact": {
+      "contact_with": [
+        "robot.airbot",
+        "object.cabinet",
+        "object.table"
+      ],
+      "entities": [
+        "object.plate"
+      ],
+      "forbidden_with": []
+    }
+  },
+  "frame": "world",
+  "frames": [
+    {
+      "frame_id": "world",
+      "parent_frame_id": null,
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0,
+          0,
+          0
+        ],
+        "quaternion_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "frame_id": "tcp.left",
+      "parent_frame_id": "robot.airbot",
+      "pose": {
+        "frame_id": "left_end_link",
+        "position_m": [
+          0,
+          0,
+          0
+        ],
+        "quaternion_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "asset_id": "robot.airbot_g2_left",
+      "node_id": "robot.airbot",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.84,
+          -0.1,
+          0.97835
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "semantic_tag": "robot"
+    },
+    {
+      "asset_id": "object.table_stainless",
+      "node_id": "object.table",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.0,
+          0.0,
+          0.80421
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "semantic_tag": "table"
+    },
+    {
+      "asset_id": "object.cabinet_drawer",
+      "joint_state": {
+        "joint_part_01_joint_00": 0.4,
+        "joint_part_02_joint_00": 0.0
+      },
+      "node_id": "object.cabinet",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          1.3,
+          0.215,
+          0.00537
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          -0.707106781,
+          0.707106781
+        ]
+      },
+      "semantic_tag": "drawer"
+    },
+    {
+      "asset_id": "object.plate",
+      "node_id": "object.plate",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.52,
+          -0.2,
+          0.87095
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "randomization": {
+        "position_jitter_m": 0.03,
+        "yaw_range_deg": [
+          -180,
+          180
+        ]
+      },
+      "semantic_tag": "plate"
+    }
+  ],
+  "physics_parameter_ledger": {
+    "kind": "ir.physics-ledger",
+    "media_type": "application/json",
+    "sha256": "637c94334abbf533ec74c8321c4e3d993e800384da7e70d0076d2deba4bba177"
+  },
+  "robot": {
+    "arms": [
+      "left"
+    ],
+    "asset_id": "robot.airbot_g2_left",
+    "base_pose": {
+      "frame_id": "world",
+      "position_m": [
+        0.84,
+        -0.1,
+        0.97835
+      ],
+      "quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "controlled_joints": [
+      "left_joint1",
+      "left_joint2",
+      "left_joint3",
+      "left_joint4",
+      "left_joint5",
+      "left_joint6",
+      "left_g2_joint"
+    ],
+    "gripper": "g2",
+    "reachability": {
+      "checked": true,
+      "notes": "10/10 targets solved by multi-start damped least-squares IK on the left_end_link model TCP, approach from above, joint-limit margin 0.05 rad; no collision-aware planning",
+      "ok": true
+    },
+    "tcp": {
+      "T_link_tcp": {
+        "frame_id": "left_end_link",
+        "position_m": [
+          0,
+          0,
+          0
+        ],
+        "quaternion_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "frame_id": "tcp.left",
+      "link": "left_end_link"
+    }
+  },
+  "runtime_profile": {
+    "kind": "sim.runtime-profile",
+    "media_type": "application/json",
+    "sha256": "246c11249a6ee581024c0274003b5551439d71eaf04b8777cab90366e9df3922"
+  },
+  "scene_id": "scene.plate_drawer_airbot",
+  "schema": "datafarm.scene-graph/1",
+  "units": "m"
+}

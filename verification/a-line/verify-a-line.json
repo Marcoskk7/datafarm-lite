@@ -1,0 +1,746 @@
+{
+  "cache": "/opt/data/private/isaaclab/simready-cache",
+  "endpoint": "https://hf-mirror.com",
+  "gates": [
+    {
+      "detail": "python 3.12.16 at /home/isaac/IsaacLab30/.venv/bin/python; pxr=True coacd=True isaaclab=True",
+      "evidence": {
+        "coacd": true,
+        "isaaclab": true,
+        "pxr": true
+      },
+      "gate": "env",
+      "status": "PASS"
+    },
+    {
+      "detail": "table_metal_stainless_a03 ok; fixture_cabinet_b01 ok; dishware_plastic_bigPlate_a01 ok",
+      "evidence": {
+        "assets": [
+          {
+            "asset": "table_metal_stainless_a03",
+            "files": 36,
+            "license": "CC-BY-4.0",
+            "ok": true,
+            "package_id": "simready.hf.nvidia.simready-assets.table_metal_stainless_a03.2026.10.09_174629469614",
+            "retrieved_at": "2026-11-15T09:03:00Z",
+            "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+          },
+          {
+            "asset": "fixture_cabinet_b01",
+            "files": 46,
+            "license": "CC-BY-4.0",
+            "ok": true,
+            "package_id": "simready.hf.nvidia.simready-assets.fixture_cabinet_b01.2026.10.09_230820079872",
+            "retrieved_at": "2026-11-15T09:03:16Z",
+            "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+          },
+          {
+            "asset": "dishware_plastic_bigPlate_a01",
+            "files": 26,
+            "license": "CC-BY-4.0",
+            "ok": true,
+            "package_id": "simready.hf.nvidia.simready-assets.dishware_plastic_bigPlate_a01.2026.10.09_005722263920",
+            "retrieved_at": "2026-11-15T09:03:30Z",
+            "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+          }
+        ]
+      },
+      "gate": "cache",
+      "status": "PASS"
+    },
+    {
+      "detail": "revision 7879e0e50423; table_metal_stainless_a03 0j CC-BY-4.0; fixture_cabinet_b01 2j CC-BY-4.0; dishware_plastic_bigPlate_a01 0j CC-BY-4.0",
+      "evidence": {
+        "assets": [
+          {
+            "asset": "table_metal_stainless_a03",
+            "collection": "props_warehouse",
+            "joints": 0,
+            "license": "CC-BY-4.0"
+          },
+          {
+            "asset": "fixture_cabinet_b01",
+            "collection": "props_endeavor_kitchen",
+            "joints": 2,
+            "license": "CC-BY-4.0"
+          },
+          {
+            "asset": "dishware_plastic_bigPlate_a01",
+            "collection": "props_endeavor_kitchen",
+            "joints": 0,
+            "license": "CC-BY-4.0"
+          }
+        ],
+        "endpoint": "https://hf-mirror.com",
+        "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+      },
+      "gate": "index",
+      "status": "PASS"
+    },
+    {
+      "detail": "object.cabinet_drawer=articulation, object.plate=rigid, object.table_stainless=kinematic, robot.airbot_g2_left=robot; records reload from store; 111 bundle files",
+      "evidence": {
+        "bodies": {
+          "object.cabinet_drawer": "articulation",
+          "object.plate": "rigid",
+          "object.table_stainless": "kinematic",
+          "robot.airbot_g2_left": "robot"
+        },
+        "records": {
+          "object.cabinet_drawer": {
+            "collision": false,
+            "joints": 2
+          },
+          "object.plate": {
+            "collision": false,
+            "joints": 0
+          },
+          "object.table_stainless": {
+            "collision": false,
+            "joints": 0
+          },
+          "robot.airbot_g2_left": {
+            "collision": true,
+            "joints": 9
+          }
+        },
+        "robot": "robot.airbot_g2_left",
+        "spec_sha256": "4cf26c28b5c0bf30a18ead5da13a5c664f558aed9199a111625c6a185bb750be"
+      },
+      "gate": "prepare",
+      "status": "PASS"
+    },
+    {
+      "detail": "10/10 targets reachable, footprint ok",
+      "evidence": {
+        "base_pose": {
+          "frame_id": "world",
+          "position_m": [
+            0.84,
+            -0.1,
+            0.97835
+          ],
+          "quaternion_xyzw": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        "footprint": {
+          "ok": true,
+          "problems": [],
+          "xy_corners_m": {
+            "object.cabinet": [
+              [
+                0.9139,
+                0.5594
+              ],
+              [
+                0.9139,
+                -0.128
+              ],
+              [
+                1.6861,
+                -0.128
+              ],
+              [
+                1.6861,
+                0.5594
+              ]
+            ],
+            "object.plate": [
+              [
+                0.433,
+                -0.2895
+              ],
+              [
+                0.607,
+                -0.2895
+              ],
+              [
+                0.607,
+                -0.1105
+              ],
+              [
+                0.433,
+                -0.1105
+              ]
+            ],
+            "object.table": [
+              [
+                -0.9104,
+                -0.3602
+              ],
+              [
+                0.9093,
+                -0.3602
+              ],
+              [
+                0.9093,
+                0.3582
+              ],
+              [
+                -0.9104,
+                0.3582
+              ]
+            ],
+            "robot.airbot": [
+              [
+                0.7068,
+                -0.2385
+              ],
+              [
+                0.8962,
+                -0.2385
+              ],
+              [
+                0.8962,
+                0.0385
+              ],
+              [
+                0.7068,
+                0.0385
+              ]
+            ]
+          }
+        },
+        "targets": [
+          {
+            "iterations": 11,
+            "name": "plate_center_above",
+            "ok": true,
+            "position_error_m": 9.9e-05,
+            "q": [
+              -2.839032,
+              -1.473399,
+              0.999773,
+              -1.57074,
+              1.097152,
+              1.873313
+            ],
+            "rotation_error_rad": 6e-05,
+            "seed_index": 4,
+            "world_m": [
+              0.52,
+              -0.2,
+              0.97095
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          },
+          {
+            "iterations": 10,
+            "name": "plate_rim_near",
+            "ok": true,
+            "position_error_m": 0.00079,
+            "q": [
+              -2.644869,
+              -1.729969,
+              1.043496,
+              -1.567121,
+              0.88379,
+              2.064802
+            ],
+            "rotation_error_rad": 0.002921,
+            "seed_index": 4,
+            "world_m": [
+              0.52,
+              -0.275,
+              0.89095
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          },
+          {
+            "iterations": 10,
+            "name": "plate_rim_far",
+            "ok": true,
+            "position_error_m": 0.000373,
+            "q": [
+              -3.064698,
+              -1.606321,
+              0.847251,
+              -1.570302,
+              0.811706,
+              1.647212
+            ],
+            "rotation_error_rad": 0.000391,
+            "seed_index": 4,
+            "world_m": [
+              0.52,
+              -0.125,
+              0.89095
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          },
+          {
+            "iterations": 11,
+            "name": "plate_rim_left",
+            "ok": true,
+            "position_error_m": 0.000189,
+            "q": [
+              -2.89415,
+              -1.857723,
+              1.254927,
+              -1.570516,
+              0.967889,
+              1.817973
+            ],
+            "rotation_error_rad": 0.000283,
+            "seed_index": 4,
+            "world_m": [
+              0.445,
+              -0.2,
+              0.89095
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          },
+          {
+            "iterations": 20,
+            "name": "drawer_center_release",
+            "ok": true,
+            "position_error_m": 0.00029,
+            "q": [
+              -0.214126,
+              -2.199069,
+              1.608476,
+              -1.570783,
+              0.980116,
+              -1.784924
+            ],
+            "rotation_error_rad": 8.9e-05,
+            "seed_index": 0,
+            "world_m": [
+              1.3,
+              -0.2,
+              0.82537
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          },
+          {
+            "iterations": 19,
+            "name": "drawer_center_above",
+            "ok": true,
+            "position_error_m": 0.000113,
+            "q": [
+              -0.21414,
+              -2.059663,
+              1.625512,
+              -1.570768,
+              1.136617,
+              -1.784973
+            ],
+            "rotation_error_rad": 4.7e-05,
+            "seed_index": 0,
+            "world_m": [
+              1.3,
+              -0.2,
+              0.89537
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          },
+          {
+            "iterations": 21,
+            "name": "drawer_front_release",
+            "ok": true,
+            "position_error_m": 0.000311,
+            "q": [
+              -0.437258,
+              -2.339267,
+              1.881985,
+              -1.570782,
+              1.113432,
+              -2.008056
+            ],
+            "rotation_error_rad": 8.4e-05,
+            "seed_index": 0,
+            "world_m": [
+              1.3,
+              -0.315,
+              0.82537
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          },
+          {
+            "iterations": 20,
+            "name": "drawer_back_release",
+            "ok": true,
+            "position_error_m": 0.000226,
+            "q": [
+              0.032595,
+              -2.164779,
+              1.541483,
+              -1.570792,
+              0.947433,
+              -1.538197
+            ],
+            "rotation_error_rad": 6.7e-05,
+            "seed_index": 0,
+            "world_m": [
+              1.3,
+              -0.085,
+              0.82537
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          },
+          {
+            "iterations": 19,
+            "name": "drawer_side_near_release",
+            "ok": true,
+            "position_error_m": 0.000508,
+            "q": [
+              -0.246059,
+              -2.022886,
+              1.26611,
+              -1.569949,
+              0.812794,
+              -1.818148
+            ],
+            "rotation_error_rad": 0.001547,
+            "seed_index": 0,
+            "world_m": [
+              1.24,
+              -0.2,
+              0.82537
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          },
+          {
+            "iterations": 22,
+            "name": "drawer_side_far_release",
+            "ok": true,
+            "position_error_m": 0.000449,
+            "q": [
+              -0.189996,
+              -2.444892,
+              2.087671,
+              -1.57079,
+              1.213453,
+              -1.760787
+            ],
+            "rotation_error_rad": 0.000122,
+            "seed_index": 0,
+            "world_m": [
+              1.36,
+              -0.2,
+              0.82537
+            ],
+            "yaw_rad": 0.0,
+            "yaw_samples_tried": 1
+          }
+        ]
+      },
+      "gate": "plan",
+      "status": "PASS"
+    },
+    {
+      "detail": "drift 0.001037 m, penetration 4.7e-05 m, probes ok",
+      "evidence": {
+        "initial_joint_state": {
+          "object.cabinet": [
+            0.4,
+            0.0
+          ]
+        },
+        "penetration": {
+          "contact_count": 69,
+          "initial": {
+            "contact_count": 57,
+            "max_depth_m": 0.0,
+            "ok": true,
+            "pairs": {
+              "None | object.table": {
+                "bodies": [
+                  "sm_table_metal_stainless_a03_obj_00",
+                  "world"
+                ],
+                "depth_m": -0.001
+              },
+              "object.cabinet | object.table": {
+                "bodies": [
+                  "body_01_obj_00",
+                  "sm_table_metal_stainless_a03_obj_00"
+                ],
+                "depth_m": -0.004587
+              },
+              "object.plate | object.table": {
+                "bodies": [
+                  "body_01_obj_00",
+                  "sm_table_metal_stainless_a03_obj_00"
+                ],
+                "depth_m": -0.001002
+              },
+              "object.table | robot.airbot": {
+                "bodies": [
+                  "left_base_link",
+                  "sm_table_metal_stainless_a03_obj_00"
+                ],
+                "depth_m": -0.00101
+              }
+            },
+            "ran": true,
+            "tolerance_m": 0.003
+          },
+          "max_depth_m": 4.7e-05,
+          "ok": true,
+          "pairs": {
+            "None | object.cabinet": {
+              "bodies": [
+                "body_01_obj_00",
+                "world"
+              ],
+              "depth_m": -0.000303
+            },
+            "None | object.table": {
+              "bodies": [
+                "sm_table_metal_stainless_a03_obj_00",
+                "world"
+              ],
+              "depth_m": -0.001
+            },
+            "object.cabinet | object.table": {
+              "bodies": [
+                "body_01_obj_00",
+                "sm_table_metal_stainless_a03_obj_00"
+              ],
+              "depth_m": -0.004587
+            },
+            "object.plate | object.table": {
+              "bodies": [
+                "body_01_obj_00",
+                "sm_table_metal_stainless_a03_obj_00"
+              ],
+              "depth_m": 4.7e-05
+            },
+            "object.table | robot.airbot": {
+              "bodies": [
+                "left_base_link",
+                "sm_table_metal_stainless_a03_obj_00"
+              ],
+              "depth_m": -0.00101
+            }
+          },
+          "ran": true,
+          "tolerance_m": 0.003
+        },
+        "probes": [
+          {
+            "end_speed_mps": 0.000531,
+            "expected_rest_z_m": [
+              0.74,
+              0.8
+            ],
+            "name": "plate_in_drawer",
+            "node": "object.plate",
+            "ok": true,
+            "released_at_m": [
+              1.3,
+              -0.2,
+              0.80537
+            ],
+            "rest_m": [
+              1.300068,
+              -0.200124,
+              0.759293
+            ],
+            "support_node": "object.cabinet",
+            "touching": [
+              "object.cabinet"
+            ]
+          }
+        ],
+        "settle": {
+          "max_drift_m": 0.001037,
+          "max_end_speed_mps": 0.000674,
+          "max_joint_drift": 0.0,
+          "nodes": {
+            "object.cabinet": {
+              "drift_m": 0.0,
+              "end_m": [
+                1.3,
+                0.215,
+                0.00537
+              ],
+              "joint_drift": 0.0,
+              "joint_end": [
+                0.4,
+                0.0
+              ],
+              "joint_names": [
+                "joint_part_01_joint_00",
+                "joint_part_02_joint_00"
+              ],
+              "joint_start": [
+                0.4,
+                0.0
+              ],
+              "start_m": [
+                1.3,
+                0.215,
+                0.00537
+              ]
+            },
+            "object.plate": {
+              "drift_m": 0.001037,
+              "end_m": [
+                0.51999,
+                -0.200008,
+                0.870001
+              ],
+              "end_speed_mps": 0.000674,
+              "start_m": [
+                0.52,
+                -0.2,
+                0.871038
+              ]
+            },
+            "object.table": {
+              "drift_m": 0.0,
+              "end_m": [
+                -0.000565,
+                -0.000998,
+                0.009442
+              ],
+              "start_m": [
+                -0.000565,
+                -0.000998,
+                0.009442
+              ]
+            },
+            "robot.airbot": {
+              "joint_drift": 0.012745,
+              "joint_end": [
+                0.0,
+                0.000879,
+                -0.012745,
+                -2e-06,
+                -0.0,
+                -1e-06,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "joint_names": [
+                "left_joint1",
+                "left_joint2",
+                "left_joint3",
+                "left_joint4",
+                "left_joint5",
+                "left_joint6",
+                "left_g2_joint",
+                "left_g2_left_joint",
+                "left_g2_right_joint"
+              ],
+              "joint_start": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          },
+          "physics_dt_s": 0.008333333333333333,
+          "ran": true,
+          "robot_joint_drift_rad": 0.012745,
+          "seconds": 2.0,
+          "stable": true,
+          "steps": 240,
+          "tolerances": {
+            "drift_m": 0.005,
+            "joint": 0.005,
+            "speed_mps": 0.01
+          }
+        }
+      },
+      "gate": "check",
+      "status": "PASS"
+    },
+    {
+      "detail": "datafarm.scene-graph/1 4 nodes, backend isaaclab 3.0.0",
+      "evidence": {
+        "checks": {
+          "penetration": {
+            "max_depth_m": 4.7e-05,
+            "ok": true,
+            "ran": true
+          },
+          "reachability": {
+            "checked": true,
+            "notes": "10/10 targets solved by multi-start damped least-squares IK on the left_end_link model TCP, approach from above, joint-limit margin 0.05 rad; no collision-aware planning",
+            "ok": true
+          },
+          "settle": {
+            "max_drift_m": 0.001037,
+            "ran": true,
+            "stable": true,
+            "steps": 240
+          }
+        },
+        "sha256": "04ce05182d6de6adc79a86d89336256c3811bc102b6f799ebd0af46a17427c5f"
+      },
+      "gate": "graph",
+      "status": "PASS"
+    },
+    {
+      "detail": "table_metal_stainless_a03 ok; fixture_cabinet_b01 ok; dishware_plastic_bigPlate_a01 ok",
+      "evidence": {
+        "assets": [
+          {
+            "asset": "table_metal_stainless_a03",
+            "files": 36,
+            "license": "CC-BY-4.0",
+            "ok": true,
+            "package_id": "simready.hf.nvidia.simready-assets.table_metal_stainless_a03.2026.10.09_174629469614",
+            "retrieved_at": "2026-11-15T09:03:00Z",
+            "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+          },
+          {
+            "asset": "fixture_cabinet_b01",
+            "files": 46,
+            "license": "CC-BY-4.0",
+            "ok": true,
+            "package_id": "simready.hf.nvidia.simready-assets.fixture_cabinet_b01.2026.10.09_230820079872",
+            "retrieved_at": "2026-11-15T09:03:16Z",
+            "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+          },
+          {
+            "asset": "dishware_plastic_bigPlate_a01",
+            "files": 26,
+            "license": "CC-BY-4.0",
+            "ok": true,
+            "package_id": "simready.hf.nvidia.simready-assets.dishware_plastic_bigPlate_a01.2026.10.09_005722263920",
+            "retrieved_at": "2026-11-15T09:03:30Z",
+            "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+          }
+        ]
+      },
+      "gate": "source",
+      "status": "PASS"
+    },
+    {
+      "detail": "/opt/data/private/isaaclab/datafarm-lite/.venv/bin/python: 6s; ..................                                                       [100%] | 18 passed in 5.42s",
+      "evidence": {},
+      "gate": "tests",
+      "status": "PASS"
+    }
+  ],
+  "offline": false,
+  "passed": true,
+  "schema": "datafarm.a-line-verification/1",
+  "spec": "examples/scene/plate-drawer-airbot.json",
+  "spec_sha256": "4cf26c28b5c0bf30a18ead5da13a5c664f558aed9199a111625c6a185bb750be",
+  "work": "/opt/data/private/isaaclab/a-scene/work-verify"
+}

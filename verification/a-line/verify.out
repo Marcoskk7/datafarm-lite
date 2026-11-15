@@ -1,0 +1,27 @@
+A-line verification: examples/scene/plate-drawer-airbot.json -> /opt/data/private/isaaclab/a-scene/work-verify
+  .. env
+  .. cache
+  .. index
+  .. prepare
+  .. plan
+  .. check
+  .. graph
+  .. source
+  .. tests
+
+PASS env       python 3.12.16 at /home/isaac/IsaacLab30/.venv/bin/python; pxr=True coacd=True isaaclab=True
+PASS cache     table_metal_stainless_a03 ok; fixture_cabinet_b01 ok; dishware_plastic_bigPlate_a01 ok
+PASS index     revision 7879e0e50423; table_metal_stainless_a03 0j CC-BY-4.0; fixture_cabinet_b01 2j CC-BY-4.0; dishware_plastic_bigPlate_a01 0j CC-BY-4.0
+PASS prepare   object.cabinet_drawer=articulation, object.plate=rigid, object.table_stainless=kinematic, robot.airbot_g2_left=robot; records reload from store; 111 bundle files
+PASS plan      10/10 targets reachable, footprint ok
+PASS check     drift 0.001037 m, penetration 4.7e-05 m, probes ok
+PASS graph     datafarm.scene-graph/1 4 nodes, backend isaaclab 3.0.0
+PASS source    table_metal_stainless_a03 ok; fixture_cabinet_b01 ok; dishware_plastic_bigPlate_a01 ok
+PASS tests     /opt/data/private/isaaclab/datafarm-lite/.venv/bin/python: 6s; ..................                                                       [100%] | 18 passed in 5.42s
+
+A-line verification: PASS (9 gates)
+
+real	1m6.627s
+user	1m20.124s
+sys	0m24.319s
+verify_exit=0
