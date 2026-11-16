@@ -9,6 +9,7 @@
 | 文档 | `schema` | 形态 | 生产者 |
 | --- | --- | --- | --- |
 | [AssetRecord](asset-record.md) | `datafarm.asset-record/1` | A 线普通 JSON | A |
+| [SceneLayout](scene-layout.md) | `datafarm.scene-layout/1` | A 线普通 JSON（布局输入） | A |
 | [SceneGraph](scene-graph.md) | `datafarm.scene-graph/1` | A 线普通 JSON | A |
 | [TaskContract](task-contract.md) | `datafarm.task-ir` | kernel `ArtifactDocument` | B |
 | [Episode](episode.md) | `datafarm.episode-ir` | kernel `ArtifactDocument` | B |
@@ -112,6 +113,7 @@ validator 放 `src/datafarm/ir/`，照 kernel 风格：模块级 `SCHEMA` 常量
 ## 10. 文档
 
 - [asset-record.md](asset-record.md)
+- [scene-layout.md](scene-layout.md)
 - [scene-graph.md](scene-graph.md)
 - [task-contract.md](task-contract.md)
 - [episode.md](episode.md)
