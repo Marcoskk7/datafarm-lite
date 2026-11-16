@@ -1,0 +1,8 @@
+{
+  "provider": "openai",
+  "model": "fyp-opus",
+  "base_url": "http://127.0.0.1:4000/v1",
+  "api_key_env": "FYP_LLM_KEY",
+  "timeout_s": 120,
+  "response_format": "json_object"
+}

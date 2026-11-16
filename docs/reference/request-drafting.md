@@ -42,6 +42,8 @@ python tools/request_draft.py "put the plate with a raised rim into the open dra
 
 SDK 自动重试关闭（`max_retries=0`），每次尝试都进账本。
 
+`json_object` 模式只要求响应“是 JSON”，有些兼容服务仍会把对象包进 ```` ```json ```` 代码块；适配器剥掉这一层包装再解析，其余不合格输出照旧记 `invalid_response`。
+
 ## 为什么不用 strict 模式
 
 OpenAI 的 strict `json_schema` 要求每个对象把所有属性列进 `required`，可选字段只能写成 `anyOf [..., null]`。1a 的草稿 schema（`draft_json_schema()`，由 `request_json_schema()` 去掉有默认值字段的 `required` 派生）恰恰靠“不写就用默认值”工作，所以发 `strict: false`。schema 只是引导；合格与否一律由 `validate_request` 判定，跨字段约束（seed 不重叠、support 引用、相机能力）也只在那里检查。

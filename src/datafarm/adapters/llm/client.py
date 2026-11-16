@@ -24,6 +24,24 @@ from datafarm.kernel.io import sha256_json, sha256_text, utc_now
 from datafarm.request.ports import StructuredLLMError, StructuredResult
 
 BACKEND = "openai-chat"
+
+
+def _unfence(text: str) -> str:
+    """去掉模型包在 JSON 外面的单个 Markdown 代码块（```json ... ```）。
+
+    `json_object` 只校验“是 JSON”这个响应格式，兼容服务仍可能把对象包进代码块。那只是包装，
+    不是内容错误，剥掉后再交给 `json.loads`；其它任何不合法的输出照旧判 `not_json`。
+    """
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    body = stripped.split("\n", 1)[1] if "\n" in stripped else ""
+    body = body.rstrip()
+    if body.endswith("```"):
+        body = body[:-3].rstrip()
+    return body
+
+
 CONFIG_KEYS = frozenset({"provider", "model", "base_url", "api_key_env", "timeout_s", "response_format"})
 RESPONSE_FORMATS = ("json_schema", "json_object")
 
@@ -122,7 +140,7 @@ class OpenAIStructuredLLM:
             record.update(status="invalid_response", error_type="no_content")
             return None
         try:
-            data = json.loads(content)
+            data = json.loads(_unfence(content))
         except ValueError:
             record.update(status="invalid_response", error_type="not_json", response_sha256=sha256_text(content))
             return None

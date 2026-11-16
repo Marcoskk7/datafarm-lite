@@ -146,6 +146,17 @@ def test_adapter_success_records_call_and_returns_data(monkeypatch, tmp_path):
     assert_ledger_has_no_secrets(tmp_path / "calls.jsonl")
 
 
+def test_adapter_accepts_json_wrapped_in_a_markdown_fence(monkeypatch, tmp_path):
+    """JSON mode 只保证“是 JSON”；兼容服务仍会把对象包进 ```json 代码块，那不是内容错误。"""
+    fenced = "```json\n" + json.dumps(mvp_draft(), ensure_ascii=False) + "\n```"
+    llm, _ = adapter(monkeypatch, tmp_path, completion(fenced))
+    result = draft_request(SENTENCE, llm, instructions=INSTRUCTIONS)
+    assert result.request.scene.objects[2].constraints.shape == "raised_rim"
+    [call] = read_calls(tmp_path / "calls.jsonl")
+    assert call.status == "ok"
+    assert_ledger_has_no_secrets(tmp_path / "calls.jsonl")
+
+
 @pytest.mark.parametrize("outcome,status,error_type", [
     (openai.APITimeoutError(request=httpx.Request("POST", "https://api.example/v1/chat/completions")),
      "timeout", "APITimeoutError"),

@@ -1,0 +1,28 @@
+{
+  "schema": "datafarm.request-draft/1",
+  "sentence": "把带帮的浅盘放进已经拉开的抽屉",
+  "sentence_sha256": "ebf61c4c15dc9d60626370cd9a262311511c7fb70f5d251aa3416d29c6b31c69",
+  "prompt_file_sha256": "93f8bb5a228144d53f87b8bcb35aedeebf70b570b2826ccaf7cd32db6e071206",
+  "prompt_sha256": "a14b03a013d0af5990a9579b701bbccadd68b73080283cbc1397e1969c56adcd",
+  "request_sha256": "394ace57223c051a5aaecf8efb40c69cad04c1c26f2d0c2a9787ea3b7d74e2b9",
+  "model": "fyp-opus",
+  "response_id": "chatcmpl-msg_011Ch76cudxir2Cc7z9goauD",
+  "input_tokens": 3393,
+  "output_tokens": 301,
+  "provenance": {
+    "cameras": "default",
+    "dataset.format": "default",
+    "episodes": "default",
+    "render.engine": "default",
+    "render.lights": "default",
+    "render.materials": "default",
+    "render.views": "default",
+    "request_id": "default",
+    "robot": "default",
+    "scene": "sentence",
+    "schema": "default",
+    "seeds.dev": "default",
+    "seeds.holdout": "default",
+    "task": "sentence"
+  }
+}
