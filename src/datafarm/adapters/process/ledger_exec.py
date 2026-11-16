@@ -45,7 +45,8 @@ def main(argv: list[str]) -> int:
 
     signal.signal(signal.SIGTERM, forward)
     signal.signal(signal.SIGINT, forward)
-    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    if hasattr(signal, "SIGHUP"):  # Windows 没有 SIGHUP
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     while True:
         ledger.heartbeat(worker_id)

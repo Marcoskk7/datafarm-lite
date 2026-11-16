@@ -163,6 +163,11 @@ Host recovery is recorded separately with `phase=recovery`. Runtime fallback rec
 
 ## 5. TaskContract and Judge
 
+The general model generation, host validation, independent review and freeze entry point is wired into adapter/1; see
+[Judge generation and freeze](judge-generation.md) for operation and boundaries. Whether a specific task is frozen and
+has the required physical evidence is decided by that build's receipts and tests; the general pipeline being
+implemented does not automatically sign off every task.
+
 ### 5.1 Contract fields
 
 | Field | Meaning |
