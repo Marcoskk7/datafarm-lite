@@ -1,0 +1,46 @@
+{
+  "experience": null,
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "bec4480061d90369504aea71dd36063dd37f2fffd5a1a6e2940e7c5c1677207c"
+    },
+    {
+      "path": "prompts/instructions/instruction-layers.md",
+      "sha256": "e4c9d7127fcc591b7c7457ec9ec287b4175eb620f96cff8adb8f638cdeaa69a2"
+    },
+    {
+      "path": "prompts/instructions/authority-and-scope.md",
+      "sha256": "c0fb5803d35aa1a04b583d767f1dd84774e62009a4f5412bfa0771404c5b3b40"
+    },
+    {
+      "path": "prompts/instructions/mode-and-style-contract.md",
+      "sha256": "5299114beabd6488ea0df726ed002d08a781c0a614257e455842c009c6fd63fc"
+    },
+    {
+      "path": "prompts/instructions/task-cost.md",
+      "sha256": "ca81f41921a14763fb1b7c5e7d62ed8028bb77c5ead81da3120839836b25b924"
+    },
+    {
+      "path": "prompts/roles/scene-author.md",
+      "sha256": "6267bc5c57eb1c7dc6019f714fedb3f48330732aea6442e5dd9c01ad7f8352be"
+    },
+    {
+      "path": "docs/ir/request.md",
+      "sha256": "ad5571e6fd9788cb6e1e04a659584e11deb902756e6500b7c2552f776a7aaae0"
+    },
+    {
+      "path": "docs/ir/scene-layout.md",
+      "sha256": "caff27f0036f4b09b5c7113492eb0e8590aaa7dd8cf9fd438a05f47f8d9fa820"
+    },
+    {
+      "path": "configs/standing-rules.json",
+      "selection": "scope=universal; exclude waivers",
+      "sha256": "e921909112f5fbe866f40d2ee1470a323d1d2d28d4e41b022d61bef58466f09c"
+    }
+  ],
+  "messages_sha256": "84b9ac01c255073c7c7fef93105ac9660b269cb22f90ecf4c5b0f9aa3b0a1dec",
+  "role": "scene-author",
+  "schema": "datafarm.agent-context/1",
+  "task_products_auto_loaded": false
+}

@@ -1,0 +1,46 @@
+{
+  "schema": "datafarm.scene-author/1",
+  "notes": [
+    "Copy for a run and pass with tools/scene_author.py --agent-config. No secrets here: credentials reach the agent only through the variables named in env_passthrough.",
+    "agent is the agent-harness backend config (same keys as the expert-harness adapter 'agent' section): backend claude | codex | codex-metered | fake.",
+    "price_table is resolved relative to this file; it only prices sessions that report no cost.",
+    "wall_s_per_round caps one agent session; max_budget_usd_per_round is passed to backends that support a session budget (null = none)."
+  ],
+  "agent": {
+    "backend": "claude",
+    "model": "claude-opus-5-5",
+    "cli": "/home/isaac/node/bin/claude",
+    "tools": [
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep"
+    ],
+    "disallowed_tools": [
+      "WebFetch",
+      "WebSearch",
+      "Task"
+    ],
+    "permission_mode": "bypassPermissions",
+    "setting_sources": "user",
+    "codex": {
+      "cli": "codex",
+      "extra_args": []
+    }
+  },
+  "price_table": "prices.json",
+  "wall_s_per_round": 1800,
+  "max_budget_usd_per_round": null,
+  "env_passthrough": [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "CODEX_HOME",
+    "CLAUDE_CONFIG_DIR"
+  ]
+}
