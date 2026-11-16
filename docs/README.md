@@ -23,6 +23,7 @@ One note per component. Each states what the code guarantees and what it does no
 | Codex CLI agent, ASPIRE-style search and privileged-state iteration | [cap-codex-aspire](reference/cap-codex-aspire.md) | `cap/codex_provider.py`, `entry/cap_provider.py`, `adapters/agent_harness/codex/structured.py`, `cap/state_feedback.py` |
 | B-line interface design: Isaac Lab 3.0, robot API, judge and episode (draft) | [b-control-interfaces](reference/b-control-interfaces.md) | Not implemented yet; reuses the existing CaP and core IR |
 | A/B interface IR: asset record, scene graph, task contract, episode, render spec | [ir](ir/README.md) | AssetRecord and SceneGraph validators in `src/datafarm/ir/`; the other documents are not implemented yet |
+| A line 1a: one sentence → `request.yaml` via one structured LLM call, defaults and provenance | [request-drafting](reference/request-drafting.md) | `tools/request_draft.py`, `src/datafarm/request/`, `src/datafarm/adapters/llm/` |
 | A line: SimReady retrieval, collision prep, layout, reachability, Isaac Lab scene checks | [scene-assembly](reference/scene-assembly.md) | `tools/simready.py`, `tools/scene_assemble.py`, `src/datafarm/scene/`, `src/datafarm/adapters/assets/` |
 | Robot API auto-discovery, semantic config and Isaac Lab instance binding | [robot-auto-binding](reference/robot-auto-binding.md) | `simulation/robot_binding.py`, `simulation/isaac_robot.py`, `tools/discover_robot.py` |
 | Render contract | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |

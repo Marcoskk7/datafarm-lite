@@ -108,5 +108,5 @@ dataset: {format: hdf5}
 ## 约定
 
 - 请求是意图，不是规格：`category: drawer_cabinet` 不指定哪个资产，`support: object.table` 不指定放在桌面哪里。具体资产与坐标由 1b 决定并留证据，不回写本文件。
-- 1a 的 LLM 调用经 `datafarm.request.ports.StructuredLLM` 端口完成，厂商实现放在 `adapters/`；记录 `model`、`response_id` 与 token 数，但不把它们写进 request 本身。
+- 1a 的 LLM 调用经 `datafarm.request.ports.StructuredLLM` 端口完成，厂商实现放在 `adapters/`；记录 `model`、`response_id` 与 token 数，但不把它们写进 request 本身。命令与默认值见 [request-drafting](../reference/request-drafting.md)。
 - 新机器人、新相机先改 `ROBOT_CAMERAS`；新角色、新约束键按 [README §8](README.md#8-版本规则) 走：新增可选字段版本不变，改含义或加必填换 `/2`。

@@ -17,6 +17,15 @@ class StructuredResult:
     output_tokens: int | None
 
 
+class StructuredLLMError(RuntimeError):
+    """一次结构化调用失败。`status` 取 `datafarm.agent-call/1` 的状态（`invalid_response` / `error` / `timeout`）；
+    消息不含 prompt、响应正文或凭据。"""
+
+    def __init__(self, message: str, *, status: str) -> None:
+        super().__init__(message)
+        self.status = status
+
+
 class StructuredLLM(Protocol):
     def complete_json(self, *, messages: Sequence[Mapping[str, str]], schema: Mapping[str, Any],
                       schema_name: str) -> StructuredResult:
