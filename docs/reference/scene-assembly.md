@@ -51,6 +51,32 @@ python tools/verify_a_line.py --spec examples/scene/plate-drawer-airbot.json \
 
 **缓存必须保持原始字节。** 变体选择写在 session layer，碰撞与修补只进 `WORK/collision/`；`source` 关就是为抓写回缓存这类来源绑定破坏。
 
+## 由 agent 生成布局
+
+`tools/scene_author.py` 让 coding agent 从 `request.yaml`（`datafarm.request/1`）写出 `scene-layout.json`，主机每轮跑确定性关卡并决定是否接受。agent 只负责产出，它的自述不参与判定。循环在 `datafarm.scene.authoring.author_layout`（纯逻辑，agent 会话、prepare、机器人描述符都由调用方注入），接线在 `datafarm.entry.scene_author_cli`。
+
+```bash
+cp configs/scene-author.template.json my-agent.json   # 选后端、模型、每轮墙钟与预算
+python tools/scene_author.py --request request.yaml --work WORK \
+    --cache /data/simready-cache --robot-package /data/robot_assets_isaaclab3_validated_20261113 \
+    --agent-config my-agent.json --max-rounds 5 --prepare-python /path/to/isaac/python
+```
+
+每一轮：
+
+1. 拼 prompt：角色指令（`prompts/roles/scene-author.md` 及目录里登记的文档）+ request 原文 + 上一轮的主机诊断（逐行）。
+2. 在 `WORK/workspace/` 里起一个新的 agent 会话（不 resume），记一条 `datafarm.agent-call/1` 到 `WORK/agent-calls.jsonl`，transcript 在 `WORK/sessions/`。agent 只能用 `tools/simready.py search/probe` 并读 `workspace/host/` 下主机写的证据（`asset-records.json`、`plan.json`、`last-attempt.json`）。
+3. 读 `workspace/scene-layout.json`。缺文件、不是 JSON、schema 不对都记成诊断，不中断循环。文件原样留存在 `WORK/attempts/<n>/scene-layout.json`。
+4. 资产集合（`assets[]` 中 prepare 读的字段 + 机器人）变了才由主机 prepare：缓存缺的资产先 `tools/simready.py fetch`，再跑 `tools/scene_assemble.py prepare`，产物在 `WORK/prepared/<集合摘要>/`。prepare 失败也是诊断。
+5. 跑符合性检查（`check_conformance`，有 AssetRecord 所以是完整检查）和 `run_plan`（占地 + 运动学可达）。`plan.json` 写在对应的 prepared 目录里。
+6. 追加一行到只追加的 `WORK/attempts.jsonl`：轮次、布局 sha256、prepare 结果、符合性报告、plan 是否通过及诊断、agent 调用 id、时间戳、request sha256。
+
+接受条件：符合性 `ok` 且 `complete`，并且 plan `ok`。接受后布局复制到 `WORK/scene-layout.json`；到 `--max-rounds` 仍未接受就停，报告写明。报告是 `WORK/scene-authoring-report.json`（`datafarm.scene-authoring-report/1`）。同一个 `WORK` 再跑会从下一轮续跑（已接受则不再起会话）；换了 request 会被拒绝。退出码：0 接受，1 未接受，2 配置错误。
+
+**接受不等于场景可用。** 循环不跑 `check`（Isaac Lab，需 GPU）：静置、穿透和抽屉探针都没验证。报告的 `next_step` 给出要在 GPU 主机上跑的 `tools/scene_assemble.py check` 命令（`--work` 指向被接受布局的 prepared 目录）。可达性只是运动学 IK，不做避碰规划，也不判断抓取是否可行。
+
+角色指令禁止 agent 读 `examples/scene/` 下手写的布局：那是另一个任务的产物，照抄会让它绕开从 request 推导的过程，测出来的只是复制能力。格式以 `docs/ir/scene-layout.md` 为准，它自带的片段足以说明文档形状。这条只是指令，没有沙箱强制：会话在本机以 `WORK/workspace/` 为工作目录直接运行（调用记录里 `isolation: none`），能读仓库其他文件；要强制就得接 expert harness 的沙箱。
+
 ## 限制
 
 - 物理量（质量、摩擦、恢复系数、抽屉阻尼）是 SimReady 作者值或假设值，标为 `assumed`，不是测量值。

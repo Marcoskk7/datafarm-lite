@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
 from datafarm.kernel.io import atomic_write_json, sha256_file  # noqa: E402
 from datafarm.kernel.store import ArtifactStore  # noqa: E402
+from datafarm.entry.scene_files import load_prepared as _records, robot_descriptor  # noqa: E402
 
 USD_MEDIA = 'model/vnd.usd'
 USDA_MEDIA = 'model/vnd.usda'
@@ -31,14 +32,6 @@ USDA_MEDIA = 'model/vnd.usda'
 
 def load_json(path: Path) -> dict:
     return json.loads(Path(path).read_text(encoding='utf-8'))
-
-
-def robot_descriptor(package: Path, asset: str) -> tuple[dict, Path]:
-    from datafarm.simulation.robot_binding import discover_urdf
-    from datafarm.simulation.robot_semantics import file_mesh_resolver
-    delivery = load_json(package / 'delivery_manifest.json')['assets'][asset]
-    urdf = package / delivery['urdf']
-    return discover_urdf(urdf.read_bytes(), mesh_resolver=file_mesh_resolver(urdf)), urdf
 
 
 def prepare(args) -> int:
@@ -103,14 +96,6 @@ def prepare(args) -> int:
     atomic_write_json(work / 'prepared.json', prepared)
     print(f"prepared {len(prepared['assets'])} assets -> {work / 'prepared.json'}")
     return 0
-
-
-def _records(work: Path) -> tuple[ArtifactStore, dict, dict]:
-    from datafarm.kernel.artifacts import ArtifactRef
-    store = ArtifactStore(work / 'store')
-    prepared = load_json(work / 'prepared.json')
-    records = {k: store.load(ArtifactRef.from_dict(v['record'])) for k, v in prepared['assets'].items()}
-    return store, prepared, records
 
 
 def plan(args) -> int:
