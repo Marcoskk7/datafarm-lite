@@ -207,6 +207,41 @@ AssetRecord 没有 `collision.base_bbox_min_m` 时报错，不假设基座原点
 | `robot.limit_margin_rad` | 0.05 |
 | `SUPPORT_CLEARANCE_M` | 0.001 m |
 
+## 请求符合性
+
+`datafarm.scene.conformance.check_conformance(request, layout, records, rules)` 在 `plan` 之前做确定性检查，
+确认布局忠实实现了 [Request](request.md)。它不碰几何和物理，只比对结构；能否摆下、够到仍由 `plan`/`check` 决定。
+
+```python
+report = check_conformance(request, layout, records, rules)  # rules = load_role_rules("configs/scene-roles.json")
+report.ok        # 没有 problems
+report.problems  # list[str]，一行一条
+report.skipped   # 因缺 AssetRecord 而跳过的关节检查
+report.complete  # 没有 skipped
+```
+
+- **节点映射**：`count=1` 时 `node_id == object_id`；`count>1` 时用 `<object_id>.<i>`（i 从 0 起）。
+  每个请求物体恰好对应一个布局节点，布局里不允许请求之外的节点（机器人节点除外）。
+- **角色**：布局 `assets[].role` 必须等于请求 `role`。
+- **支撑**：`constraints.support`（缺省 `floor`）必须等于节点 `on`（缺省 `floor`）。
+- **关节**：请求给了 `joint` 时，AssetRecord 必须有该类型的关节；`joint_state: open` / `closed`
+  把关节位置按行程 `[lower, upper]` 从下限归一化，`open` 要求至少一个该类型关节 ≥ `open_min_fraction`，
+  `closed` 要求至少一个 ≤ `closed_max_fraction`。没有传 AssetRecord 时这些检查记为 `skipped`，
+  `complete=False`；`ok` 仍可能为真，调用方自己决定是否接受不完整报告。
+- **机器人**：布局 `robot.package_asset`（规则表给出 `asset_id` 时也检查它）必须匹配请求 `robot`。
+- **资产来源**：请求给了 `scene.asset_sources`、布局资产又带 `simready` 时，`simready` 必须在允许列表里。
+- **角色规则**：见下表，取值在 `configs/scene-roles.json`。
+
+| 角色 | 规则 |
+| --- | --- |
+| `task_object` | 至少 1 个 `reach_targets` 指向该节点；节点必须声明 `randomization`（`position_jitter_m` 或 `yaw_range_deg`） |
+| `receptacle` | 至少 1 个 `reach_targets` 指向该节点；至少 1 个 `probes` 的 `node` 是该节点，且该 probe 的资产属于某个 `task_object` 节点 |
+| `background` | 无额外规则（`reach_targets_min: 0`） |
+
+规则表 schema 为 `datafarm.scene-roles/1`：`roles.<role>.reach_targets_min` / `require_probe` /
+`probe_asset_role` / `require_randomization`，`joint_state.open_min_fraction` / `closed_max_fraction`，
+`robots.<request robot>.package_asset`（可选 `asset_id`）。阈值都按关节行程从下限起算。
+
 ## 限制
 
 - 节点只有偏航，不支持俯仰/翻滚；占地检查假设物体平放。
