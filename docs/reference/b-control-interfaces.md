@@ -2,7 +2,7 @@
 
 Version: `b-control/0.1.0-draft`. Date: 2026-11-14 (Asia/Shanghai). Status: design draft ready for review; the A/B handoff fields keep their existing definitions, with notes on the current implementation added.
 
-Implementation progress: URDF structure/kinematic chain, model TCP and gripper geometric mapping, profile overrides, Isaac Lab instance binding, state reading and position-target staging are implemented; see [auto-binding](robot-auto-binding.md). Scene-collision judging and TCP IK/planning execution are still to be connected; other modules in this design are not considered accepted just because this document was updated.
+Implementation progress: URDF structure/kinematic chain, model TCP and gripper geometric mapping, profile overrides, Isaac Lab instance binding, state reading and position-target staging are implemented; see [auto-binding](robot-auto-binding.md). An explicitly bound Isaac Lab native differential-IK host now supplies bounded TCP position/pose tracking (section 4.4). Collision-aware planning and scene-collision judging remain unconnected; other modules in this design are not considered accepted just because this document was updated.
 
 This document implements the route the user decided: use `translate-view` as the baseline, fix the simulation framework to Isaac Lab 3.0 and reuse the existing Newton + MJWarp configuration; cancel the separate backend-selection probe, the 10-trial pick-and-place gate and the SAPIEN fallback path. The design adds no paid calls, remote runs or training jobs.
 
@@ -152,7 +152,7 @@ class RobotPrimitives:
 | Error code | Category | Handling |
 |---|---|---|
 | `INVALID_ARGUMENT` / `UNKNOWN_FRAME` | Expert call error | Return a public diagnostic, do not advance |
-| `IK_UNREACHABLE` | Control failure | The current action fails and returns the current state; the policy may change the target within budget |
+| `LOCAL_IK_NONCONVERGENCE` | Local control timeout | Preserve the partial trajectory; local non-convergence does not prove global unreachability |
 | `JOINT_LIMIT` / `SPEED_LIMIT` / `FORBIDDEN_CONTACT` | Execution-constraint violation | Terminate the current action; the frozen policy decides whether the episode ends |
 | `MOTION_TIMEOUT` | Control failure | Keep the partial trajectory; do not replay the action automatically |
 | `GRIPPER_BLOCKED` | Motion blocked | Return the opening and available contact evidence; the Judge decides the task relation |
@@ -160,6 +160,68 @@ class RobotPrimitives:
 | `CAPABILITY_UNAVAILABLE` | Configuration or capability missing | Reject explicitly; unknown contact is never written as zero |
 
 Host recovery is recorded separately with `phase=recovery`. Runtime fallback recovery is kept apart from deliberate policy retreats; fallback recovery must not pass as policy success.
+
+### 4.4 Implemented Isaac Lab native TCP control
+
+The factory `datafarm.entry.robot_control.bind_isaac_tcp_control(api, simulation, control_profile, ...)`
+binds an **already initialized** `IsaacRobotAPI` and simulation. It does not create/reset a scene, change
+actuator gains, launch another process, or import a simulator at module import time. The owner must grant
+exclusive stepping of that world; concurrent API target calls are rejected, not silently queued.
+
+The new layers are `simulation/tcp_control.py` (standard-library contracts and bounded motion service),
+`adapters/sim/isaac_ik.py` (native `NewtonDifferentialIKController`), and
+`adapters/sim/isaac_control.py` (explicit actuator application, physics step and state refresh).
+The existing structural `robot-binding/2` retains `move_tcp=false`; the API's runtime capability snapshot
+adds `move_tcp=true` only after controller/host validation. It always reports
+`collision_checked_motion=false`. A request requiring collision-checked motion is rejected.
+
+`ControlProfile` / `tcp-control-profile/1` requires these explicit fields:
+
+- `dt_s`, `bandwidth_s_inv`, `damping` for native damped least squares; `dt_s` must equal the owned physics step.
+- `max_linear_speed_m_s`, `max_angular_speed_rad_s`, and `joint_speed_limits` naming **exactly** the selected chain.
+- `position_tolerance_m`, `orientation_tolerance_rad`, `settle_steps`, `max_control_steps`,
+  `max_total_control_steps`, `max_calls`, and `max_wall_time_s`.
+- Optional `reference_speed_fraction` in `(0, 1]` reserves reference-speed headroom for physical tracking;
+  its default is 1. Measured speed checks still enforce the full declared limit, never a looser threshold.
+- Optional `joint_limit_avoidance_gain` and `joint_limit_margin`; avoidance is a soft native objective,
+  not a substitute for independent hard-bound checking. Finite authored bounds are required to enable it.
+
+Call `api.move_tcp(request)` with `schema_version="tcp-motion-request/1"`, `target_pose` in the common
+Pose convention, and `mode="position"` or `"pose"`. Optional speeds/budgets cannot exceed the host profile;
+error tolerances cannot be loosened and the stable-window requirement cannot be shortened. A registered
+`frame_resolvers` callback returns that frame's world Pose once at action start. Unknown frames reject;
+the resolved world target stays fixed for the call. Position-only completion makes no orientation claim.
+
+For every period, the service reads measured state, bounds the Cartesian reference increment, calls the
+native controller, validates its complete named output, rate-limits the joint reference, stages actuator
+targets, writes them, advances one physics period and refreshes measured state. Joint reference velocity
+is bounded by the minimum of source URDF, runtime drive and requested limits. Measured joint velocity
+and per-period TCP displacement/rotation are checked separately; commanded rates are not measured rates.
+Hard-limit violations and non-finite outputs are rejected, not silently clamped into valid solver results.
+
+The Jacobian uses `body_link_jacobian_w`, verified fixed-root row and base-DOF column indexing, plus
+`J_linear(TCP) = J_linear(link) + J_angular x R_world_link p_link_TCP`. Pose and Jacobian share world
+coordinates and XYZW quaternions. Only independent position-driven joints on the selected source chain
+are controlled; other arms, gripper-only branches and base DOFs are excluded. Moving mimic joints on the
+selected chain reject binding. This remains a single-environment serial-chain interface, not simultaneous
+dual-arm/whole-body or closed-chain control. No state teleport is used to reach a TCP goal.
+
+`tcp-motion-result/1` reports `completed | rejected | failed | timeout | aborted | error`, public
+`reason_code`, call ID, control-binding hash, local host start/end steps, attempted step count,
+resolved target, measured before/after and settled count. `completed` requires consecutive measured
+samples inside tolerance. A step exception can leave `step_outcome_unknown=true`: no automatic retry
+or fabricated after-state is allowed; the host requires requalification. Native solve/refresh/logging
+errors use the error channel, not task failure. Cancellation/budget exhaustion preserve partial events.
+A failure hold only **stages** current measured positions without an extra physical step; it is not
+an instantaneous or verified physical stop. Synchronous native compute/physics calls cannot be
+preempted mid-call; wall-time checks stop additional calls once control returns.
+
+An optional trusted `event_sink` receives motion start/end and each requested/applied/measured period.
+Its errors fail closed. These events are integration inputs, **not** a claim that Episode recording,
+action replay/export, sandbox broker binding, or task judging are complete. No CaP whitelist is widened,
+and no Judge/hidden seed is passed to the controller. Runtime binding records version/config/source
+hashes without host paths or credentials. Static IK existence or a passing fixture does not qualify
+all robot models/scenes, obstacle avoidance or task success.
 
 ## 5. TaskContract and Judge
 
