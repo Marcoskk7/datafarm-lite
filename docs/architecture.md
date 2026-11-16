@@ -72,6 +72,7 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 |---|---|
 | `kernel` | Shared kernel: standard-library I/O helpers, artifact documents and receipts, schema checks, content-addressed store, file binding and source locks |
 | `grounding` | Grounding ledger: labelled physical quantities and their validated record |
+| `request` | Data request `datafarm.request/1` ([docs/ir/request.md](ir/request.md)): pydantic validator, JSON Schema for the 1a structured LLM call, and the vendor-neutral `StructuredLLM` port |
 | `task` | Task contract checks, review-independence proof (`task/review_identity.py`), white delivery |
 | `expert` | Expert harness: sandboxed author sessions, rollout broker, frozen judge, held-out evaluation, expert library |
 | `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans |
@@ -92,11 +93,12 @@ Imports point downward only. `make lint` enforces this with [import-linter](http
 the contracts are `[tool.importlinter]` in [`pyproject.toml`](../pyproject.toml).
 
 1. Layers, top to bottom: `entry` > `orchestration` > `adapters` > (`training`, `expert`, `evolution`, `simulation`,
-   `ledger`, `cap`) > `render` > `task` > `grounding` > (`instructions`, `config`, `batch_protocol`) > `kernel`.
+   `ledger`, `cap`, `scene`) > `render` > `task` > `request` > `ir` > `grounding` > (`instructions`, `config`,
+   `batch_protocol`) > `kernel`.
    A module may import its own layer or any layer below it.
 2. `adapters` never import `orchestration` or `entry`.
-3. Business packages (`grounding`, `task`, `render`, `training`, `expert`, `evolution`, `simulation`, `ledger`, `cap`)
-   never import `orchestration` or `entry`.
+3. Business packages (`grounding`, `ir`, `request`, `task`, `render`, `training`, `expert`, `evolution`, `simulation`,
+   `ledger`, `cap`, `scene`) never import `orchestration` or `entry`.
 4. One-way business chain `training` -> `render` -> `task` -> `grounding`: `task` does not import `render`,
    `training` or `expert`; `render` does not import `training`; `grounding` does not import `task`, `render` or
    `training`. `kernel` imports nothing else in `datafarm`.
