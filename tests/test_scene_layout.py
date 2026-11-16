@@ -7,7 +7,7 @@ import numpy as np
 from datafarm.ir import scene_graph
 from datafarm.ir.common import IRError
 from datafarm.kernel.artifacts import ArtifactRef
-from datafarm.scene import asset_records, kinematics, layout
+from datafarm.scene import asset_records, kinematics, layout, planning
 from datafarm.simulation.robot_binding import discover_urdf
 
 
@@ -167,6 +167,30 @@ class LayoutTests(unittest.TestCase):
         reach = layout.reachability(far, nodes, self.records, self.descriptor)
         self.assertFalse(reach["ok"])
         self.assertIn("unreachable: beyond", reach["notes"])
+
+    def test_plan_ok_and_diagnostics_report_footprint_overlap(self):
+        plan = planning.run_plan(SPEC, self.records, self.descriptor, spec_sha256="a" * 64)
+        self.assertTrue(plan["ok"], plan)
+        self.assertEqual(plan["spec_sha256"], "a" * 64)
+        self.assertEqual(plan["nodes"], layout.resolve_nodes(SPEC, self.records))
+        self.assertEqual(planning.plan_diagnostics(plan), [])
+
+        compact = deepcopy(SPEC)
+        compact["robot"]["xy_m"] = [0.15, 0.1]
+        plan = planning.run_plan(compact, self.records, self.descriptor, spec_sha256="b" * 64)
+        self.assertFalse(plan["ok"])
+        self.assertIn("object.plate overlaps robot.arm on object.table", planning.plan_diagnostics(plan))
+
+    def test_diagnostics_name_unreachable_targets_with_position_error(self):
+        far = deepcopy(SPEC)
+        far["reach_targets"].append({"name": "beyond", "node": "object.table", "local_m": [3.0, 0.0, 0.1],
+                                     "yaw_samples": 2})
+        plan = planning.run_plan(far, self.records, self.descriptor, spec_sha256="c" * 64)
+        self.assertFalse(plan["ok"])
+        lines = planning.plan_diagnostics(plan)
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn("reach target beyond unreachable: position error ", lines[0])
+        self.assertIn(" m", lines[0])
 
     def test_missing_tcp_candidate_is_an_error_not_a_link_origin(self):
         with self.assertRaisesRegex(IRError, "no TCP candidate"):

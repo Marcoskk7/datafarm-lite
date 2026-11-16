@@ -114,26 +114,24 @@ def _records(work: Path) -> tuple[ArtifactStore, dict, dict]:
 
 
 def plan(args) -> int:
-    from datafarm.scene import layout
+    from datafarm.scene import planning
     spec = load_json(args.spec)
     work = Path(args.work)
     _, prepared, records = _records(work)
-    if prepared['spec_sha256'] != sha256_file(args.spec):
+    spec_sha256 = sha256_file(args.spec)
+    if prepared['spec_sha256'] != spec_sha256:
         print('note: spec changed since prepare; asset records are reused', file=sys.stderr)
-    nodes = layout.resolve_nodes(spec, records)
     descriptor, _ = robot_descriptor(Path(prepared['assets'][spec['robot']['asset_id']]['package']),
                                      spec['robot']['package_asset'])
-    reach = layout.reachability(spec, nodes, records, descriptor)
-    footprint = layout.footprint_check(spec, nodes, records)
-    out = {'spec_sha256': sha256_file(args.spec), 'nodes': nodes,
-           'robot_base_pose': layout.robot_base_pose(spec, nodes, records), 'footprint': footprint,
-           'reachability': reach}
+    out = planning.run_plan(spec, records, descriptor, spec_sha256=spec_sha256)
     atomic_write_json(work / 'plan.json', out)
+    reach = out['reachability']
+    footprint = out['footprint']
     for row in reach['targets']:
         print(f"  {'ok ' if row['ok'] else 'NO '} {row['name']:<28} {row['world_m']} err {row['position_error_m']}")
     print(reach['notes'])
     print('footprint ok' if footprint['ok'] else 'footprint: ' + '; '.join(footprint['problems']))
-    return 0 if reach['ok'] and footprint['ok'] else 1
+    return 0 if out['ok'] else 1
 
 
 def check(args) -> int:
