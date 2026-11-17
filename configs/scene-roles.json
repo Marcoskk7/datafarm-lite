@@ -1,6 +1,6 @@
 {
   "schema": "datafarm.scene-roles/1",
-  "description": "Role rules for request -> scene-layout conformance (docs/ir/scene-layout.md). roles.<role> keys: reach_targets_min (int, minimum reach_targets whose node is this node), require_probe (bool, at least one probe whose node is this node), probe_asset_role (role that a probe's asset must play), require_randomization (bool, node must declare position_jitter_m or yaw_range_deg). joint_state fractions are measured from the joint's lower limit over [lower, upper]. robots.<request robot> maps to the layout robot package_asset and optionally the exact asset_id.",
+  "description": "Role rules for request -> scene-layout conformance (docs/ir/scene-layout.md). roles.<role> keys: reach_targets_min (int, minimum reach_targets whose node is this node), require_probe (bool, at least one probe whose node is this node), probe_asset_role (role that a probe's asset must play), require_randomization (bool, node must declare position_jitter_m or yaw_range_deg). joint_state fractions are measured from the joint's lower limit over [lower, upper]. robots.<request robot> maps to the layout robot package_asset and optionally the exact asset_id. robots.<request robot>.cameras (optional) are the robot's physical camera declarations (calibration facts, sources in docs/ir/scene-graph.md); every camera the request lists must appear in the layout's cameras exactly as given here, with ${robot_node} replaced by the layout robot node_id.",
   "joint_state": {
     "open_min_fraction": 0.5,
     "closed_max_fraction": 0.1
@@ -8,7 +8,80 @@
   "robots": {
     "airbot_single_g2": {
       "package_asset": "airbot_single",
-      "asset_id": "robot.airbot_g2_left"
+      "asset_id": "robot.airbot_g2_left",
+      "cameras": [
+        {
+          "camera_id": "camera.head",
+          "kind": "physical",
+          "mount": "${robot_node}",
+          "offset": {
+            "frame_id": "${robot_node}",
+            "position_m": [
+              -0.1,
+              -0.2785,
+              0.6951
+            ],
+            "quaternion_xyzw": [
+              -0.65524,
+              0.65524,
+              -0.265821,
+              0.265821
+            ]
+          },
+          "intrinsics": {
+            "fx": 260.77164,
+            "fy": 260.77164,
+            "cx": 326.01288,
+            "cy": 179.18658,
+            "width": 640,
+            "height": 360
+          },
+          "optical_frame": {
+            "convention": "opencv"
+          },
+          "distortion": {
+            "model": "none",
+            "coefficients": []
+          },
+          "fps": 10
+        },
+        {
+          "camera_id": "camera.left_wrist",
+          "kind": "physical",
+          "mount": "${robot_node}",
+          "link": "left_end_link",
+          "offset": {
+            "frame_id": "left_end_link",
+            "position_m": [
+              -0.135822,
+              0.033154,
+              0.09359
+            ],
+            "quaternion_xyzw": [
+              -0.58811,
+              0.583655,
+              -0.396417,
+              0.395381
+            ]
+          },
+          "intrinsics": {
+            "fx": 607.06732,
+            "fy": 606.77435,
+            "cx": 322.66602,
+            "cy": 253.66576,
+            "width": 640,
+            "height": 480
+          },
+          "optical_frame": {
+            "convention": "opencv"
+          },
+          "distortion": {
+            "model": "none",
+            "coefficients": []
+          },
+          "fps": 10
+        }
+      ]
     }
   },
   "roles": {

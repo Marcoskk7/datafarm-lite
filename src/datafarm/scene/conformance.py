@@ -67,6 +67,10 @@ def load_role_rules(path: str | Path) -> dict[str, Any]:
             raise ValueError(f"robots.{name} must declare a package_asset string")
         if "asset_id" in rule and not isinstance(rule["asset_id"], str):
             raise ValueError(f"robots.{name}.asset_id must be a string")
+        cameras = rule.get("cameras", [])
+        if not isinstance(cameras, list) or not all(isinstance(c, Mapping) and isinstance(c.get("camera_id"), str)
+                                                    for c in cameras):
+            raise ValueError(f"robots.{name}.cameras must be a list of camera objects with camera_id")
 
     thresholds = document.get("joint_state")
     if not isinstance(thresholds, Mapping):
@@ -231,5 +235,25 @@ def check_conformance(request: RequestDoc, layout: Mapping[str, Any],
             if robot.get("package_asset") != expected_package:
                 problems.append(f"layout robot package_asset '{robot.get('package_asset')}' does not "
                                 f"match request robot '{request.robot}' (expected '{expected_package}')")
+
+    # request.cameras 是要记录的物理相机（`head` → SceneGraph `camera.head`）；布局不声明就进不了 SceneGraph，
+    # 渲染在 RenderSpec 阶段才报 "neither a scene graph camera nor a configured virtual view"（lab30 实跑踩到）。
+    # 相机内外参是机器人的标定事实（来源见 docs/ir/scene-graph.md），由角色规则 robots.<robot>.cameras 给出，
+    # 布局必须原样声明（`${robot_node}` 换成布局机器人 node_id），不允许 agent 自拟标定。
+    declared = {c.get("camera_id"): c for c in (layout.get("cameras") or []) if isinstance(c, Mapping)}
+    robot_rule = (rules.get("robots") or {}).get(request.robot) or {}
+    facts = {}
+    for camera in robot_rule.get("cameras") or []:
+        text = json.dumps(camera).replace("${robot_node}", str(robot_node_id))
+        facts[camera["camera_id"]] = json.loads(text)
+    for camera in request.cameras:
+        camera_id = f"camera.{camera}"
+        expected = facts.get(camera_id)
+        if camera_id not in declared:
+            hint = f": declare exactly {json.dumps(expected, separators=(',', ':'))}" if expected else ""
+            problems.append(f"request camera '{camera}' is not declared in layout cameras as '{camera_id}'{hint}")
+        elif expected is not None and declared[camera_id] != expected:
+            problems.append(f"layout camera '{camera_id}' differs from the robot's calibration facts: declare "
+                            f"exactly {json.dumps(expected, separators=(',', ':'))}")
 
     return ConformanceReport(ok=not problems, problems=problems, skipped=skipped, complete=not skipped)

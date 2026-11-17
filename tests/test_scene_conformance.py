@@ -113,3 +113,21 @@ class ConformanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CameraConformanceTests(unittest.TestCase):
+    """请求要记录的物理相机必须按机器人标定事实进入布局（lab30：agent 布局 cameras=[]，渲染才失败）。"""
+
+    def test_missing_request_camera_is_reported_with_the_facts_to_declare(self):
+        layout = deepcopy(LAYOUT)
+        layout["cameras"] = []
+        problems = check_conformance(REQUEST, layout, None, RULES).problems
+        self.assertTrue(any(p.startswith("request camera 'head' is not declared") and '"fx":260.77164' in p
+                            for p in problems), problems)
+        self.assertTrue(any(p.startswith("request camera 'left_wrist' is not declared") for p in problems))
+
+    def test_camera_that_differs_from_the_calibration_is_rejected(self):
+        layout = deepcopy(LAYOUT)
+        layout["cameras"][0]["intrinsics"]["fx"] = 300.0
+        problems = check_conformance(REQUEST, layout, None, RULES).problems
+        self.assertTrue(any(p.startswith("layout camera 'camera.head' differs") for p in problems), problems)

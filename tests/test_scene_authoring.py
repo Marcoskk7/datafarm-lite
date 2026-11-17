@@ -51,6 +51,9 @@ GOOD = {
                                   "contact_with": ["object.table", "robot.arm", "object.cabinet"],
                                   "forbidden_with": []}},
 }
+# 请求要求的物理相机必须按机器人标定事实原样声明（角色规则 robots.airbot_single_g2.cameras）。
+GOOD["cameras"] = json.loads(json.dumps(RULES["robots"]["airbot_single_g2"]["cameras"]).replace("${robot_node}",
+                                                                                               "robot.arm"))
 
 
 def pool() -> dict:

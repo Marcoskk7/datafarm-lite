@@ -142,6 +142,10 @@ AssetRecord 没有 `collision.base_bbox_min_m` 时报错，不假设基座原点
 （`camera_id`、`kind`、`mount`、`offset`、`intrinsics`、`optical_frame`、`distortion`、`fps`）见
 [scene-graph.md](scene-graph.md)；`fps` 必须整除 120。布局本身不读相机。
 
+请求 `cameras` 里的每个物理相机（`head` → `camera.head`）都必须出现在这里，且与角色规则表
+`robots.<request robot>.cameras` 给出的机器人标定事实**逐字段相同**（`${robot_node}` 换成布局机器人的
+`node_id`）。缺失或不同都是符合性问题，诊断里附上应声明的完整对象；相机标定是机器人事实，不由布局作者推导。
+
 ## 单位与坐标系
 
 - 长度 m，角度：`yaw_deg` / `yaw_range_deg` 用度，`limit_margin_rad` / `yaw_rad` 用弧度。
@@ -272,7 +276,7 @@ report.complete  # 没有 skipped
 
 规则表 schema 为 `datafarm.scene-roles/1`：`roles.<role>.reach_targets_min` / `require_probe` /
 `probe_asset_role` / `require_randomization`，`joint_state.open_min_fraction` / `closed_max_fraction`，
-`robots.<request robot>.package_asset`（可选 `asset_id`）。阈值都按关节行程从下限起算。
+`robots.<request robot>.package_asset`（可选 `asset_id`、`cameras`）。阈值都按关节行程从下限起算。
 
 ## 限制
 
