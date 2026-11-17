@@ -68,7 +68,13 @@ def audit_source(source):
     return tree
 
 
-def run_source(source, episode, contract, scene, *, timeout_s=10, memory_mb=256):
+# 资源上限，不是判定条件。lab30 实测：1.4k / 3.0k 控制步的真实 episode 投影后 35 / 72 MiB，
+# 子进程 json 解析峰值 RSS 265 / 684 MiB；原先 32 MiB 输入、256 MiB 内存连一条抓放 episode 都装不下。
+MAX_INPUT_BYTES = 256*1024*1024
+DEFAULT_MEMORY_MB = 1024
+
+
+def run_source(source, episode, contract, scene, *, timeout_s=10, memory_mb=DEFAULT_MEMORY_MB):
     """返回 JudgeResult；执行错误和缺失数据返回 error，不能冒充普通任务失败。"""
     try:
         audit_source(source)
@@ -79,9 +85,9 @@ def run_source(source, episode, contract, scene, *, timeout_s=10, memory_mb=256)
         validate_episode(episode, contract)
         payload = canonical(dict(source=source, episode=episode, contract=contract, scene=scene,
                                  timeout_s=timeout_s, memory_mb=memory_mb))
-        check(len(payload) <= 32*1024*1024, 'Episode exceeds 32 MiB worker input limit')
+        check(len(payload) <= MAX_INPUT_BYTES, 'Episode exceeds the judge worker input limit')
         check(type(timeout_s) in (int, float) and 0 < timeout_s <= 60, 'Invalid worker timeout')
-        check(type(memory_mb) is int and 64 <= memory_mb <= 1024, 'Invalid worker memory limit')
+        check(type(memory_mb) is int and 64 <= memory_mb <= 4096, 'Invalid worker memory limit')
         proc = subprocess.run([sys.executable, '-I', '-S', '-B', str(Path(__file__).with_name('worker.py'))],
                               input=payload, capture_output=True, timeout=timeout_s+1)
         check(proc.returncode == 0, 'Judge worker exited: ' + str(proc.returncode))

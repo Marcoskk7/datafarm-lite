@@ -68,3 +68,40 @@ class JudgeEpisodeProjectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(__import__("sys").platform.startswith("linux"),
+                     "judge worker installs RLIMIT_AS, which macOS refuses for any value")
+class JudgeWorkerCapacityTests(unittest.TestCase):
+    """真实抓放 episode 投影后 35-72 MiB（lab30 实测）；worker 必须真的跑判定，而不是因资源上限返回 error。"""
+
+    def test_a_long_recorded_episode_is_evaluated(self):
+        from datafarm.judge.execution import run_source
+        source = recorded(steps=1)
+        state = source["state_trace"][0]
+        # 每条 state 约 20 KB，与实测同量级；2000 步 ≈ 40 MiB 规范 JSON。
+        state["contacts"] = {**state["contacts"], "availability": "available", "coverage": "unknown",
+                             "rows": [{"a": NODES[0], "b": None, "body_a": "usd:/World/x", "body_b": "world",
+                                       "dist_m": 0.001 * i} for i in range(150)]}
+        episode = project_episode(recorded_long(state, 2000))
+        contract = {"conditions": [{"id": "steps", "evidence_fields": ["state_trace.control_step"]}]}
+        src = ("def evaluate(episode, task_contract, scene_metadata):\n"
+               "    n = len(episode['state_trace'])\n"
+               "    return result({'steps': n == 2001}, {'n': n}, 'counted')\n")
+        verdict = run_source(src, episode, contract, {})
+        self.assertEqual(verdict["outcome"], "success", verdict)
+
+
+def recorded_long(state, steps):
+    value = recorded(steps=0)
+    states = []
+    for k in range(steps + 1):
+        s = deepcopy(state)
+        s.update(control_step=k, time_s=k * DT)
+        s["contacts"] = {**s["contacts"], "control_step": k}
+        states.append(s)
+    value["state_trace"], value["contacts"] = states, [s["contacts"] for s in states]
+    value["actions"] = [{"control_step": k, "requested_joint_targets": {"left_joint1": 0.0},
+                         "applied_joint_targets": {"left_joint1": 0.0}, "application": "actuator_readback",
+                         "command": {"call_id": "call.0001"}} for k in range(steps)]
+    return value

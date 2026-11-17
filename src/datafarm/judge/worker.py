@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from datafarm.judge.execution import SAFE_BUILTINS, audit_source
+from datafarm.judge.execution import MAX_INPUT_BYTES, SAFE_BUILTINS, audit_source
 from datafarm.judge.protocol import result
 
 
@@ -62,7 +62,7 @@ def execute(payload):
 
 if __name__ == '__main__':
     try:
-        payload = json.loads(sys.stdin.buffer.read(32*1024*1024+1))
+        payload = json.loads(sys.stdin.buffer.read(MAX_INPUT_BYTES+1))
         response = {'ok': True, 'result': execute(payload)}
     except Exception as exc:
         response = {'ok': False, 'error': type(exc).__name__ + ': ' + str(exc)[:500]}
