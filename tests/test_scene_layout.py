@@ -155,6 +155,82 @@ class LayoutTests(unittest.TestCase):
         with self.assertRaisesRegex(IRError, "cycle"):
             layout.resolve_nodes(spec, self.records)
 
+    def test_joint_sweep_rejects_displacement_the_root_box_cannot_see(self):
+        # Real failure (verification/scene-author-sandbox-20261117): a 0.35 m drawer on a yaw-90 cabinet
+        # cleared the table by 146 mm at the root box but measured 61.9 mm GPU penetration.
+        spec = deepcopy(SPEC)
+        cabinet = spec["nodes"][2]
+        cabinet["xy_m"] = [0.0, -0.75]
+        cabinet["yaw_deg"] = 90
+        cabinet["joint_state"] = {"drawer_joint": 0.2}
+        plan = planning.run_plan(spec, self.records, self.descriptor, spec_sha256="d" * 64)
+        footprint = plan["footprint"]
+        expected = "object.cabinet drawer_joint at 0.2 m moves into object.table"
+        self.assertFalse(plan["ok"])
+        self.assertIn(expected, footprint["problems"])
+        self.assertIn(expected, planning.plan_diagnostics(plan))
+        self.assertFalse(footprint["joint_sweep"]["ok"])
+        self.assertEqual(footprint["joint_sweep"]["checked"],
+                         [{"node": "object.cabinet", "joint": "drawer_joint", "travel_m": 0.2}])
+        corners = {k: np.asarray(v) for k, v in footprint["xy_corners_m"].items()}
+        self.assertFalse(layout._overlap(corners["object.cabinet"], corners["object.table"]))
+        # root box edge sits 50 mm clear of the table; the displaced box crosses it (old check passed here)
+        self.assertAlmostEqual(corners["object.cabinet"][:, 1].max(), -0.45, places=4)
+        self.assertAlmostEqual(corners["object.table"][:, 1].min(), -0.4, places=4)
+
+    def test_joint_sweep_passes_clear_travel_and_drawer_opening_away(self):
+        accepted = deepcopy(SPEC)  # the accepted 1b geometry: opening 0.4 m still clears the table (46 mm there)
+        accepted["nodes"][2]["xy_m"] = [0.0, -1.15]
+        accepted["nodes"][2]["joint_state"] = {"drawer_joint": 0.4}
+        footprint = layout.footprint_check(accepted, layout.resolve_nodes(accepted, self.records), self.records)
+        self.assertTrue(footprint["ok"], footprint["problems"])
+        self.assertEqual(footprint["problems"], [])
+        self.assertTrue(footprint["joint_sweep"]["checked"])
+
+        away = deepcopy(SPEC)  # yaw 270 sends +x along world -y: the box moves off the table
+        away["nodes"][2]["xy_m"] = [0.0, -0.75]
+        away["nodes"][2]["yaw_deg"] = 270
+        away["nodes"][2]["joint_state"] = {"drawer_joint": 0.2}
+        result = layout.footprint_check(away, layout.resolve_nodes(away, self.records), self.records)
+        self.assertTrue(result["ok"], result["problems"])  # symmetric inflation would fail this
+        self.assertEqual(result["problems"], [])
+
+        closed = deepcopy(SPEC)  # existing SPEC case: drawer at 0.2 m, edge-touching the table at x=0.5
+        self.assertTrue(layout.footprint_check(closed, layout.resolve_nodes(closed, self.records),
+                                               self.records)["ok"])
+
+    def test_joint_sweep_is_a_conservative_bbox_gate(self):
+        # Accepted cost of the conservative variant: the whole root box is translated, z-blind, so a floor-level
+        # plate that the drawer passes over in 3D is flagged. Per-part boxes (`parts[]` in AssetRecord) would
+        # sharpen this; that is a cross-line contract pending B sign-off.
+        spec = deepcopy(SPEC)
+        spec["nodes"].append({"node_id": "object.plate_floor", "asset_id": "object.plate_a",
+                              "semantic_tag": "plate", "xy_m": [0.0, -0.55], "on": "floor"})
+        spec["nodes"][2]["xy_m"] = [0.0, -1.05]
+        spec["nodes"][2]["yaw_deg"] = 90
+        spec["nodes"][2]["joint_state"] = {"drawer_joint": 0.4}
+        footprint = layout.footprint_check(spec, layout.resolve_nodes(spec, self.records), self.records)
+        self.assertFalse(footprint["ok"])
+        self.assertIn("object.cabinet drawer_joint at 0.4 m moves into object.plate_floor", footprint["problems"])
+        corners = {k: np.asarray(v) for k, v in footprint["xy_corners_m"].items()}
+        self.assertFalse(layout._overlap(corners["object.cabinet"], corners["object.plate_floor"]))
+
+    def test_joint_sweep_reports_revolute_joints_as_skipped(self):
+        records = deepcopy(self.records)  # AssetRecord has no pivot for revolute joints, so no bounding check
+        records["object.cabinet_a"]["joints"].append(
+            {"name": "lid_joint", "type": "revolute", "axis": [0.0, 1.0, 0.0],
+             "limits": {"lower": 0.0, "upper": 1.5}, "parent": "body", "child": "lid"})
+        spec = deepcopy(SPEC)
+        spec["nodes"][2]["joint_state"] = {"lid_joint": 0.7}
+        footprint = layout.footprint_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertTrue(footprint["ok"])
+        self.assertTrue(footprint["joint_sweep"]["ok"])
+        self.assertEqual(footprint["joint_sweep"]["checked"], [])
+        self.assertEqual(footprint["problems"], [])
+        self.assertEqual(len(footprint["joint_sweep"]["skipped"]), 1)
+        self.assertIn("object.cabinet lid_joint", footprint["joint_sweep"]["skipped"][0])
+        self.assertIn("revolute", footprint["joint_sweep"]["skipped"][0])
+
     def test_reachability_uses_model_tcp_and_reports_unreachable_targets(self):
         nodes = layout.resolve_nodes(SPEC, self.records)
         reach = layout.reachability(SPEC, nodes, self.records, self.descriptor)

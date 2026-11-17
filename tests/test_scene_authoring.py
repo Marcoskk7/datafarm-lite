@@ -189,6 +189,35 @@ def test_conformance_failure_feeds_round_two_and_fixed_layout_is_accepted(tmp_pa
     assert json.loads((work / rows[1]["prepare"]["dir"] / "plan.json").read_text())["ok"]
 
 
+def test_joint_sweep_rejection_feeds_round_two_and_clear_layout_is_accepted(tmp_path):
+    # Round 1 opens the drawer into the table (root box clear, displaced box not); the kinematic pre-gate rejects it
+    # before any GPU check, and round 2 moves the cabinet back to the accepted geometry.
+    intruding = deepcopy(GOOD)
+    intruding["nodes"][2]["xy_m"] = [0.0, -0.75]
+    agent = ScriptedAgent([intruding, GOOD])
+    result = run(tmp_path, agent, FakePrepare())
+
+    rows = attempts(tmp_path)
+    assert [r["round"] for r in rows] == [1, 2]
+    assert [r["accepted"] for r in rows] == [False, True]
+    assert result.accepted
+
+    problem = "object.cabinet drawer_joint at 0.2 m moves into object.table"
+    first = rows[0]
+    assert not first["plan"]["ok"]
+    assert any(problem in line for line in first["diagnostics"])
+    assert problem not in agent.prompts[0]
+    assert problem in agent.prompts[1]
+    assert rows[1]["plan"]["ok"] and rows[1]["diagnostics"] == []
+
+    work = tmp_path / "work"
+    swept = json.loads((work / "attempts" / "001" / "plan.json").read_text())["footprint"]["joint_sweep"]
+    clear = json.loads((work / "attempts" / "002" / "plan.json").read_text())["footprint"]["joint_sweep"]
+    assert swept["ok"] is False
+    assert clear["ok"] is True
+    assert clear["checked"] == [{"node": "object.cabinet", "joint": "drawer_joint", "travel_m": 0.2}]
+
+
 def test_exhausted_rounds_are_not_accepted_and_report_says_so(tmp_path):
     unreachable = deepcopy(GOOD)
     unreachable["reach_targets"].append({"name": "beyond", "node": "object.table", "local_m": [3.0, 0.0, 0.1],

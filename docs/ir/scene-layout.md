@@ -60,8 +60,13 @@
 | `yaw_deg` | 否 | 绕世界 +Z 的偏航角，度，默认 0；四元数固定 xyzw |
 | `on` | 否 | 支撑节点 id 或 `"floor"`，默认 `"floor"`；决定 z 和占地检查的支撑面 |
 | `z_m` | 否 | 显式覆盖解算出的高度，m；给了就不再按支撑面算，但仍按 `on` 决定子节点顶面和占地归属 |
-| `joint_state` | 否 | `{关节名: 初值}`；关节名是上游 USD 里的名字（AssetRecord `joints[].name`），值必须在该关节 `limits` 内 |
+| `joint_state` | 否 | `{关节名: 初值}`；关节名是上游 USD 里的名字（AssetRecord `joints[].name`），值必须在该关节 `limits` 内。非零初值还参与占地扫掠检查，见下 |
 | `randomization` | 否 | `{position_jitter_m, yaw_range_deg}`，原样写进 SceneGraph；`yaw_range_deg` 是度且在 `[-180, 180]` |
+
+非零 `joint_state` 的两条作用：驱动 `reach_targets[].joint` 的目标平移（见下），以及把该节点的占地矩形
+沿关节轴平移后再做重叠检查（`layout.joint_sweep_check`，见 `plan` 检查第 4 条）。后者只对 `prismatic`
+可判定；`revolute` 在 AssetRecord 里没有枢轴，`plan` 会在 `footprint.joint_sweep.skipped` 里明确列出，
+而不是当成通过。
 
 高度解算规则（`layout.resolve_nodes`）：
 
@@ -153,18 +158,34 @@ AssetRecord 没有 `collision.base_bbox_min_m` 时报错，不假设基座原点
 3. 占地检查：每个非 floor 节点（以及由 `on`/`xy_m` 解出的机器人基座）的包围盒底面矩形按偏航旋转后，
    必须落在支撑节点顶面包围盒内；同一支撑面上的物体（floor 也算同一支撑面）两两不许相交。
    机器人给了显式 `base_pose` 时不参与占地检查。只适用于平放物体。
-4. 逐个 `reach_targets` 求逆解，全部有解才 ok。
-5. 写 `plan.json`：`spec_sha256`、`nodes`、`robot_base_pose`、`reachability`、`footprint`，外加 `ok`
-   （可达性与占地的合取）。退出码 0 当且仅当 `ok=true`。
+4. 关节初值扫掠（`layout.joint_sweep_check`，结果折进 `footprint`）：每个节点上非零的 `prismatic`
+   `joint_state` 把它的占地矩形按 `R_z(yaw)·axis·v` 平移，再与同一支撑面（`on` 相同，floor 也算同一面）
+   上的其他节点、以及自身支撑节点做 SAT 相交（边贴边不算）。命中写一行
+   `object.cabinet drawer_joint at 0.35 m moves into object.table`。这是保守的包围盒测试：整根系包围盒平移、
+   z 盲、不加余量，所以地面层的薄板也可能被误报。`revolute` 初值没有枢轴可用（AssetRecord 只有 `joints[]`，
+   没有 `parts[]` 分件几何；按分件收紧是跨线契约，待 B 确认），一律记入 `footprint.joint_sweep.skipped`。
+   这仍是 GPU 之前的运动学前置闸门，不替代 `check` 的穿透测量。
+5. 逐个 `reach_targets` 求逆解，全部有解才 ok。
+6. 写 `plan.json`：`spec_sha256`、`nodes`、`robot_base_pose`、`reachability`、`footprint`（含
+   `xy_corners_m` 与 `joint_sweep: {ok, checked, skipped}`），外加 `ok`（可达性与占地的合取）。
+   退出码 0 当且仅当 `ok=true`。
 
 `check`（Isaac Lab 3.0 + Newton/MJWarp）：
 
 1. 读 `plan.json`，`spec_sha256` 与当前布局不一致直接报错，要求重跑 `plan`。
 2. 加载场景，显式写入 `joint_state` 并读回校验（`scene.reset()` 不会把它写回仿真）。
-3. 静置检查漂移/末速度/关节漂移，接触缓冲检查穿透，跑 `probes`。
-4. 用 `plan` 的 `nodes`、`robot_base_pose`、`reachability` 拼 SceneGraph 并过校验。
-5. 退出码 0 当且仅当静置稳定、无穿透、探针全过、可达性 ok、占地 ok。`plan.json` 的 `ok` 不参与判断，
+3. 静置检查根漂移与末速度，接触缓冲检查穿透，跑 `probes`。
+4. 关节漂移分**主动**（机器人关节，以及 `active_joints` 里列出的驱动关节）与**被动**（其余铰接关节）：
+   主动关节有严格上限 `--joint-tol-active`；被动关节没有固定上限，只要求静置后的测量值仍在关节 `limits` 内、
+   且该节点没有新增接触对（`settle.new_contacts`），`--joint-tol-passive` 只决定何时报告"动了"。
+   `check.json` 的 `settle.measured_joint_state` 是静置后按节点、按关节名的测量值，下游 episode 的初始状态
+   取它；顶层的 `initial_joint_state` 只是声明的意图。
+5. 用 `plan` 的 `nodes`、`robot_base_pose`、`reachability` 拼 SceneGraph 并过校验。
+6. 退出码 0 当且仅当静置稳定、无穿透、探针全过、可达性 ok、占地 ok。`plan.json` 的 `ok` 不参与判断，
    `check` 分别读 `reachability.ok` 与 `footprint.ok`。
+
+`plan` 的关节扫掠与 `check` 的关节规则是两层：前者是 GPU 之前的运动学包围盒闸门（整盒平移、z 盲），
+后者判定仿真测量值；`plan` 通过不能替代 `check`，`check` 的被动关节规则也不能用来放宽扫掠。
 
 ## 示例（节选）
 

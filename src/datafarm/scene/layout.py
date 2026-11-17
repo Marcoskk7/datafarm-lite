@@ -154,6 +154,59 @@ def _overlap(a: np.ndarray, b: np.ndarray) -> bool:
     return True
 
 
+JOINT_SWEEP_EPS_M = 1e-6
+
+
+def joint_sweep_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
+                      records: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """非零 `joint_state` 的关节初值把占地矩形沿关节轴平移到哪儿，是否撞上别的物体。
+
+    只做可判定的部分：`prismatic` 的移动件保守地当作整个根系包围盒沿 `R_z(yaw)·axis·v` 平移，
+    再和同一支撑面（`on` 相同）上的其它节点、以及自己的支撑节点做 SAT 相交测试（边贴边不算）。
+    旋转关节没有枢轴信息（AssetRecord 只有 `joints[]`，没有 `parts[]` 几何），AABB 平移无法界定转动，
+    因此记为 `skipped` 而不是静默放行。这是 GPU 之前的运动学前置闸门：z 盲、整盒平移、不加余量。
+    """
+    entries = {n["node_id"]: n for n in spec["nodes"]}
+    corners: dict[str, np.ndarray] = {}
+    supports: dict[str, str] = {}
+    for node in nodes:
+        lo, hi = _record_bbox(records[node["asset_id"]])
+        corners[node["node_id"]] = _xy_corners(lo, hi, node["pose"])
+        supports[node["node_id"]] = entries[node["node_id"]].get("on", "floor")
+    problems: list[str] = []
+    checked: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    for node in nodes:
+        node_id = node["node_id"]
+        state = entries[node_id].get("joint_state") or {}
+        if not state:
+            continue
+        record = records[node["asset_id"]]
+        rotation = kinematics.pose_matrix(node["pose"])[:2, :2]
+        for name, raw in state.items():
+            value = float(raw)
+            if abs(value) <= JOINT_SWEEP_EPS_M:
+                continue
+            joint = _joint(record, name)
+            kind = joint["type"]
+            if kind == "revolute":
+                skipped.append(f"{node_id} {name}: revolute joint has no pivot in the AssetRecord, "
+                               "an AABB translation cannot bound a rotation")
+                continue
+            if kind != "prismatic":
+                skipped.append(f"{node_id} {name}: {kind} joints cannot be swept")
+                continue
+            moved = corners[node_id] + rotation @ (np.asarray(joint["axis"], float)[:2] * value)
+            checked.append({"node": node_id, "joint": name, "travel_m": round(abs(value), 6)})
+            support = supports[node_id]
+            others = [other for other, other_support in supports.items()
+                      if other != node_id and (other_support == support or other == support)]
+            for other in others:
+                if _overlap(moved, corners[other]):
+                    problems.append(f"{node_id} {name} at {value:g} m moves into {other}")
+    return {"ok": not problems, "problems": problems, "checked": checked, "skipped": skipped}
+
+
 def footprint_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
                     records: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
     """放在支撑面上的东西（含机器人基座）占地要落在支撑顶面内，同一支撑面上的东西互不重叠。
@@ -189,8 +242,12 @@ def footprint_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
         for b in placed[i + 1:]:
             if supports[a] == supports[b] and _overlap(corners[a], corners[b]):
                 problems.append(f"{a} overlaps {b} on {supports[a]}")
-    return {"ok": not problems, "problems": problems,
-            "xy_corners_m": {k: np.round(v, 4).tolist() for k, v in corners.items()}}
+    sweep = joint_sweep_check(spec, nodes, records)
+    problems = problems + sweep["problems"]
+    return {"ok": not problems,
+            "problems": problems,
+            "xy_corners_m": {k: np.round(v, 4).tolist() for k, v in corners.items()},
+            "joint_sweep": {"ok": sweep["ok"], "checked": sweep["checked"], "skipped": sweep["skipped"]}}
 
 
 def target_world(target: Mapping[str, Any], nodes: Mapping[str, Mapping[str, Any]],
