@@ -434,6 +434,44 @@ def test_missing_check_interpreter_refuses_before_any_agent_session(tmp_path, ca
     assert not (work / "sessions").exists() and not (work / ATTEMPTS_FILE).exists()
 
 
+def test_check_interpreter_keeps_the_venv_symlink(tmp_path):
+    """venv 的 bin/python 是符号链接；解析到基础解释器就离开了 venv（lab30 上首次 GPU 实跑踩到）。"""
+    from datafarm.entry.scene_author_cli import resolve_check_interpreter
+    venv_bin = tmp_path / "venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    (venv_bin / "python").symlink_to(sys.executable)
+    assert resolve_check_interpreter(str(venv_bin / "python")) == str(venv_bin / "python")
+
+
+def test_env_script_is_sourced_and_the_given_interpreter_receives_every_argument(tmp_path):
+    """`bash -c 'source <script> && exec "$@"'`：脚本的变量要进子进程，exec 的第一个参数必须是解释器本身。"""
+    from datafarm.entry.scene_author_cli import CHECK_DEFAULTS, check_with_tool
+    env_script = tmp_path / "activate.sh"
+    env_script.write_text("export DATAFARM_TEST_ACTIVATED=yes\n", encoding="utf-8")
+    seen = tmp_path / "seen.json"
+    interpreter = tmp_path / "isaac-python"
+    interpreter.write_text(f"#!/bin/sh\nexec {sys.executable} - \"$0\" \"$@\" <<'EOF'\n"
+                           "import json, os, pathlib, sys\n"
+                           "work = pathlib.Path(sys.argv[sys.argv.index('--work') + 1])\n"
+                           f"pathlib.Path({str(seen)!r}).write_text(json.dumps({{'argv': sys.argv[1:], "
+                           "'env': os.environ.get('DATAFARM_TEST_ACTIVATED')}))\n"
+                           f"(work / 'check.json').write_text({json.dumps(check_document())!r})\n"
+                           "EOF\n", encoding="utf-8")
+    interpreter.chmod(0o755)
+    prep = tmp_path / "prep"
+    prep.mkdir()
+    run_check = check_with_tool(python=str(interpreter), tools=ROOT / "tools", env_script=str(env_script),
+                                timeout_s=60, tolerances=CHECK_DEFAULTS)
+    result = run_check(tmp_path / "layout.json", prep)
+    assert result.ok and result.exit_code == 0 and (prep / "check.log").is_file()
+    recorded = json.loads(seen.read_text())
+    assert recorded["env"] == "yes"
+    assert recorded["argv"][0] == str(interpreter)
+    assert recorded["argv"][1] == str(ROOT / "tools" / "scene_assemble.py")
+    assert recorded["argv"][2:5] == ["check", "--spec", str(tmp_path / "layout.json")]
+    assert "--headless" in recorded["argv"]
+
+
 def test_passive_joint_drift_with_no_new_contacts_is_recorded_as_measured_state(tmp_path):
     document = check_document()
     result = run(tmp_path, ScriptedAgent([GOOD]), run_check=check_runner(tmp_path, document))

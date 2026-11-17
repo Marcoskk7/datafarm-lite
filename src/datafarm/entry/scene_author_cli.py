@@ -69,12 +69,15 @@ def check_config(raw: Any) -> dict[str, Any]:
 
 
 def resolve_check_interpreter(python: str | None) -> str | None:
-    """`--check-python` / `check.python` / `$ISAAC_PYTHON` → 可执行文件的绝对路径；找不到返回 None。"""
+    """`--check-python` / `check.python` / `$ISAAC_PYTHON` → 可执行文件的绝对路径；找不到返回 None。
+
+    不解析符号链接：venv 的 `bin/python` 是指向基础解释器的链接，跟到底就离开了 venv（没有 isaaclab）。
+    """
     if not python:
         return None
     path = Path(python).expanduser()
     if path.is_file() and os.access(path, os.X_OK):
-        return str(path.resolve())
+        return str(path.absolute())
     if os.sep not in python:
         found = shutil.which(python)
         if found:
@@ -207,7 +210,8 @@ def check_with_tool(*, python: str, tools: Path, env_script: str | None, timeout
                 "--penetration-tol", value("penetration_tol"),
                 "--nconmax", str(int(tolerances["nconmax"])), "--njmax", str(int(tolerances["njmax"]))]
         if env_script:
-            argv = ["bash", "-c", 'source "$0" || exit $?; shift; exec "$@"', env_script, *argv]
+            # bash -c 里 $0 是脚本、$1.. 是完整 argv（含解释器）；不能再 shift，否则解释器被丢掉。
+            argv = ["bash", "-c", 'source "$0" || exit $?; exec "$@"', env_script, *argv]
         check_path = prep_dir / "check.json"
         check_path.unlink(missing_ok=True)  # never read a previous round's evidence
         try:
