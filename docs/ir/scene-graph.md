@@ -41,10 +41,11 @@
 | --- | --- | --- |
 | `camera_id` | 是 | `camera.head` / `camera.left_wrist` / `camera.right_wrist` |
 | `kind` | 是 | `physical`（绑在机器人 link 上）或 `virtual`（渲染时自由加） |
-| `mount` | 是 | 挂载的 node 或 frame id |
-| `offset` | 是 | 相对 mount 的 Pose（`frame_id` 填 mount） |
+| `mount` | 是 | 挂载的 node 或 frame id；腕部相机填机器人 node |
+| `link` | 否 | 机器人 link 名，如 `left_end_link`。给出时 `mount` 必须是机器人 node，相机随该 link 运动 |
+| `offset` | 是 | 光学坐标系相对挂载点的 Pose：给了 `link` 时 `frame_id` 填 link，否则填 mount；轴向按 `optical_frame.convention` |
 | `intrinsics` | 是 | `{fx, fy, cx, cy, width, height}`，像素 |
-| `optical_frame` | 是 | 光学坐标约定及其到 `mount` 的变换，如 `{convention: "opengl", pose: …}` |
+| `optical_frame` | 是 | `{convention: "opencv" / "ros" / "opengl"}`：opencv 与 ros 同为 z 前、x 右、y 下；opengl 为 -z 前、y 上 |
 | `distortion` | 是 | `{model: "none" / "radtan", coefficients: [...]}`；MVP 用 `none` |
 | `fps` | 是 | 采样帧率，MVP 10；必须整除控制频率 120 |
 
@@ -102,10 +103,11 @@ MVP 复用已验收资产 `assets/robot_assets_isaaclab3_validated_20261113/vali
      "pose": {"frame_id": "world", "position_m": [0, 0, 0], "quaternion_xyzw": [0, 0, 0, 1]}}
   ],
   "cameras": [
-    {"camera_id": "camera.head", "kind": "physical", "mount": "robot.airbot",
-     "offset": {"frame_id": "robot.airbot", "position_m": [0.0, 0.0, 0.65], "quaternion_xyzw": [0, 0, 0, 1]},
-     "intrinsics": {"fx": 320.0, "fy": 320.0, "cx": 320.0, "cy": 240.0, "width": 640, "height": 480},
-     "optical_frame": {"convention": "opengl"},
+    {"camera_id": "camera.left_wrist", "kind": "physical", "mount": "robot.airbot", "link": "left_end_link",
+     "offset": {"frame_id": "left_end_link", "position_m": [-0.1358, 0.0332, 0.0936],
+                "quaternion_xyzw": [-0.5881, 0.5837, -0.3964, 0.3954]},
+     "intrinsics": {"fx": 607.07, "fy": 606.77, "cx": 322.67, "cy": 253.67, "width": 640, "height": 480},
+     "optical_frame": {"convention": "opencv"},
      "distortion": {"model": "none", "coefficients": []},
      "fps": 10}
   ],

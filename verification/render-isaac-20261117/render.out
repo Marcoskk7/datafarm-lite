@@ -1,0 +1,122 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1794867137.545240  185598 descriptor_database.cc:633] File already exists in database: grpc/health/v1/health.proto
+W0000 00:00:1794867137.545321  185598 message.cc:301] Protobuf GeneratedMessageFactory: File is already registered: grpc/health/v1/health.proto
+Warning: Possible version incompatibility. Attempting to load carb::ujitso::IFactory with version v0.3 against v0.2.
+[ISAACLAB] KitLauncher initialization complete
+[INFO]: Loading local copy of remote asset 'https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Environments/Grid/default_ground_plane_checker_v1/default_ground_plane.usda' from '/tmp/https/omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Environments/Grid/default_ground_plane_checker_v1/default_ground_plane.usda'.
+[INFO]: Loading local copy of remote asset 'https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Environments/Grid/default_ground_plane_checker_v1/Materials/Textures/default_ground_plane_albedo.png' from '/tmp/https/omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Environments/Grid/default_ground_plane_checker_v1/Materials/Textures/default_ground_plane_albedo.png'.
+[INFO]: Loading local copy of remote asset 'https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Environments/Grid/default_ground_plane_checker_v1/Materials/Textures/default_ground_plane_roughness.png' from '/tmp/https/omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Environments/Grid/default_ground_plane_checker_v1/Materials/Textures/default_ground_plane_roughness.png'.
+[INFO]: Registered backend 'newton' for factory RigidObject.
+[INFO]: Registered backend 'newton' for factory Articulation.
+/home/isaac/IsaacLab30/source/isaaclab_newton/isaaclab_newton/cloner/newton_clone_utils.py:165: FutureWarning: Newton shape color replacement is enabled; this workaround will be deprecated in a future release.
+  replace_newton_builder_shape_colors(builder, stage)
+/home/isaac/IsaacLab30/.venv/lib/python3.12/site-packages/newton/_src/usd/utils.py:3269: UserWarning: Metallic texture inputs are not yet supported; using scalar fallback.
+  properties = _extract_preview_surface_properties(shader, prim)
+/home/isaac/IsaacLab30/.venv/lib/python3.12/site-packages/newton/_src/usd/utils.py:3269: UserWarning: Roughness texture inputs are not yet supported; using scalar fallback.
+  properties = _extract_preview_surface_properties(shader, prim)
+[INFO]: Using renderer: IsaacRtxRenderer
+[INFO]: Using renderer: IsaacRtxRenderer
+[INFO]: Using renderer: IsaacRtxRenderer
+[INFO]: Dispatching MODEL_INIT callbacks
+[INFO]: Finalizing model on device: cuda:0
+/home/isaac/IsaacLab30/source/isaaclab_newton/isaaclab_newton/physics/newton_manager.py:172: UserWarning: Inertia validation corrected 1 bodies. Set validate_inertia_detailed=True for detailed per-body warnings.
+  self.model = builder.finalize(device=cfg.device)
+Finalize builder took: Last: 0.386437 s, Mean: 0.386437 s, Std: 0.000000 s, N: 1
+[INFO]: Dispatching PHYSICS_READY callbacks
+Loading user config located at: '/home/isaac/IsaacLab30/.venv/lib/python3.12/site-packages/isaacsim/kit/data/Kit/IsaacLab/3.0/user.config.json'
+2026-11-16T22:12:17Z [Info] [carb] Logging to file: /home/isaac/IsaacLab30/.venv/lib/python3.12/site-packages/isaacsim/kit/logs/Kit/IsaacLab/3.0/kit_20261116_221217.log
+2026-11-16T22:12:17Z [5ms] [Warning] [omni.ext.plugin] [ext: isaaclab] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab' or '/home/isaac/IsaacLab30/source/isaaclab/config'
+2026-11-16T22:12:17Z [5ms] [Warning] [omni.ext.plugin] [ext: isaaclab_ppisp] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_ppisp' or '/home/isaac/IsaacLab30/source/isaaclab_ppisp/config'
+2026-11-16T22:12:17Z [6ms] [Warning] [omni.ext.plugin] [ext: isaaclab_ov] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_ov' or '/home/isaac/IsaacLab30/source/isaaclab_ov/config'
+2026-11-16T22:12:17Z [7ms] [Warning] [omni.ext.plugin] [ext: isaaclab_tasks_experimental] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_tasks_experimental' or '/home/isaac/IsaacLab30/source/isaaclab_tasks_experimental/config'
+2026-11-16T22:12:17Z [8ms] [Warning] [omni.ext.plugin] [ext: isaaclab_teleop] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_teleop' or '/home/isaac/IsaacLab30/source/isaaclab_teleop/config'
+2026-11-16T22:12:17Z [9ms] [Warning] [omni.ext.plugin] [ext: isaaclab_assets] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_assets' or '/home/isaac/IsaacLab30/source/isaaclab_assets/config'
+2026-11-16T22:12:17Z [9ms] [Warning] [omni.ext.plugin] [ext: isaaclab_rl] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_rl' or '/home/isaac/IsaacLab30/source/isaaclab_rl/config'
+2026-11-16T22:12:17Z [9ms] [Warning] [omni.ext.plugin] [ext: isaaclab_tasks] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_tasks' or '/home/isaac/IsaacLab30/source/isaaclab_tasks/config'
+2026-11-16T22:12:17Z [9ms] [Warning] [omni.ext.plugin] [ext: isaaclab_visualizers] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_visualizers' or '/home/isaac/IsaacLab30/source/isaaclab_visualizers/config'
+2026-11-16T22:12:17Z [10ms] [Warning] [omni.ext.plugin] [ext: isaaclab_experimental] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_experimental' or '/home/isaac/IsaacLab30/source/isaaclab_experimental/config'
+2026-11-16T22:12:17Z [10ms] [Warning] [omni.ext.plugin] [ext: isaaclab_mimic] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_mimic' or '/home/isaac/IsaacLab30/source/isaaclab_mimic/config'
+2026-11-16T22:12:17Z [10ms] [Warning] [omni.ext.plugin] [ext: isaaclab_physx] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_physx' or '/home/isaac/IsaacLab30/source/isaaclab_physx/config'
+2026-11-16T22:12:17Z [10ms] [Warning] [omni.ext.plugin] [ext: isaaclab_contrib] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_contrib' or '/home/isaac/IsaacLab30/source/isaaclab_contrib/config'
+2026-11-16T22:12:17Z [10ms] [Warning] [omni.ext.plugin] [ext: isaaclab_newton] Extensions config 'extension.toml' doesn't exist '/home/isaac/IsaacLab30/source/isaaclab_newton' or '/home/isaac/IsaacLab30/source/isaaclab_newton/config'
+2026-11-16T22:12:17Z [510ms] [Warning] [omni.platforminfo.plugin] failed to open the default display.  Can't verify X Server version.
+
+|---------------------------------------------------------------------------------------------|
+| Driver Version: 580.95.05     | Graphics API: Vulkan
+|=============================================================================================|
+| GPU | Name                             | Active | LDA | GPU Memory | Vendor-ID | LUID       |
+|     |                                  |        |     |            | Device-ID | UUID       |
+|     |                                  |        |     |            | Bus-ID    |            |
+|---------------------------------------------------------------------------------------------|
+| 0   | NVIDIA GeForce RTX 4090          | Yes: 0 |     | 24564   MB | 10de      | 0          |
+|     |                                  |        |     |            | 2684      | 106637be.. |
+|     |                                  |        |     |            | d2        |            |
+|=============================================================================================|
+| OS: 22.04.3 LTS (Jammy Jellyfish) ubuntu, Version: 22.04.3, Kernel: 5.4.0-100-generic
+| Processor: Intel(R) Xeon(R) Gold 6326 CPU @ 2.90GHz
+| Bare Metal Cores: 32 | Bare Metal Logical Cores: 64
+| Core Usage Quota: 15.8
+|---------------------------------------------------------------------------------------------|
+| Total Memory (MB): 28608 | Free Memory: 14341
+| Total Page/Swap (MB): 0 | Free Page/Swap: 0
+|---------------------------------------------------------------------------------------------|
+2026-11-16T22:12:19Z [2,156ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-11-16T22:12:19Z [2,156ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+2026-11-16T22:12:19Z [2,267ms] [Warning] [omni.log] Source: omni.hydra was already registered.
+2026-11-16T22:12:19Z [2,298ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-11-16T22:12:19Z [2,298ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+2026-11-16T22:12:19Z [2,300ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-11-16T22:12:19Z [2,300ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+2026-11-16T22:12:20Z [2,857ms] [Warning] [pxr.Semantics] pxr.Semantics is deprecated - please use Semantics instead
+2026-11-16T22:12:20Z [2,964ms] [Warning] [omni.replicator.core.scripts.extension] No material configuration file, adding configuration to material settings directly.
+2026-11-16T22:12:22Z [4,604ms] [Warning] [rtx.hydra] RenderDelegate : Warning /rtx/hydra/readTransformsFromFabricInRenderDelegate and geometry streaming are enabled together but this can cause issues with dynamic objects not streaming correctly due to problems in the transform update.
+2026-11-16T22:12:27Z [9,911ms] [Warning] [isaaclab.utils.assets] Serving remote assets from the local cache under '/tmp'. Each copy is checked against the server before use; delete the directory to force a full re-download.
+2026-11-16T22:12:29Z [12,461ms] [Warning] [isaaclab.utils.sensors] Camera aperture offsets are not supported by Omniverse. c_x and c_y will be half of width and height
+2026-11-16T22:12:29Z [12,525ms] [Warning] [isaaclab.utils.sensors] Camera non square pixels are not supported by Omniverse. The average of f_x and f_y are used.
+2026-11-16T22:12:29Z [12,525ms] [Warning] [isaaclab.utils.sensors] Camera aperture offsets are not supported by Omniverse. c_x and c_y will be half of width and height
+2026-11-16T22:12:30Z [12,972ms] [Warning] [omni.fabric.plugin] Unsupported type encountered during VtValue extraction
+2026-11-16T22:12:30Z [12,972ms] [Warning] [omni.fabric.plugin] Attempting to set an invalid data source to array attribute
+
+2026-11-16T22:12:30Z [12,973ms] [Warning] [omni.usd] Encountered USD Warnings but USD Diagnostics are currently muted. To view USD Warnings, please set the '/persistent/app/usd/muteUsdDiagnostics' setting to false in Preferences page.
+2026-11-16T22:12:30Z [13,104ms] [Warning] [isaaclab_newton.assets.articulation.articulation_data] Failed to get root com velocity. If the articulation is fixed, this is expected. Setting root com velocity to zeros.
+[INFO]: Simulation parameters for joints in /World/envs/env_[^/]+/ObjectCabinet:
++---------------------------------------------------------------------------------------------------------------------------------------+
+|                             Simulation Joint Information (Prim path: /World/envs/env_[^/]+/ObjectCabinet)                             |
++-------+------------------------+-----------+---------+----------+-----------------+-----------------+-----------------+---------------+
+| Index | Name                   | Stiffness | Damping | Armature | Static Friction | Position Limits | Velocity Limits | Effort Limits |
++-------+------------------------+-----------+---------+----------+-----------------+-----------------+-----------------+---------------+
+|   0   | joint_part_01_joint_00 |   0.000   |  20.000 |  0.000   |      0.000      |  [0.000, 0.462] |     1.0e+06     |    1.0e+06    |
+|   1   | joint_part_02_joint_00 |   0.000   |  20.000 |  0.000   |      0.000      | [-0.000, 0.462] |     1.0e+06     |    1.0e+06    |
++-------+------------------------+-----------+---------+----------+-----------------+-----------------+-----------------+---------------+
+[INFO]: Simulation parameters for joints in /World/envs/env_[^/]+/RobotAirbot:
++------------------------------------------------------------------------------------------------------------------------------------+
+|                            Simulation Joint Information (Prim path: /World/envs/env_[^/]+/RobotAirbot)                             |
++-------+---------------------+-----------+---------+----------+-----------------+-----------------+-----------------+---------------+
+| Index | Name                | Stiffness | Damping | Armature | Static Friction | Position Limits | Velocity Limits | Effort Limits |
++-------+---------------------+-----------+---------+----------+-----------------+-----------------+-----------------+---------------+
+|   0   | left_joint1         |  500.000  |  30.000 |  0.000   |      0.000      | [-3.142, 2.094] |      3.140      |     18.000    |
+|   1   | left_joint2         |  500.000  |  30.000 |  0.000   |      0.000      | [-2.967, 0.175] |      3.140      |     18.000    |
+|   2   | left_joint3         |  500.000  |  30.000 |  0.000   |      0.000      | [-0.087, 3.142] |      3.140      |     18.000    |
+|   3   | left_joint4         |  500.000  |  30.000 |  0.000   |      0.000      | [-3.011, 3.011] |      6.280      |     3.000     |
+|   4   | left_joint5         |  500.000  |  30.000 |  0.000   |      0.000      | [-1.763, 1.763] |      6.280      |     3.000     |
+|   5   | left_joint6         |  500.000  |  30.000 |  0.000   |      0.000      | [-3.011, 3.011] |      6.280      |     3.000     |
+|   6   | left_g2_joint       |  6.0e+03  |  35.000 |  0.000   |      0.000      |  [0.000, 0.072] |      0.200      |     10.000    |
+|   7   | left_g2_left_joint  |   0.000   |  0.000  |  0.000   |      0.000      |  [0.000, 0.037] |      0.200      |     10.000    |
+|   8   | left_g2_right_joint |   0.000   |  0.000  |  0.000   |      0.000      |  [0.000, 0.037] |      0.200      |     10.000    |
++-------+---------------------+-----------+---------+----------+-----------------+-----------------+-----------------+---------------+
+[INFO]: Registered backend 'newton' for factory FrameView.
+Initialize solver took: Last: 1.576934 s, Mean: 1.576934 s, Std: 0.000000 s, N: 1
+[INFO]: RTX streaming completed in 0.16 s.
+group m=[] l=['dome.neutral', 'key.neutral']: 21 steps, 3 variants in 1.7s
+group m=[] l=['dome.warm', 'lamp.warm']: 21 steps, 3 variants in 1.5s
+group m=['drawer.matte_grey', 'plate.glazed_white', 'table.oak'] l=['dome.neutral', 'key.neutral']: 21 steps, 3 variants in 1.7s
+group m=['drawer.matte_grey', 'plate.glazed_white', 'table.oak'] l=['dome.warm', 'lamp.warm']: 21 steps, 3 variants in 1.6s
+{"render_manifest": {"kind": "ir.render-manifest", "sha256": "b9366271184d2b9068390f9acc0cf6da1c5452968829e1af485106c48b6ff187", "media_type": "application/json"}, "state_playback": {"status": "verified", "max_position_error_m": 2.5332678069131007e-08, "max_joint_error": 5.651894108282818e-08, "tolerance_m": 0.01, "notes": "readback after write, no physics step; joint tolerance 0.001; max camera placement error 0.000001 m"}, "frames": {"ok": 252, "missing": 0, "error": 0}}
+2026-11-16T22:12:30Z [13,228ms] [Warning] [isaaclab_newton.assets.articulation.articulation_data] Failed to get root com velocity. If the articulation is fixed, this is expected. Setting root com velocity to zeros.
+2026-11-16T22:12:30Z [13,301ms] [Warning] [omni.replicator.core.scripts.annotators] omni.hydra.engine.stats is not installed, assuming single GPU
+2026-11-16T22:12:32Z [15,039ms] [Warning] [omni.fabric.plugin] Warning: attribute timeVaryingAttributes not found for bucket id 14
+
+2026-11-16T22:12:33Z [15,901ms] [Warning] [omni.rtx] DLSS increasing input dimensions: Render resolution of (427, 240) is below minimal input resolution of 300.
+2026-11-16T22:12:34Z [16,650ms] [Warning] [omni.kit.material.library.material_extensions] Could not initialize context menu integration: No module named 'omni.kit.context_menu'
+2026-11-16T22:12:37Z [20,019ms] [Warning] [omni.fabric.plugin] Warning: attribute material:binding not found for path /World/envs/env_0/ObjectPlate/Grasp/grasp_identifier
+

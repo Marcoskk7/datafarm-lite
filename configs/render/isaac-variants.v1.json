@@ -1,0 +1,33 @@
+{
+  "schema": "datafarm.isaac-render-variants/1",
+  "notes": "Fixed appearance table for Isaac RTX. request.render.materials=N takes the first N material_sets, lights=N the first N light_sets; material_sets[0] keeps the asset materials. Parameters are hand-picked, not measured.",
+  "materials": [
+    {"material_id": "plate.glazed_white", "slot": "plate",
+     "params": {"base_color": [0.92, 0.91, 0.88], "metallic": 0.0, "roughness": 0.25}},
+    {"material_id": "table.oak", "slot": "table",
+     "params": {"base_color": [0.55, 0.38, 0.22], "metallic": 0.0, "roughness": 0.6}},
+    {"material_id": "drawer.matte_grey", "slot": "drawer",
+     "params": {"base_color": [0.42, 0.44, 0.46], "metallic": 0.0, "roughness": 0.7}}
+  ],
+  "material_sets": [
+    {"set_id": "m0", "members": []},
+    {"set_id": "m1", "members": ["plate.glazed_white", "table.oak", "drawer.matte_grey"]}
+  ],
+  "lights": [
+    {"light_id": "dome.neutral", "type": "dome", "intensity": 800.0, "color_temperature": 6500},
+    {"light_id": "key.neutral", "type": "distant", "intensity": 2500.0, "color_temperature": 6500,
+     "pose": {"frame_id": "world", "position_m": [0.0, 0.0, 3.0], "quaternion_xyzw": [0.19509, 0.0, 0.0, 0.980785]}},
+    {"light_id": "dome.warm", "type": "dome", "intensity": 500.0, "color_temperature": 3200},
+    {"light_id": "lamp.warm", "type": "sphere", "intensity": 60000.0, "color_temperature": 3000, "radius_m": 0.1,
+     "pose": {"frame_id": "world", "position_m": [0.5, -0.8, 2.0], "quaternion_xyzw": [0.0, 0.0, 0.0, 1.0]}}
+  ],
+  "light_sets": [
+    {"set_id": "l0", "members": ["dome.neutral", "key.neutral"]},
+    {"set_id": "l1", "members": ["dome.warm", "lamp.warm"]}
+  ],
+  "virtual_views": {
+    "third_person": {"eye_m": [0.2, -1.5, 1.7], "target_m": [0.8, 0.0, 0.85], "fps": 10,
+                     "intrinsics": {"fx": 420.0, "fy": 420.0, "cx": 320.0, "cy": 240.0, "width": 640, "height": 480}}
+  },
+  "output": {"format": "mp4", "codec": "h264", "crf": 18}
+}

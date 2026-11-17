@@ -122,6 +122,7 @@ def validate(document: Any) -> None:
     cameras = document["cameras"]
     check(isinstance(cameras, list), "cameras must be a list")
     camera_ids = set()
+    robot_nodes = {n["node_id"] for n in nodes if n["semantic_tag"] == "robot" and n["asset_id"] == robot["asset_id"]}
     for index, camera in enumerate(cameras):
         where = f"cameras[{index}]"
         check(isinstance(camera, Mapping), f"{where} must be an object")
@@ -131,8 +132,13 @@ def validate(document: Any) -> None:
         camera_ids.add(identifier(camera["camera_id"], f"{where}.camera_id"))
         check(camera["kind"] in ("physical", "virtual"), f"{where}.kind must be physical or virtual")
         check(camera["mount"] in known, f"{where}.mount must be a node or frame id")
+        link = camera.get("link")
+        if link is not None:
+            check(isinstance(link, str) and bool(link), f"{where}.link must be a robot link name")
+            check(camera["mount"] in robot_nodes, f"{where}: a link-mounted camera must mount on the robot node")
         pose(camera["offset"], f"{where}.offset")
-        check(camera["offset"]["frame_id"] == camera["mount"], f"{where}.offset.frame_id must equal mount")
+        check(camera["offset"]["frame_id"] == (link or camera["mount"]),
+              f"{where}.offset.frame_id must equal link when given, else mount")
         intrinsics = camera["intrinsics"]
         check(isinstance(intrinsics, Mapping) and all(is_finite_number(intrinsics.get(k)) and intrinsics[k] > 0
                                                       for k in ("fx", "fy", "cx", "cy", "width", "height")),
