@@ -71,7 +71,7 @@ MVP 只有 `joint_position_target`。N 条动作必须对应 N+1 个状态；`mo
 
 ### frame_map
 
-三路物理相机（`camera.head`、`camera.left_wrist`、`camera.right_wrist`）的画面由 A 线渲染器从 `state_trace` 生成，B 在 headless Newton 下只录状态。10 fps = 每 12 个控制步一帧。
+单臂 MVP 的两路物理相机（`camera.head`、`camera.left_wrist`，见 [SceneGraph](scene-graph.md)）和虚拟视角的画面由 A 线渲染器从 `state_trace` 生成，B 在 headless Newton 下只录状态。10 fps = 每 12 个控制步一帧。
 
 ```json
 {"camera_id": "camera.head", "variant_id": "base", "frame_index": 0, "control_step": 0,
@@ -80,7 +80,7 @@ MVP 只有 `joint_position_target`。N 条动作必须对应 N+1 个状态；`mo
  "image": {"kind": "image.mp4", "sha256": "…", "media_type": "video/mp4"}}
 ```
 
-没有相机时 `frame_map` 为 `[]`，不得据此签收三视角数据。
+没有相机时 `frame_map` 为 `[]`，不得据此签收多视角数据。
 
 ### replay
 
