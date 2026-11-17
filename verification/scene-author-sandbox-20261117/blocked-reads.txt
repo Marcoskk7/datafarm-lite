@@ -1,0 +1,23 @@
+# SceneLayout — `datafarm.scene-layout/1`
+
+configs
+docs
+src
+tools
++ cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace
++ ls examples
+ls: cannot access 'examples': No such file or directory
++ ls runs
+ls: cannot access 'runs': No such file or directory
++ ls verification
+ls: cannot access 'verification': No such file or directory
++ ls .git
+ls: cannot access '.git': No such file or directory
++ cat /home/isaac/.claude/settings.json
+cat: /home/isaac/.claude/settings.json: No such file or directory
++ ls /home/isaac/.ssh
+ls: cannot open directory '/home/isaac/.ssh': No such file or directory
++ + cat /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace/../sandbox/repo/docs/ir/scene-layout.mdhead
+ -n 2
++ ls /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace/../sandbox/repo
+

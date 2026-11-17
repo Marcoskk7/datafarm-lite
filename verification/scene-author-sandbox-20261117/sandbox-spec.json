@@ -1,0 +1,41 @@
+{
+  "base": "allowlist",
+  "binds": [],
+  "cwd": "/opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace",
+  "degraded": false,
+  "dev": "minimal",
+  "empty_file": "/opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/sandbox/rounds/001/.xh-empty",
+  "keep_caps": [],
+  "masked": [],
+  "mode": "proot",
+  "proot_bin": "/home/isaac/tools/proot/bin/proot",
+  "ro": [
+    "/opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/sandbox/repo",
+    "/home/isaac/IsaacLab30/.venv",
+    "/home/isaac/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu",
+    "/home/isaac/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu",
+    "/home/isaac/node/bin/claude",
+    "/home/isaac/node/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "/opt/data/private/isaaclab/simready-cache",
+    "/opt/data/private/isaaclab/a-scene/runtime/robot_assets_isaaclab3_validated_20261113"
+  ],
+  "ro_soft": true,
+  "run_as": null,
+  "rw": [
+    "/opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace",
+    "/opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/sandbox/rounds/001/home"
+  ],
+  "share_net": true,
+  "system_ro": [
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib32",
+    "/lib64",
+    "/libx32",
+    "/etc",
+    "/run/systemd/resolve"
+  ],
+  "tmpfs": []
+}

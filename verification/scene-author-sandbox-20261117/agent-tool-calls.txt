@@ -1,0 +1,35 @@
+TOOL Bash: cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace; ls -la . host 2>&1; R=../sandbox/repo; cat $R/configs/scene-roles.json; ls $R
+
+TOOL Bash: cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace; P=/home/isaac/IsaacLab30/.venv/bin/python; T=../sandbox/repo/tools/simready.py; E=https://hf-mirror.com
+$P $T --endpoint $E search drawer cabinet --require-joint prismatic --probe 2>&1 | head -60; echo ----; $P $T --endpoint $E search plate 2>&1 | head -40; echo ----; $P $T --endpoint $E search table 2>&1 | he
+
+TOOL Bash: cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace; P=/home/isaac/IsaacLab30/.venv/bin/python; T=../sandbox/repo/tools/simready.py; E=https://hf-mirror.com
+$P $T --endpoint $E search drawer --require-joint prismatic --probe 2>/dev/null > /tmp/dr.json; $P -c "
+import json;d=json.load(open('/tmp/dr.json'))
+for r in d['results']: print(r['asset'], {k:v for k,v in 
+
+TOOL Bash: cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace; P=/home/isaac/IsaacLab30/.venv/bin/python; T=../sandbox/repo/tools/simready.py; E=https://hf-mirror.com
+$P $T --endpoint $E search drawer --require-joint prismatic --probe > /tmp/dr.json; head -c 600 /tmp/dr.json; $P $T --help; $P $T --endpoint $E search --help
+
+TOOL Bash: cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace; P=/home/isaac/IsaacLab30/.venv/bin/python; T=../sandbox/repo/tools/simready.py; E=https://hf-mirror.com
+$P $T --endpoint $E search cabinet --require-joint prismatic --limit 30 > /tmp/cab.json; $P -c "
+import json;d=json.load(open('/tmp/cab.json'))
+for r in d['results']: print(r['asset'], r.get('license'), r.ge
+
+TOOL Bash: cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace; P=/home/isaac/IsaacLab30/.venv/bin/python; T=../sandbox/repo/tools/simready.py; E=https://hf-mirror.com
+for a in fixture_cabinet_b01 fixture_cabinet_single_a01 table_metal_stainless_a03 dishware_plate_a01 dishware_plastic_bigPlate_a01; do echo "== $a"; $P $T --endpoint $E probe $a 2>&1 | head -80; done
+
+TOOL Bash: cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/sandbox/repo; grep -rn "tcp_candidates\|left_end_link\|tool_approach" --include=*.py --include=*.json --include=*.md . | grep -v "^./docs/ir/scene-layout.md" | head -20; ls configs
+
+TOOL Bash: cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/sandbox/repo 2>&1; pwd; ls; grep -rln "tcp_candidates\|left_end_link" . 2>/dev/null | grep -v examples | head
+
+TOOL Write: /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace/scene-layout.json
+
+TOOL Bash: cd /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace; P=/home/isaac/IsaacLab30/.venv/bin/python; R=../sandbox/repo
+$P - <<'EOF'
+import json
+p='scene-layout.json'; d=json.load(open(p)); d['collision_groups'].pop('robot_safety'); json.dump(d,open(p,'w'),indent=2)
+EOF
+PYTHONPATH=$R/src $P - <<'EOF' 2>&1 | tail -20
+import json,yaml
+from datafarm.scene.conformance imp
