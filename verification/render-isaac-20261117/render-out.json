@@ -1,0 +1,9 @@
+{
+  "render_manifest": {
+    "kind": "ir.render-manifest",
+    "media_type": "application/json",
+    "sha256": "b9366271184d2b9068390f9acc0cf6da1c5452968829e1af485106c48b6ff187"
+  },
+  "spec_file_sha256": "8476312fce65eaa89afbfbcb5de76418188c803145f9a82589b5de9c49943d61",
+  "videos": "/opt/data/private/isaaclab/render/scene-work/render/1948a413945a"
+}

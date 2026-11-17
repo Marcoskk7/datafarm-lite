@@ -71,12 +71,13 @@ def _gateway_env(gateway: Any) -> dict[str, str]:
 def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], system: str,
                     schema: Mapping[str, Any], validator: Callable[[Any, Any], Any],
                     role: str, output_tokens: int = 5000, source_digest: str | None = None,
-                    gateway: Any = None) -> Any:
+                    gateway: Any = None, with_folder: bool = False) -> Any:
     """执行一次可复用、可追溯的结构化 Codex 调用。
 
     身份绑定请求、schema、系统提示、token 预算、配置和调用方/本模块源码；已完成结果经摘要核对后复用，
     pending 或失败目录不会自动重发。``gateway`` 不参与身份，以便同一请求在不同网关下复用已完成结果；
-    若提供 ``max_output_tokens`` 属性，则按本次预算设置。
+    若提供 ``max_output_tokens`` 属性，则按本次预算设置。``with_folder`` 为真时返回
+    ``(结果, 调用目录)``，供需要绑定回执与事件流的调用方（如 Judge 冻结）使用。
     """
     config = validate_config(config)
     if type(output_tokens) is not int or not 1 <= output_tokens <= 16000:
@@ -96,7 +97,8 @@ def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], sy
         value = read_json(result)
         if saved.get('identity') != identity or saved.get('decision_sha256') != sha256_json(value):
             raise ValueError('Changed provider receipt or decision')
-        return validator(value, request)
+        value = validator(value, request)
+        return (value, folder) if with_folder else value
     try:
         folder.mkdir()
     except FileExistsError as exc:
@@ -188,7 +190,7 @@ def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], sy
         receipt.update(status='complete', decision_sha256=sha256_json(value))
         _write_json(folder / 'receipt.json', receipt)
         _write_json(result, value)
-        return value
+        return (value, folder) if with_folder else value
     except BaseException:
         if 'proc' in locals() and proc.poll() is None:
             kill_tree(proc)

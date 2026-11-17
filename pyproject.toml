@@ -26,8 +26,8 @@ dependencies = ["Pillow>=10,<13"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pytest-subtests>=0.14,<1", "import-linter>=2.1,<3"]
-workflow = ["requests>=2.31,<3", "numpy>=1.26,<3", "opencv-python-headless>=4.8,<5", "h5py>=3.10,<4", "pyarrow>=17,<22", "scipy>=1.11,<2", "av>=12,<17",
-            "pydantic>=2.7,<3", "pyyaml>=6,<7", "openai>=1.68,<3"]
+workflow = ["PyYAML>=6,<7", "requests>=2.31,<3", "numpy>=1.26,<3", "opencv-python-headless>=4.8,<5", "h5py>=3.10,<4", "pyarrow>=17,<22", "scipy>=1.11,<2", "av>=12,<17",
+            "pydantic>=2.7,<3", "openai>=1.68,<3"]
 
 [project.scripts]
 datafarm = "datafarm.entry.cli:main"
@@ -54,7 +54,7 @@ layers = [
     "entry",
     "orchestration",
     "adapters",
-    "training : expert : evolution : simulation : ledger : cap : scene",
+    "training : expert : evolution : simulation : ledger : cap : scene : judge",
     "render",
     "task",
     "request",
@@ -88,7 +88,7 @@ type = "forbidden"
 source_modules = [
     "datafarm.grounding", "datafarm.ir", "datafarm.task", "datafarm.render", "datafarm.training",
     "datafarm.expert", "datafarm.evolution", "datafarm.simulation", "datafarm.ledger", "datafarm.cap",
-    "datafarm.scene", "datafarm.request",
+    "datafarm.scene", "datafarm.judge", "datafarm.request",
 ]
 forbidden_modules = ["datafarm.orchestration", "datafarm.entry"]
 
@@ -120,7 +120,7 @@ type = "forbidden"
 source_modules = ["datafarm.kernel"]
 forbidden_modules = [
     "datafarm.adapters", "datafarm.batch_protocol", "datafarm.cap", "datafarm.config", "datafarm.entry",
-    "datafarm.evolution", "datafarm.expert", "datafarm.grounding", "datafarm.instructions", "datafarm.ir",
+    "datafarm.evolution", "datafarm.expert", "datafarm.grounding", "datafarm.instructions", "datafarm.ir", "datafarm.judge",
     "datafarm.ledger", "datafarm.orchestration", "datafarm.render", "datafarm.request", "datafarm.scene",
     "datafarm.simulation", "datafarm.task", "datafarm.training",
 ]

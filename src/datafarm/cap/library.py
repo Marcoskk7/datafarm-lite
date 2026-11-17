@@ -14,9 +14,17 @@ class SkillLibrary:
         result = []
         for filename in sorted(self.root.glob('*.json')):
             entry = read_json(filename)
-            if (set(entry) != {'schema','id','payload'} or entry['schema'] != 'datafarm.cap.skill/1'
+            if (set(entry) != {'schema','id','payload'} or entry['schema'] not in ('datafarm.cap.skill/1', 'datafarm.cap.skill/2')
                     or digest(entry['payload']) != entry['id'] or filename.stem != entry['id']):
                 raise ValueError('Skill integrity check failed: '+filename.name)
+            if entry['schema'] == 'datafarm.cap.skill/2':
+                from datafarm.kernel.identifiers import logical_id
+                from datafarm.kernel.io import is_sha256
+                payload = entry['payload']
+                for key in ('source_task_id', 'source_task_revision', 'request_id'):
+                    logical_id(payload.get(key), label=key)
+                if not is_sha256(payload.get('request_sha256')):
+                    raise ValueError('Skill request binding is missing')
             result.append(entry['payload'])
         return result
 
@@ -48,6 +56,13 @@ class SkillLibrary:
             raise ValueError('Skill admission requires measured repair and fresh successful verification')
         payload = {'guidance':proposal,'source_task':task['name'], 'source':source,
                    'verification':verification}
+        schema = 'datafarm.cap.skill/1'
+        if 'profile' in task:
+            from .public_task import validate_public_task
+            task = validate_public_task(task)
+            schema = 'datafarm.cap.skill/2'
+            payload.update(source_task_id=task['task_id'], source_task_revision=task['task_revision'],
+                           request_id=task['request_id'], request_sha256=task['request_sha256'])
         identity = digest(payload)
-        write_json(self.root/(identity+'.json'), {'schema':'datafarm.cap.skill/1','id':identity,'payload':payload})
+        write_json(self.root/(identity+'.json'), {'schema':schema,'id':identity,'payload':payload})
         return identity

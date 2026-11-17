@@ -26,6 +26,7 @@ One note per component. Each states what the code guarantees and what it does no
 | A line 1a: one sentence → `request.yaml` via one structured LLM call, defaults and provenance | [request-drafting](reference/request-drafting.md) | `tools/request_draft.py`, `src/datafarm/request/`, `src/datafarm/adapters/llm/` |
 | A line: SimReady retrieval, collision prep, layout, reachability, Isaac Lab scene checks, agent-authored layouts | [scene-assembly](reference/scene-assembly.md) | `tools/simready.py`, `tools/scene_assemble.py`, `tools/scene_author.py`, `src/datafarm/scene/`, `src/datafarm/adapters/assets/` |
 | Robot API auto-discovery, semantic config and Isaac Lab instance binding | [robot-auto-binding](reference/robot-auto-binding.md) | `simulation/robot_binding.py`, `simulation/isaac_robot.py`, `tools/discover_robot.py` |
+| Model-generated task judge, independent review and freeze | [judge-generation](reference/judge-generation.md) | `src/datafarm/judge/`, `src/datafarm/entry/judge_cli.py`; plugs into adapter/1 |
 | Render contract | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
 | H3 control hybrid and Seedance | [rendering](reference/rendering.md) | `src/datafarm/adapters/render/h3/`, `src/datafarm/adapters/render/seedance/` |
 | Render verifier | [render-verifier](reference/render-verifier.md) | `src/datafarm/render/verify/` |

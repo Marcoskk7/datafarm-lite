@@ -21,13 +21,13 @@ from __future__ import annotations
 
 import contextlib
 import datetime as dt
-import fcntl
 import importlib
 import json
 import os
 import re
 import socket
 import subprocess
+from datafarm.kernel.file_lock import exclusive_lock
 from datafarm.kernel.io import atomic_write_json, read_json, sha256_file, utc_now
 from dataclasses import dataclass
 from pathlib import Path
@@ -160,6 +160,23 @@ def probe_pid(host: str | None, pid: int | None) -> bool | None:
     if not pid:
         return None
     if not host or host in local_host_names():
+        if os.name == "nt":
+            # Windows 不使用 os.kill(pid, 0)：该调用在此平台会终止目标进程。
+            import ctypes
+            from ctypes import wintypes
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.OpenProcess.restype = wintypes.HANDLE
+            kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel.OpenProcess(0x1000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION
+            if not handle:
+                return True if ctypes.get_last_error() == 5 else (False if ctypes.get_last_error() == 87 else None)  # Unknown query errors are not proof of exit
+            try:
+                code = wintypes.DWORD()
+                return bool(code.value == 259) if kernel.GetExitCodeProcess(handle, ctypes.byref(code)) else None
+            finally:
+                kernel.CloseHandle(handle)
         try:
             os.kill(int(pid), 0)
         except ProcessLookupError:
@@ -337,11 +354,8 @@ class RunLedger:
     @contextlib.contextmanager
     def _locked(self) -> Iterator[None]:
         with open(self.directory / ".lock", "a", encoding="utf-8") as handle:
-            fcntl.flock(handle, fcntl.LOCK_EX)
-            try:
+            with exclusive_lock(handle):
                 yield
-            finally:
-                fcntl.flock(handle, fcntl.LOCK_UN)
 
     def record_event(self, kind: str, **data: Any) -> dict[str, Any]:
         event = {"at": utc_now(), "kind": kind, **{k: v for k, v in data.items() if v is not None}}
