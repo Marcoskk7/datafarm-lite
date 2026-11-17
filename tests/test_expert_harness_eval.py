@@ -42,7 +42,7 @@ def finished_round(tmp: Path, clock: FakeClock, qualities=(0.0, 1.0), report: st
     sessions[-1].insert(0, {"op": "write", "path": "REPORT.md", "text": report})
     write_plan(tmp / "task", sessions)
     paths = RoundPaths(tmp / "round")
-    prepare_round(adapter, paths.root, clock=clock, round_id="XR-toy-eval")
+    prepare_round(adapter, paths.root, clock=clock, round_id="toy-eval")
     RoundRunner(paths, adapter, clock=clock, rollout_backend=FakeRolloutBackend(), tick_interval_s=0.05,
                 poll_interval_s=0, term_grace_s=1.0, drain_timeout_s=5.0).run()
     return adapter, paths
@@ -148,7 +148,8 @@ class HandoffLibraryTests(unittest.TestCase):
         self.assertNotIn("outcomes", json.dumps(bundle["holdout_summary"]))
         lint = json.loads((self.tmp / "handoff" / "next-brief.lint.json").read_text())
         self.assertTrue(lint["ok"], lint["errors"])
-        self.assertEqual(load_bundle(self.tmp / "handoff")["round_id"], "XR-toy-eval")
+        self.assertEqual(load_bundle(self.tmp / "handoff")["round_id"],
+                         json.loads(paths.round_json.read_text())["round_id"])
         next_paths = RoundPaths(self.tmp / "round-2")
         prepare_round(adapter, next_paths.root, clock=self.clock, handoff_dir=str(self.tmp / "handoff"))
         self.assertEqual((next_paths.workspace / "expert.py").read_text(), expert(1.0))
@@ -186,7 +187,8 @@ class SuiteTests(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp(prefix="xh-suite-", dir="/var/tmp" if os.access("/var/tmp", os.W_OK) else None))
         try:
             write_adapter(tmp / "task")
-            suite = {"schema": "datafarm.expert-harness.suite/1", "suite_id": "toy-suite", "verified_pass_rate": 0.5,
+            suite = {"schema": "datafarm.expert-harness.suite/2", "identity_profile": "datafarm.logical-identity/1",
+                     "suite_id": "toy-suite", "verified_pass_rate": 0.5,
                      "k": [1, 2], "repeats": 2, "models": [{"backend": "fake", "model": "fake-a"}],
                      "tasks": [{"task_id": "toy-task", "adapter": "task/adapter.json"},
                                {"task_id": "later", "adapter": None,
