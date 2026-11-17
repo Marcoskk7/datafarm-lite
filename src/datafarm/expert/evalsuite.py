@@ -24,15 +24,108 @@ import statistics
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from datafarm.expert.adapter import TaskAdapter
+from datafarm.expert.adapter import ADAPTER_SCHEMA_V2, TaskAdapter
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.state import RoundState
 from datafarm.expert.util import (Clock, ConfigError, HarnessError, atomic_write_json, atomic_write_text)
-from datafarm.kernel.io import read_json, sha256_json, utc_now
+from datafarm.kernel.io import is_sha256, read_json, sha256_json, utc_now
+from datafarm.kernel.identifiers import (
+    IDENTITY_PROFILE, logical_id, require_identity_profile, storage_key, verify_storage_key,
+)
 
 SUITE_SCHEMA = "datafarm.expert-harness.suite/1"
 PLAN_SCHEMA = "datafarm.expert-harness.suite-plan/1"
 REPORT_SCHEMA = "datafarm.expert-harness.suite-report/1"
+SUITE_SCHEMA_V2 = "datafarm.expert-harness.suite/2"
+PLAN_SCHEMA_V2 = "datafarm.expert-harness.suite-plan/2"
+REPORT_SCHEMA_V2 = "datafarm.expert-harness.suite-report/2"
+
+
+def _validate_plan(plan: Mapping[str, Any], out: Path) -> None:
+    if not isinstance(plan, Mapping):
+        raise HarnessError("suite plan must be a JSON object")
+    if plan.get("schema") == PLAN_SCHEMA:
+        return
+    if plan.get("schema") != PLAN_SCHEMA_V2:
+        raise HarnessError("unsupported suite plan schema")
+    try:
+        require_identity_profile(plan)
+        logical_id(plan.get("suite_id"), label="suite_id")
+        if not is_sha256(plan.get("suite_sha256")):
+            raise ValueError("suite digest is missing")
+        specification = plan.get("suite_specification")
+        if (not isinstance(specification, Mapping)
+                or specification.get("schema") != SUITE_SCHEMA_V2
+                or specification.get("suite_id") != plan["suite_id"]
+                or sha256_json(specification) != plan["suite_sha256"]
+                or plan["k"] != specification.get("k", [1])
+                or plan["verified_pass_rate"] != specification.get("verified_pass_rate", 0.5)):
+            raise ValueError("suite specification or scoring policy differs from its digest")
+        tasks = {task["task_id"]: task for task in specification["tasks"]}
+        models = {(model["backend"], model["model"]) for model in specification["models"]}
+        expected = {"suite_id": plan["suite_id"], "suite_sha256": plan["suite_sha256"]}
+        verify_storage_key(plan.get("plan_id"), "suite", plan.get("identity"), expected)
+        seen = set()
+        if not isinstance(plan.get("cells"), list) or any(not isinstance(c, Mapping) for c in plan["cells"]):
+            raise ValueError("suite cells must be a list of objects")
+        for cell in plan["cells"]:
+            identity = cell.get("identity")
+            if not isinstance(identity, Mapping):
+                raise ValueError("cell identity is missing")
+            expected = {"suite_id": plan["suite_id"], "suite_sha256": plan["suite_sha256"],
+                        "task_id": logical_id(cell.get("task_id"), label="task_id"),
+                        "adapter_sha256": cell.get("adapter_sha256"),
+                        "backend": cell.get("backend"), "model": cell.get("model"),
+                        "repeat": cell.get("repeat")}
+            verify_storage_key(cell.get("cell_id"), "cell", identity, expected)
+            if cell["cell_id"] in seen:
+                raise ValueError("duplicate suite cell")
+            seen.add(cell["cell_id"])
+            if cell["task_id"] not in tasks:
+                raise ValueError("cell task is not in the bound suite")
+            unavailable = expected["backend"] is None
+            if unavailable:
+                if (cell.get("status") != "unavailable" or cell.get("round_dir") is not None
+                        or any(expected[k] is not None for k in ("model", "repeat"))):
+                    raise ValueError("invalid unavailable cell")
+            else:
+                if (not is_sha256(expected["adapter_sha256"])
+                        or expected["backend"] not in ("claude", "codex", "fake")
+                        or not isinstance(expected["model"], str) or not expected["model"]
+                        or type(expected["repeat"]) is not int or expected["repeat"] < 1
+                        or cell.get("status") not in ("planned", "done", "failed")
+                        or (expected["backend"], expected["model"]) not in models
+                        or expected["repeat"] > specification["repeats"]):
+                    raise ValueError("invalid planned cell")
+                target = (out / "rounds" / cell["cell_id"]).resolve()
+                if target.parent != out.resolve() / "rounds" or cell.get("round_dir") != str(target):
+                    raise ValueError("cell round directory is outside its bound storage")
+        for task_id in tasks:
+            cells = [cell for cell in plan["cells"] if cell["task_id"] == task_id]
+            unavailable_cells = [cell for cell in cells if cell["status"] == "unavailable"]
+            if unavailable_cells:
+                if len(cells) != 1:
+                    raise ValueError("unavailable task has extra cells")
+            elif {(cell["backend"], cell["model"], cell["repeat"]) for cell in cells} != {
+                    (backend, model, repeat) for backend, model in models
+                    for repeat in range(1, specification["repeats"] + 1)}:
+                raise ValueError("suite cell denominator is incomplete")
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HarnessError(f"invalid suite plan identity: {exc}") from exc
+
+
+def _bind_cells(plan: dict[str, Any], out: Path) -> None:
+    plan.update(schema=PLAN_SCHEMA_V2, identity_profile=IDENTITY_PROFILE,
+                identity={"suite_id": plan["suite_id"], "suite_sha256": plan["suite_sha256"]})
+    plan["plan_id"] = storage_key("suite", plan["identity"])
+    for cell in plan["cells"]:
+        identity = {"suite_id": plan["suite_id"], "suite_sha256": plan["suite_sha256"],
+                    "task_id": cell["task_id"], "adapter_sha256": cell.get("adapter_sha256"),
+                    "backend": cell.get("backend"), "model": cell.get("model"), "repeat": cell.get("repeat")}
+        cell.update(identity=identity, cell_id=storage_key("cell", identity))
+        if cell["status"] != "unavailable":
+            cell["round_dir"] = str((out / "rounds" / cell["cell_id"]).resolve())
+    _validate_plan(plan, out)
 
 
 def pass_at_k(n: int, c: int, k: int) -> float | None:
@@ -54,11 +147,28 @@ def pass_hat_k(n: int, c: int, k: int) -> float | None:
 def load_suite(path: str | Path) -> dict[str, Any]:
     suite_path = Path(path)
     suite = read_json(suite_path)
-    if suite.get("schema") != SUITE_SCHEMA:
-        raise ConfigError(f"{path}: not a {SUITE_SCHEMA} file")
+    if not isinstance(suite, dict) or suite.get("schema") not in (SUITE_SCHEMA, SUITE_SCHEMA_V2):
+        raise ConfigError("unsupported suite schema")
+    if suite["schema"] == SUITE_SCHEMA_V2:
+        try:
+            if (not isinstance(suite.get("tasks"), list) or not isinstance(suite.get("models"), list)
+                    or any(not isinstance(t, Mapping) for t in suite["tasks"])
+                    or any(not isinstance(m, Mapping) for m in suite["models"])):
+                raise ValueError("suite tasks and models must be lists of objects")
+            require_identity_profile(suite)
+            logical_id(suite.get("suite_id"), label="suite_id")
+            ids = [logical_id(task.get("task_id"), label="task_id") for task in suite.get("tasks", [])]
+            if len(ids) != len(set(ids)):
+                raise ValueError("duplicate suite task_id")
+            models = [(model["backend"], model["model"]) for model in suite.get("models", [])]
+            if (any(not isinstance(b, str) or not isinstance(m, str) or not m for b, m in models)
+                    or len(models) != len(set(models))):
+                raise ValueError("duplicate or invalid suite model")
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ConfigError(str(exc)) from exc
     if not suite.get("tasks") or not suite.get("models"):
         raise ConfigError("a suite needs tasks and models")
-    if not isinstance(suite.get("repeats"), int) or suite["repeats"] < 1:
+    if type(suite.get("repeats")) is not int or suite["repeats"] < 1:
         raise ConfigError("repeats must be a positive integer")
     for task in suite["tasks"]:
         if not task.get("adapter") and not (task.get("unavailable") or {}).get("missing_interfaces"):
@@ -71,20 +181,29 @@ def load_suite(path: str | Path) -> dict[str, Any]:
     return suite
 
 
-def plan_suite(suite: Mapping[str, Any], out_dir: str | Path, *, now: float) -> dict[str, Any]:
+def plan_suite(suite: Mapping[str, Any], out_dir: str | Path, *, now: float,
+               _write: bool = True) -> dict[str, Any]:
     out = Path(out_dir)
+    versioned = suite["schema"] == SUITE_SCHEMA_V2
+    if versioned and _write and ((out / "plan.json").exists() or (out / "plan.json").is_symlink()):
+        raise HarnessError("suite plan already exists; resume it or choose a new directory")
     cells = []
     for task in suite["tasks"]:
         task_id = task["task_id"]
         if not task.get("adapter"):
             cells.append({"cell_id": f"{task_id}__unavailable", "task_id": task_id, "status": "unavailable",
-                          **task.get("unavailable", {})})
+                          **({k: v for k, v in task.get("unavailable", {}).items()
+                              if k in ("missing_interfaces", "existing")} if versioned
+                             else task.get("unavailable", {}))})
             continue
         adapter_path = (Path(suite["_dir"]) / task["adapter"]).resolve()
         adapter = TaskAdapter.load(adapter_path)
+        if (adapter.raw["schema"] == ADAPTER_SCHEMA_V2) != versioned or (versioned and adapter.task_id != task_id):
+            raise ConfigError("suite and adapter versions must match, with identical /2 task IDs")
         if not adapter.available:
             cells.append({"cell_id": f"{task_id}__unavailable", "task_id": task_id, "status": "unavailable",
-                          "missing_interfaces": adapter.raw.get("missing_interfaces")})
+                          "missing_interfaces": adapter.raw.get("missing_interfaces"),
+                          **({"adapter_sha256": adapter.sha256} if versioned else {})})
             continue
         for model in suite["models"]:
             for repeat in range(1, suite["repeats"] + 1):
@@ -92,13 +211,18 @@ def plan_suite(suite: Mapping[str, Any], out_dir: str | Path, *, now: float) -> 
                 cells.append({"cell_id": cell_id, "task_id": task_id, "status": "planned",
                               "adapter": str(adapter_path), "backend": model["backend"], "model": model["model"],
                               "repeat": repeat, "holdout_seeds": task.get("holdout_seeds"),
+                              **({"adapter_sha256": adapter.sha256} if versioned else {}),
                               "round_dir": str(out / "rounds" / cell_id)})
     plan = {"schema": PLAN_SCHEMA, "suite_id": suite["suite_id"], "suite_sha256": suite["_sha256"],
             "created_at": utc_now(now), "verified_pass_rate": suite.get("verified_pass_rate", 0.5),
             "k": suite.get("k", [1]), "cells": cells,
             "counts": dict(collections.Counter(c["status"] for c in cells))}
-    out.mkdir(parents=True, exist_ok=True)
-    atomic_write_json(out / "plan.json", plan)
+    if versioned:
+        plan["suite_specification"] = {k: v for k, v in suite.items() if not k.startswith("_")}
+        _bind_cells(plan, out)
+    if _write:
+        out.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(out / "plan.json", plan)
     return plan
 
 
@@ -107,6 +231,11 @@ def round_metrics(round_dir: str | Path, verified_pass_rate: float) -> dict[str,
     state = RoundState.load(paths.state)
     data = state.data
     round_json = read_json(paths.round_json)
+    from datafarm.expert.round import validate_round_identity
+
+    validate_round_identity(round_json)
+    if data["round_id"] != round_json["round_id"]:
+        raise HarnessError("round metrics state identity differs from its prepared record")
     budgets = round_json["budgets"]
     holdout = read_json(paths.holdout_results) if paths.holdout_results.exists() else None
     final = (holdout or {}).get("final") or {}
@@ -144,12 +273,22 @@ def round_metrics(round_dir: str | Path, verified_pass_rate: float) -> dict[str,
 def report_suite(out_dir: str | Path, *, now: float) -> dict[str, Any]:
     out = Path(out_dir)
     plan = read_json(out / "plan.json")
+    _validate_plan(plan, out)
     threshold = float(plan.get("verified_pass_rate", 0.5))
     ks = plan.get("k", [1])
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = collections.defaultdict(list)
     for cell in plan["cells"]:
         if cell["status"] != "done":
             continue
+        if plan["schema"] == PLAN_SCHEMA_V2:
+            from datafarm.expert.round import validate_round_identity
+
+            record = read_json(RoundPaths(Path(cell["round_dir"])).round_json)
+            validate_round_identity(record)
+            if (record["schema"] != "datafarm.expert-harness.round/2"
+                    or record["task_id"] != cell["task_id"]
+                    or record["identity"]["nonce"] != cell["cell_id"]):
+                raise HarnessError("suite cell and evaluated round identities differ")
         metrics = round_metrics(cell["round_dir"], threshold)
         cell["metrics"] = metrics
         groups[(cell["task_id"], cell["backend"], cell["model"])].append(metrics)
@@ -182,6 +321,11 @@ def report_suite(out_dir: str | Path, *, now: float) -> dict[str, Any]:
               "generated_at": utc_now(now), "verified_pass_rate": threshold, "k": ks, "rows": rows,
               "unavailable_tasks": unavailable,
               "cells": [{k: c.get(k) for k in ("cell_id", "status", "error")} for c in plan["cells"]]}
+    if plan["schema"] == PLAN_SCHEMA_V2:
+        report.update(schema=REPORT_SCHEMA_V2, identity_profile=IDENTITY_PROFILE,
+                      identity=plan["identity"], plan_id=plan["plan_id"],
+                      cells=[{k: c.get(k) for k in ("cell_id", "identity", "status", "error")}
+                             for c in plan["cells"]])
     atomic_write_json(out / "report.json", report)
     atomic_write_text(out / "report.md", report_markdown(report))
     return report
@@ -231,8 +375,21 @@ def run_suite(suite_path: str | Path, out_dir: str | Path, *, clock: Clock,
     out = Path(out_dir)
     runtime = Clock()  # 轮次运行真实进程：预算与 holdout 截止时间依赖真实时间
     plan = read_json(out / "plan.json") if (out / "plan.json").exists() else plan_suite(suite, out, now=clock.now())
+    _validate_plan(plan, out)
+    expected_schema = PLAN_SCHEMA_V2 if suite["schema"] == SUITE_SCHEMA_V2 else PLAN_SCHEMA
+    if plan["schema"] != expected_schema or plan["suite_id"] != suite["suite_id"]:
+        raise HarnessError("suite and plan versions or identities differ")
     if plan["suite_sha256"] != suite["_sha256"]:
         raise HarnessError("the suite file changed since it was planned; plan into a new directory")
+    if plan["schema"] == PLAN_SCHEMA_V2:
+        expected = plan_suite(suite, out, now=clock.now(), _write=False)
+        fields = ("cell_id", "identity", "task_id", "adapter", "adapter_sha256", "backend", "model",
+                  "repeat", "holdout_seeds", "round_dir", "missing_interfaces", "existing")
+        actual_cells = [{k: c.get(k) for k in fields} for c in plan["cells"]]
+        expected_cells = [{k: c.get(k) for k in fields} for c in expected["cells"]]
+        if (actual_cells != expected_cells or plan["k"] != expected["k"]
+                or plan["verified_pass_rate"] != expected["verified_pass_rate"]):
+            raise HarnessError("planned denominator, inputs or scoring policy differ from the suite")
     for cell in plan["cells"]:
         if cell["status"] != "planned" or (only and cell["cell_id"] not in only):
             continue
@@ -240,13 +397,25 @@ def run_suite(suite_path: str | Path, out_dir: str | Path, *, clock: Clock,
             overrides = {"agent": {"backend": cell["backend"], "model": cell["model"]}}
             if suite.get("budget_overrides"):
                 overrides["budgets"] = suite["budget_overrides"]
+            if plan["schema"] == PLAN_SCHEMA_V2:
+                task = next(t for t in suite["tasks"] if t["task_id"] == cell["task_id"])
+                expected_path = (Path(suite["_dir"]) / task["adapter"]).resolve()
+                original = TaskAdapter.load(expected_path)
+                if (cell["adapter"] != str(expected_path) or original.sha256 != cell["adapter_sha256"]
+                        or original.task_id != cell["task_id"]
+                        or cell.get("holdout_seeds") != task.get("holdout_seeds")):
+                    raise HarnessError("planned adapter or holdout input changed; create a new plan")
             adapter = TaskAdapter.load(cell["adapter"], overrides=overrides)
             holdout_file = cell.get("holdout_seeds")
             if fake:
                 adapter, holdout_file = fake(adapter, cell, out, isolation)
+            if plan["schema"] == PLAN_SCHEMA_V2 and (
+                    adapter.raw["schema"] != ADAPTER_SCHEMA_V2 or adapter.task_id != cell["task_id"]):
+                raise HarnessError("runtime adapter changed the planned logical identity")
             paths = RoundPaths(Path(cell["round_dir"]))
             prepare_round(adapter, paths.root, clock=runtime, holdout_seeds_path=holdout_file,
-                          round_id=f"XS-{cell['cell_id']}"[:120], overrides=None if fake else overrides)
+                          round_id=cell["cell_id"] if plan["schema"] == PLAN_SCHEMA_V2 else f"XS-{cell['cell_id']}"[:120],
+                          overrides=None if fake else overrides)
             runner_kwargs = {"tick_interval_s": 0.1, "poll_interval_s": 0.2, "term_grace_s": 3.0,
                              "drain_timeout_s": 120.0} if fake or fast else {}
             RoundRunner(paths, adapter, clock=runtime, approve_agent_spend=approve_agent_spend,

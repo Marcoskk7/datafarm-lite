@@ -13,13 +13,46 @@ import re
 from pathlib import Path
 from typing import Any
 
-from datafarm.expert.adapter import TaskAdapter
+from datafarm.expert.adapter import ADAPTER_SCHEMA_V2, TaskAdapter
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.state import RoundState
 from datafarm.expert.util import (HarnessError, atomic_write_bytes, atomic_write_json)
-from datafarm.kernel.io import append_jsonl, read_json, sha256_bytes, utc_now
+from datafarm.kernel.io import append_jsonl, is_sha256, read_json, sha256_bytes, utc_now
+from datafarm.kernel.schema import canonical_json_bytes
+from datafarm.kernel.identifiers import (
+    IDENTITY_PROFILE, logical_id, require_identity_profile, storage_key, verify_storage_key, write_once_json,
+)
 
 ENTRY_SCHEMA = "datafarm.expert-harness.library-entry/1"
+ENTRY_SCHEMA_V2 = "datafarm.expert-harness.library-entry/2"
+
+
+def _entry_identity(entry: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(entry.get("verifier_version"), str) or not entry["verifier_version"]:
+        raise ValueError("verifier_version must be a nonempty string")
+    return {"task_id": logical_id(entry.get("task_id"), label="task_id"),
+            "expert_sha256": entry["expert_sha256"], "verifier_version": entry["verifier_version"],
+            "round_id": logical_id(entry.get("round_id"), label="round_id")}
+
+
+def _validate_entry(entry: dict[str, Any], entry_id: str) -> None:
+    if not isinstance(entry, dict) or entry.get("schema") not in (ENTRY_SCHEMA, ENTRY_SCHEMA_V2):
+        raise HarnessError("unsupported library entry schema")
+    if entry.get("entry_id") != entry_id or not is_sha256(entry.get("expert_sha256")):
+        raise HarnessError("library filename or source digest differs from its record")
+    if entry["schema"] == ENTRY_SCHEMA_V2:
+        try:
+            require_identity_profile(entry)
+            verify_storage_key(entry_id, "expert", entry.get("identity"), _entry_identity(entry))
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HarnessError(f"invalid library identity: {exc}") from exc
+
+
+def _entry_name(entry_id: str) -> str:
+    if (not isinstance(entry_id, str) or re.fullmatch(r"[A-Za-z0-9._-]+", entry_id) is None
+            or entry_id in (".", "..")):
+        raise HarnessError("library entry ID must be a single safe filename component")
+    return entry_id
 
 
 class ExpertLibrary:
@@ -36,11 +69,11 @@ class ExpertLibrary:
             holdout: dict[str, Any], brief_sha256: str | None, task_ir_sha256: str | None,
             model: str | None, backend: str | None, cost_usd: float | None, wall_s: float | None,
             counted_rollouts: int | None, round_id: str, added_at: str,
-            tags: list[str] | None = None) -> dict[str, Any]:
+            tags: list[str] | None = None, schema: str = ENTRY_SCHEMA) -> dict[str, Any]:
+        if schema not in (ENTRY_SCHEMA, ENTRY_SCHEMA_V2):
+            raise HarnessError("unsupported library entry schema")
         sha = sha256_bytes(source)
         path = self._object_path(sha)
-        if not path.exists():
-            atomic_write_bytes(path, source, mode=0o444)
         entry_id = re.sub(r"[^A-Za-z0-9._-]", "_", f"{task_id}-{sha[:12]}-{verifier_version}")
         entry = {"schema": ENTRY_SCHEMA, "entry_id": entry_id, "task_id": task_id,
                  "expert_sha256": sha, "expert_class": expert_class, "verifier_version": verifier_version,
@@ -48,22 +81,62 @@ class ExpertLibrary:
                  "model": model, "backend": backend, "cost_usd": cost_usd, "wall_s": wall_s,
                  "counted_rollouts": counted_rollouts, "round_id": round_id, "added_at": added_at,
                  "tags": sorted(set(tags or []))}
+        if schema == ENTRY_SCHEMA_V2:
+            try:
+                identity = _entry_identity(entry)
+                entry_id = storage_key("expert", identity)
+                entry.update(schema=schema, identity_profile=IDENTITY_PROFILE,
+                             identity=identity, entry_id=entry_id)
+                _validate_entry(entry, entry_id)
+                canonical_json_bytes(entry)
+                target = self.entries / f"{entry_id}.json"
+                if path.exists() and (path.is_symlink() or path.read_bytes() != source):
+                    raise ValueError("library source object differs from its digest")
+                # Validate the complete receipt before publishing any new object.
+                if target.exists() or target.is_symlink():
+                    existing, _ = self.get(entry_id)
+                    if canonical_json_bytes(existing) != canonical_json_bytes(entry):
+                        raise ValueError("library receipt differs; refusing identity reuse")
+                    return existing
+                if not path.exists():
+                    atomic_write_bytes(path, source, mode=0o444)
+                write_once_json(target, entry)
+            except ValueError as exc:
+                raise HarnessError(str(exc)) from exc
+            append_jsonl(self.index, {"event": "add", "entry_id": entry_id, "expert_sha256": sha,
+                                     "task_id": task_id, "added_at": added_at})
+            return entry
+        if not path.exists():
+            atomic_write_bytes(path, source, mode=0o444)
+        _entry_name(entry_id)
         target = self.entries / f"{entry_id}.json"
         if target.exists():
-            existing = read_json(target)
+            existing, _ = self.get(entry_id)
             if existing.get("round_id") == round_id:
                 return existing
-            entry_id = f"{entry_id}-{round_id}"
+            entry_id = _entry_name(f"{entry_id}-{round_id}")
             entry["entry_id"] = entry_id
             target = self.entries / f"{entry_id}.json"
+            if target.exists() or target.is_symlink():
+                existing, _ = self.get(entry_id)
+                if existing != entry:
+                    raise HarnessError("legacy library identity collision; refusing overwrite")
+                return existing
         atomic_write_json(target, entry, mode=0o444)
         append_jsonl(self.index, {"event": "add", "entry_id": entry_id, "expert_sha256": sha,
                                   "task_id": task_id, "added_at": added_at})
         return entry
 
     def get(self, entry_id: str) -> tuple[dict[str, Any], bytes]:
-        entry = read_json(self.entries / f"{entry_id}.json")
-        source = self._object_path(entry["expert_sha256"]).read_bytes()
+        target = self.entries / f"{_entry_name(entry_id)}.json"
+        if target.is_symlink():
+            raise HarnessError("library entry cannot be a symlink")
+        entry = read_json(target)
+        _validate_entry(entry, entry_id)
+        object_path = self._object_path(entry["expert_sha256"])
+        if object_path.is_symlink():
+            raise HarnessError("library source cannot be a symlink")
+        source = object_path.read_bytes()
         if sha256_bytes(source) != entry["expert_sha256"]:
             raise HarnessError(f"library object for {entry_id} does not match its digest (tampered)")
         return entry, source
@@ -71,7 +144,7 @@ class ExpertLibrary:
     def all_entries(self) -> list[dict[str, Any]]:
         if not self.entries.exists():
             return []
-        return [read_json(p) for p in sorted(self.entries.glob("*.json"))]
+        return [self.get(p.stem)[0] for p in sorted(self.entries.glob("*.json"))]
 
     def find(self, *, task_id: str | None = None, verifier_version: str | None = None,
              min_pass_rate: float = 0.0, limit: int = 5, exclude_task: str | None = None) -> list[dict[str, Any]]:
@@ -98,7 +171,7 @@ class ExpertLibrary:
         out_dir.mkdir(parents=True, exist_ok=True)
         lines = []
         for entry in entries:
-            _, source = self.get(entry["entry_id"])
+            entry, source = self.get(entry["entry_id"])
             name = f"{entry['entry_id']}.py"
             atomic_write_bytes(out_dir / name, source, mode=0o444)
             holdout = entry.get("holdout") or {}
@@ -126,6 +199,11 @@ def add_from_round(library: ExpertLibrary, paths: RoundPaths, adapter: TaskAdapt
     sub = next(s for s in state.data["submissions"] if s["submission_id"] == results["final_submission"])
     source = (paths.submissions / sub["submission_id"] / "expert.py").read_bytes()
     round_info = read_json(paths.round_json)
+    from datafarm.expert.round import validate_round_identity
+
+    validate_round_identity(round_info, adapter)
+    if state.data["round_id"] != round_info["round_id"]:
+        raise HarnessError("round state and library admission identities differ")
     sessions = state.data["sessions"]
     cost = sum(float(s.get("cost_usd") or 0.0) for s in sessions)
     return library.add(source=source, expert_class=sub["expert_class"], task_id=adapter.task_id,
@@ -140,5 +218,6 @@ def add_from_round(library: ExpertLibrary, paths: RoundPaths, adapter: TaskAdapt
                        wall_s=(state.data["active_wall_s_final"] if state.data.get("active_wall_s_final") is not None
                                else state.active_wall_s(now)),
                        counted_rollouts=state.counters.get("counted"), round_id=state.data["round_id"],
-                       added_at=utc_now(now), tags=[adapter.task_id])
+                       added_at=utc_now(now), tags=[adapter.task_id],
+                       schema=ENTRY_SCHEMA_V2 if adapter.raw["schema"] == ADAPTER_SCHEMA_V2 else ENTRY_SCHEMA)
 
