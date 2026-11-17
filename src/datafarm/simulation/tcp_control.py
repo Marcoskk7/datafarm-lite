@@ -376,3 +376,72 @@ class TCPMotionService:
             result["status"], result["reason_code"] = "error", "EVENT_SINK_ERROR"
             result["hold"] = self.host.hold(self.joint_names)
         return result
+
+    def move_gripper(self, request):
+        """Width convergence with explicit safety limits; staging alone is not completion."""
+        from .robot_binding import gripper_target
+        start = time.monotonic()
+        if not isinstance(request, dict) or set(request) != {"schema_version", "width_m", "speed_m_s", "tolerance_m", "settle_steps", "max_control_steps"} or request["schema_version"] != "gripper-motion-request/1":
+            raise ControlFault("INVALID_ARGUMENT")
+        self.capabilities()
+        cfg = self.profile
+        speed, tolerance = number(request["speed_m_s"], positive=True), number(request["tolerance_m"], positive=True)
+        settle, limit = integer(request["settle_steps"]), integer(request["max_control_steps"])
+        if speed > cfg.max_linear_speed_m_s or tolerance > cfg.position_tolerance_m or not cfg.settle_steps <= settle <= limit <= cfg.max_control_steps:
+            raise ControlFault("INVALID_ARGUMENT")
+        target = gripper_target(self.binding, request["width_m"])
+        name = next(iter(target))
+        if name not in self.binding["position_driven_joints"]:
+            raise ControlFault("CAPABILITY_UNAVAILABLE")
+        descriptor = next(j for j in self.binding["descriptor"]["joints"] if j["name"] == name)
+        max_joint_speed = min(descriptor["limits"]["velocity"], self.host.joint_speed_limit(name), cfg.joint_speed_limits.get(name, descriptor["limits"]["velocity"]))
+        if not self.host.acquire():
+            raise ControlFault("CONTROL_BUSY")
+        self.calls += 1
+        stable = 0
+        status, reason = "timeout", "GRIPPER_NONCONVERGENCE"
+        try:
+            if self.calls > cfg.max_calls:
+                status, reason = "rejected", "CALL_BUDGET"
+            else:
+                previous = self.host.observe()
+                reference = self.host.begin([name])[name]
+                for _ in range(limit):
+                    if self.host.cancelled():
+                        status, reason = "aborted", "CANCELLED"
+                        break
+                    if self.total_steps >= cfg.max_total_control_steps or time.monotonic()-start >= cfg.max_wall_time_s:
+                        reason = "CONTROL_BUDGET"
+                        break
+                    step = min(speed*abs(self.binding["semantics"]["gripper"]["joint_per_m"]), max_joint_speed)*cfg.dt_s
+                    reference += max(-step, min(step, target[name]-reference))
+                    before = self.host.step_attempts
+                    try:
+                        current = self.host.step({name: reference}, {"primitive": "gripper", "width_m": request["width_m"]})
+                    finally:
+                        self.total_steps += self.host.step_attempts-before
+                    i = current["joint_names"].index(name)
+                    validate_targets(self.binding, {name: current["q"][i]})
+                    if abs(current["dq"][i]) > max_joint_speed+1e-6:
+                        raise ControlFault("SPEED_LIMIT")
+                    if abs(current["gripper"]["width_m"]-previous["gripper"]["width_m"]) > speed*cfg.dt_s+1e-6:
+                        raise ControlFault("SPEED_LIMIT")
+                    stable = stable+1 if abs(current["gripper"]["width_m"]-request["width_m"]) <= tolerance else 0
+                    previous = current
+                    if self.host.cancelled():
+                        status, reason = "aborted", "CANCELLED"
+                        break
+                    if stable >= settle:
+                        status, reason = "completed", "SETTLED"
+                        break
+        except ControlFault as exc:
+            status, reason = ("failed" if exc.code in ("SPEED_LIMIT", "JOINT_LIMIT") else "error"), exc.code
+        except Exception:
+            status, reason = "error", "GRIPPER_CONTROL_ERROR"
+        finally:
+            if status != "completed":
+                self.host.hold([name])
+            self.host.release()
+        return {"schema_version": "gripper-motion-result/1", "status": status, "reason_code": reason,
+                "settled_steps": stable, "control_step": self.host.control_step,
+                "step_outcome_unknown": self.host.step_outcome_unknown}

@@ -11,8 +11,14 @@ from datafarm.simulation.tcp_control import ControlFault, pose
 class IsaacControlHost:
     """不创建场景或后台循环；调用方交付已初始化的模拟器和独占步进权限。"""
 
-    def __init__(self, api, simulation, *, frame_resolvers=None, event_sink=None, cancelled=None):
+    def __init__(self, api, simulation, *, frame_resolvers=None, event_sink=None, cancelled=None, scene=None, measurements=None, recorder=None):
         self.api, self.simulation = api, simulation
+        if (scene is None) != (measurements is None) or (recorder is not None and scene is None):
+            raise BindingError("Full scene, measurement and recording ports must be supplied together")
+        self.scene, self.measurements, self.recorder = scene, measurements, recorder
+        self.latest_scene_state = None
+        if scene is not None and not all(callable(getattr(scene, n, None)) for n in ("write_data_to_sim", "update")):
+            raise BindingError("Full scene stepping ports unavailable")
         self.frames = dict(frame_resolvers or {})
         if "world" in self.frames or not all(isinstance(n, str) and n and callable(v) for n, v in self.frames.items()):
             raise BindingError("Frame resolvers must be named callables; world cannot be overridden")
@@ -62,10 +68,14 @@ class IsaacControlHost:
             raise ControlFault("CANCEL_PROBE_ERROR") from None
 
     def observe(self):
-        if not self.healthy:
+        if not self.healthy or self.step_outcome_unknown:
             raise ControlFault("HOST_REQUALIFICATION_REQUIRED")
         try:
-            self.latest_observation = self.api.observe()
+            if self.measurements is None:
+                self.latest_observation = self.api.observe()
+            else:
+                self.latest_scene_state = self.measurements.snapshot(self.control_step, self.dt_s)
+                self.latest_observation = self.latest_scene_state["robot"]
             return deepcopy(self.latest_observation)
         except BindingError as exc:
             code = "NONFINITE_STATE" if str(exc).startswith("NONFINITE_STATE") else "ASSET_MISMATCH"
@@ -105,15 +115,28 @@ class IsaacControlHost:
     def step(self, targets, event):
         if self.api._command_owner != threading.get_ident() or not self.healthy:
             raise ControlFault("CONTROL_OWNERSHIP_ERROR")
+        if set(event) & {"kind", "control_step", "applied", "measured"}:
+            raise ControlFault("INVALID_EVENT_FIELDS")
         self.latest_observation = None
         if not math.isclose(float(self.simulation.get_physics_dt()), self.dt_s, rel_tol=0, abs_tol=1e-12):
             raise ControlFault("CONTROL_DT_CHANGED")
+        if self.recorder is not None:
+            try:
+                self.recorder.ensure_capacity(targets, event)
+            except ValueError:
+                raise ControlFault("RECORDING_BUDGET_EXHAUSTED") from None
         self.emit(dict(kind="control_request", control_step=self.control_step,
                        applied=targets, **event))
         try:
             self.api._stage_joint_targets(targets)
             self.command_pending = True
-            self.api.robot.write_data_to_sim()
+            if self.scene is None:
+                self.api.robot.write_data_to_sim()
+            else:
+                self.scene.write_data_to_sim()
+            applied = self.begin(self.api.binding["joint_names"])
+            if self.recorder is not None:
+                self.recorder.input(targets, applied, event)
         except Exception:
             self.healthy = False
             raise ControlFault("TARGET_APPLY_ERROR") from None
@@ -131,8 +154,13 @@ class IsaacControlHost:
         self.control_step += 1
         self.command_pending = False
         try:
-            self.api.robot.update(self.dt_s)
+            if self.scene is None:
+                self.api.robot.update(self.dt_s)
+            else:
+                self.scene.update(self.dt_s)
             measured = self.observe()
+            if self.recorder is not None:
+                self.recorder.measured(self.latest_scene_state)
         except Exception:
             self.healthy = False
             raise ControlFault("STATE_REFRESH_ERROR") from None
@@ -153,3 +181,12 @@ class IsaacControlHost:
         except Exception:
             self.healthy = False
             return dict(status="error", reason_code="HOLD_ERROR", stepped=False)
+
+    def joint_speed_limit(self, name):
+        """Read actual drive speed limits; no inferred unbounded gripper rate."""
+        value = self.api.robot.data.joint_vel_limits
+        value = value.torch if hasattr(value, "torch") else value
+        speed = float(value[0, self.api.binding["joint_index"][name]])
+        if not math.isfinite(speed) or speed <= 0:
+            raise ControlFault("RUNTIME_SPEED_LIMIT_UNAVAILABLE")
+        return speed

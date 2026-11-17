@@ -171,3 +171,9 @@ class IsaacRobotAPI:
         if self._tcp_motion_service is None:
             raise BindingError('CAPABILITY_UNAVAILABLE: IK/motion planner not bound')
         return self._tcp_motion_service.move_tcp(request)
+
+    def move_gripper(self, request):
+        """Bounded measured gripper motion through the same owned physics clock."""
+        if self._tcp_motion_service is None:
+            raise BindingError('CAPABILITY_UNAVAILABLE: motion host not bound')
+        return self._tcp_motion_service.move_gripper(request)
