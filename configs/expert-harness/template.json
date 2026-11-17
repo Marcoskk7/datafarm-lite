@@ -1,5 +1,6 @@
 {
   "schema": "datafarm.expert-harness.adapter/1",
+  "identity_profile": "datafarm.logical-identity/1",
   "task_id": "example-task",
   "title": "<one-line task description>",
   "status": "available",
