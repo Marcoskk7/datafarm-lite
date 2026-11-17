@@ -6,6 +6,7 @@ import math
 import re
 
 BUILD_SCHEMA = 'judge-build-input/1'
+BUILD_SCHEMA_V2 = 'judge-build-input/2'
 CONTRACT_SCHEMA = 'task-contract/1'
 RESULT_SCHEMA = 'judge-result/1'
 ID = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}')
@@ -65,6 +66,16 @@ def normalize_task(raw):
     """适配已有 A 线任务字典/Task IR；新增结构只存在于 B 的内部构建请求中。"""
     check(isinstance(raw, dict), 'Task must be an object')
     payload = raw.get('payload', raw)
+    if payload.get('profile') == 'request-task/1':
+        from datafarm.task.request_profile import validate_task_payload
+        payload = validate_task_payload(payload)
+        from datafarm.kernel.identifiers import logical_id
+        logical_id(payload['task_id'])
+        requirements = deepcopy(payload['predicates'] + payload['forbidden_shortcuts'])
+        check({r['id'] for r in requirements} == set(payload['requirement_ids']), 'Task requirement coverage differs')
+        return dict(task_id=payload['task_id'], task_version=payload['task_revision'],
+                    requirements=requirements, provided_thresholds={p['id']:deepcopy(p) for p in payload['parameters']},
+                    original=deepcopy(raw))
     task_id = raw.get('task_id', raw.get('name', raw.get('artifact_id')))
     identifier(task_id)
     requirements = payload.get('requirements')
@@ -92,6 +103,12 @@ def normalize_task(raw):
 def build_input(task, scene, observations, cases):
     value = dict(schema_version=BUILD_SCHEMA, task=normalize_task(task), scene=deepcopy(scene),
                  observations=deepcopy(observations), development_cases=deepcopy(cases))
+    if task.get('payload', task).get('profile') == 'request-task/1':
+        value['schema_version'] = BUILD_SCHEMA_V2
+        check(observations.get('profile') == 'judge-episode/2', 'Measured task requires Judge observations/2')
+        check(isinstance(observations.get('source_binding'), dict), 'Judge source binding missing')
+        check(observations['source_binding']['task_id'] == value['task']['task_id'] and
+              observations['source_binding']['task_revision'] == value['task']['task_version'], 'Judge task binding differs')
     finite_tree(value)
     private_fields(value)
     check(isinstance(scene, dict), 'Scene metadata must be an object')
@@ -152,7 +169,7 @@ def validate_candidate(candidate, inputs):
     check(len(set(condition_ids)) == len(condition_ids), 'Duplicate condition IDs')
     # 已有 stage-graph/1 的映射属于上游契约，不能让模型重命名后破坏阶段交叉引用。
     original = inputs['task']['original'].get('payload', inputs['task']['original'])
-    required_ids = {p.get('judge_criterion') for p in original.get('predicates', {}).values()
+    required_ids = {p.get('judge_criterion') for p in (original.get('predicates', {}).values() if isinstance(original.get('predicates'), dict) else [])
                     if p.get('kind') in ('terminal', 'transient') and p.get('judge_criterion')}
     if required_ids:
         check(set(condition_ids) == required_ids, 'Upstream judge_criterion IDs changed')
@@ -181,6 +198,9 @@ def has_path(value, path):
 
 def validate_episode(episode, contract):
     finite_tree(episode)
+    if contract.get('schema_version') == 'task-contract/2':
+        from .episode_input import validate_input
+        return validate_input(episode, contract)
     check(episode.get('schema_version') == 'judge-episode/1', 'Unsupported episode version')
     check(episode.get('units') == {'length':'m', 'angle':'rad', 'time':'s'} and episode.get('frame_id') == 'world',
           'Episode requires explicit SI units and world frame')

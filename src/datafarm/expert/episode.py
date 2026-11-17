@@ -176,7 +176,8 @@ class EpisodeRecorder:
         return ArtifactDocument(kind=IRKind.EPISODE, artifact_id=self.setup["episode_id"],
             created_at=created_at, producer="b-scene-recorder",
             predecessors=(), evidence=tuple(ArtifactRef.from_dict(self.setup[k]) for k in
-                ("request_ref", "original_request_ref", "task_ref", "scene_ref", "runtime_ref", "expert_ref")), payload=checked)
+                ("request_ref", "original_request_ref", "task_ref", "scene_ref", "runtime_ref", "expert_ref")) +
+                ((ArtifactRef.from_dict(self.setup["task_contract_ref"]),) if self.setup.get("task_contract_ref") is not None else ()), payload=checked)
 
 
 def episode_identity(task_id, task_revision, attempt_id):

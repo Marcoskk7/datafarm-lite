@@ -22,7 +22,12 @@ Methods: get,items,keys,values,append,extend,copy,count,index. Math attributes o
 numeric functions (sqrt/sin/cos/acos/atan2/hypot/isfinite/isclose/pi etc).
 Use task_contract['thresholds'][threshold_id]['value']; never duplicate threshold
 numbers in source. scene_metadata contains only supplied model/scene data.
-episode is judge-episode/1: units={length:m,angle:rad,time:s}, frame_id=world,
+episode follows observations.profile (judge-episode/1 legacy or judge-episode/2 measured).
+For /2, evidence_fields are JSON-encoded arrays of exact key segments, NOT dot
+paths: ["states","entities","object.a","position_m"] keeps object.a intact.
+States retain all entities and links, robot TCP/gripper and contact availability.
+Use available_fields exactly; unavailable contact force/coverage is never zero.
+For legacy /1: units={length:m,angle:rad,time:s}, frame_id=world,
 positive control_dt_s, measured states with contiguous control_step starting
 at 0, N actions (each with its control_step) and N+1 states, events, termination. Never score requested targets
 as achieved. The host validates missing evidence, finite data and frame coverage.

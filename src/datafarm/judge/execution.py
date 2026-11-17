@@ -76,6 +76,8 @@ def run_source(source, episode, contract, scene, *, timeout_s=10, memory_mb=256)
         reason = episode.get('termination', {}).get('reason')
         if reason == 'aborted':
             return dict(error_result('aborted'), outcome='aborted')
+        if episode.get('schema_version') == 'judge-episode/2' and reason in ('error', 'timeout', 'failed'):
+            return error_result('EXECUTION_' + reason.upper())
         validate_episode(episode, contract)
         payload = canonical(dict(source=source, episode=episode, contract=contract, scene=scene,
                                  timeout_s=timeout_s, memory_mb=memory_mb))

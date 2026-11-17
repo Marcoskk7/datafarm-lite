@@ -86,7 +86,8 @@ def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
     if request["request_id"] != payload["request_id"]:
         raise ValueError("request identity differs from task")
     if task_contract_ref is not None:
-        raise ValueError("TaskContract binding requires the separate Judge/Episode contract implementation")
+        from datafarm.judge.contract_binding import verify_contract
+        verify_contract(store, task_contract_ref, task_ref=task_ref, scene_ref=scene_ref)
     from datafarm.kernel.identifiers import logical_id
     from datafarm.kernel.schema import canonical_json_bytes
     logical_id(attempt_id, label="attempt_id")

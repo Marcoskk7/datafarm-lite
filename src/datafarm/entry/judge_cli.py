@@ -44,8 +44,33 @@ def main(argv=None) -> int:
             child.add_argument('--episode-relative', required=True)
             child.add_argument('--output', type=Path, required=True)
             child.add_argument('--public-task-output', type=Path, required=True)
+    for command in ('bind-episode-contract', 'evaluate-recorded'):
+        child = subs.add_parser(command)
+        child.add_argument('--store', type=Path, required=True)
+        child.add_argument('--bundle', type=Path, required=True)
+        child.add_argument('--freeze-sha256', required=True)
+        child.add_argument('--output', type=Path, required=True)
+        if command == 'bind-episode-contract':
+            child.add_argument('--task-ref', type=Path, required=True)
+            child.add_argument('--scene-ref', type=Path, required=True)
+        else:
+            child.add_argument('--episode-ref', type=Path, required=True)
+            child.add_argument('--contract-ref', type=Path, required=True)
     args = parser.parse_args(argv)
     try:
+        if args.command in ('bind-episode-contract', 'evaluate-recorded'):
+            from datafarm.kernel.store import ArtifactStore
+            from datafarm.judge.contract_binding import bind_contract, evaluate_episode
+            store = ArtifactStore(args.store)
+            if args.output.exists():
+                raise ValueError('Use a new output path; prior receipts are immutable')
+            if args.command == 'bind-episode-contract':
+                ref = bind_contract(store, read_json(args.task_ref), read_json(args.scene_ref), args.bundle, args.freeze_sha256)
+                write_json(args.output, ref.to_dict())
+            else:
+                receipt, ref = evaluate_episode(store, read_json(args.episode_ref), read_json(args.contract_ref), args.bundle, args.freeze_sha256)
+                write_json(args.output, {'receipt_ref':ref.to_dict(), **receipt})
+            return 0
         if args.command == 'build':
             inputs = build_input(read_json(args.task), read_json(args.scene), read_json(args.observations),
                                  read_json(args.cases))

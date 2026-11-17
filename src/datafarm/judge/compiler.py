@@ -9,7 +9,7 @@ from datafarm.cap.io import read_json, write_json, write_source
 from datafarm.expert.manifest import build_manifest, diff_manifests
 from datafarm.kernel.io import sha256_json as model_digest
 from .execution import audit_source, run_source
-from .protocol import (BUILD_SCHEMA, CONTRACT_SCHEMA, JudgeError, check, file_sha, identifier,
+from .protocol import (BUILD_SCHEMA, BUILD_SCHEMA_V2, CONTRACT_SCHEMA, JudgeError, check, file_sha, identifier,
                        private_fields, sha, validate_candidate, validate_cases)
 
 
@@ -27,6 +27,9 @@ def immutable_json(path, value):
 
 def public_task(inputs):
     """显式投影可公开任务信息，不把带 Judge 的完整契约交给 CaP。"""
+    if inputs.get('schema_version') == BUILD_SCHEMA_V2:
+        from datafarm.cap.public_task import validate_public_task
+        return validate_public_task(inputs['observations']['public_task'])
     original = inputs['task']['original'].get('payload', inputs['task']['original'])
     keys = ('name', 'instruction', 'demand', 'api', 'program_contract', 'joint_index', 'joint_names',
             'roles', 'goal_predicates', 'constraints', 'units')
@@ -48,13 +51,16 @@ def model_inputs(inputs):
 
 
 def contract_for(candidate, inputs, identity):
-    return dict(schema_version=CONTRACT_SCHEMA, task_id=inputs['task']['task_id'],
+    contract = dict(schema_version=CONTRACT_SCHEMA, task_id=inputs['task']['task_id'],
                 task_version=inputs['task']['task_version'], freeze_id=identity,
                 requirements=deepcopy(inputs['task']['requirements']), conditions=deepcopy(candidate['conditions']),
                 thresholds={t['id']: deepcopy(t) for t in candidate['thresholds']},
                 required_capabilities=candidate['required_capabilities'][:],
                 observations=deepcopy(inputs['observations']), scene_sha256=sha(inputs['scene']),
                 public_task=public_task(inputs))
+    if inputs.get('schema_version') == BUILD_SCHEMA_V2:
+        contract.update(schema_version='task-contract/2', source_binding=deepcopy(inputs['observations']['source_binding']))
+    return contract
 
 
 def test_cases(source, contract, scene, cases):
@@ -105,7 +111,8 @@ def runtime_dependencies():
         'cap/__init__.py', 'cap/io.py', 'adapters/__init__.py', 'adapters/agent_harness/__init__.py',
         'adapters/agent_harness/codex/__init__.py', 'adapters/agent_harness/codex/structured.py',
         'expert/__init__.py', 'expert/manifest.py', 'expert/util.py', 'expert/state.py',
-        'expert/layout.py', 'entry/__init__.py', 'entry/judge_cli.py')]
+        'expert/layout.py', 'entry/__init__.py', 'entry/judge_cli.py', 'kernel/identifiers.py', 'kernel/schema.py', 'kernel/artifacts.py',
+        'expert/episode.py', 'task/request_profile.py', 'cap/public_task.py', 'task/planning.py')]
 
 
 def freeze(folder, candidate, contract, inputs, author, reviewer, reports, cases, dependencies):
@@ -154,7 +161,7 @@ def freeze(folder, candidate, contract, inputs, author, reviewer, reports, cases
     protected = sorted(p.resolve() for p in bundle.iterdir() if p.is_file()) + copied + list(dependencies.values()) + runtime_dependencies()
     baseline = build_manifest([str(p) for p in protected], extra={'freeze_id': contract['freeze_id']})
     check(all(v['kind'] == 'file' for v in baseline['entries'].values()), 'Frozen dependency missing or not regular')
-    frozen = dict(schema_version='judge-freeze/1', freeze_id=contract['freeze_id'],
+    frozen = dict(schema_version='judge-freeze/2' if contract['schema_version'] == 'task-contract/2' else 'judge-freeze/1', freeze_id=contract['freeze_id'],
                   ready_for_cap=production, manifest=baseline, task_contract_ref=ref(bundle / 'task-contract.json', 'task-contract'))
     write_json(bundle / 'freeze.json', frozen)
     return dict(status='frozen', ready_for_cap=production, bundle=str(bundle.resolve()),
@@ -168,13 +175,13 @@ def verify_bundle(bundle, expected_sha256=None, *, allow_fixture=False):
     if expected_sha256:
         check(file_sha(bundle / 'freeze.json') == expected_sha256, 'Freeze anchor changed')
     frozen = read_json(bundle / 'freeze.json')
-    check(frozen.get('schema_version') == 'judge-freeze/1', 'Unsupported freeze version')
+    check(frozen.get('schema_version') in ('judge-freeze/1', 'judge-freeze/2'), 'Unsupported freeze version')
     check(frozen.get('ready_for_cap') is True or allow_fixture, 'Scripted fixture cannot start production CaP')
     baseline = frozen['manifest']
     current = build_manifest(baseline['entries'], extra=baseline.get('extra'))
     check(not diff_manifests(baseline, current) and current['digest'] == baseline['digest'], 'Frozen judge dependency changed')
     contract = read_json(bundle / 'task-contract.json')
-    check(contract['schema_version'] == CONTRACT_SCHEMA and contract['freeze_id'] == frozen['freeze_id'], 'Contract mismatch')
+    check(contract['schema_version'] == ('task-contract/2' if frozen['schema_version'] == 'judge-freeze/2' else CONTRACT_SCHEMA) and contract['freeze_id'] == frozen['freeze_id'], 'Contract mismatch')
     check(file_sha(bundle / 'task-contract.json') == frozen['task_contract_ref']['sha256'], 'TaskContract changed')
     check(file_sha(bundle / 'judge.py') == contract['judge_ref']['sha256'], 'Judge source changed')
     return contract
@@ -218,7 +225,7 @@ class JudgeCompiler:
 
     def build(self, inputs, work, dependencies=None):
         dependencies = {k: Path(v).resolve(strict=True) for k, v in (dependencies or {}).items()}
-        check(inputs.get('schema_version') == BUILD_SCHEMA, 'Unsupported build input version')
+        check(inputs.get('schema_version') in (BUILD_SCHEMA, BUILD_SCHEMA_V2), 'Unsupported build input version')
         private_fields(inputs)
         identity = sha(dict(inputs=inputs, policy={'max_candidates': self.max_candidates},
                             provider=getattr(self.provider, 'fingerprint', type(self.provider).__qualname__),
