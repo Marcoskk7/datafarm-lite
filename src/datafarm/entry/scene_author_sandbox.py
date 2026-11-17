@@ -92,6 +92,35 @@ def _covered(path: str, roots: Sequence[str]) -> bool:
     return any(path == root or path.startswith(root.rstrip("/") + "/") for root in roots)
 
 
+def _root_of(path: str) -> str | None:
+    """``/a/b/bin/python`` 的前缀根 ``/a/b``；浅于三段的路径返回 None。"""
+    parts = Path(path).parts
+    return str(Path(path).parents[1]) if len(parts) > 2 else None
+
+
+def _interpreter_roots(path: str) -> tuple[str, ...]:
+    """guest 需要的解释器只读根：venv 根、符号链接链每一跳的目标目录、realpath 前缀。
+
+    proot 的 allowlist guest 只有被 bind 的路径；venv 的 ``bin/python`` 是指向 uv 管理解释器的
+    符号链接，链上任何一跳不可见都会让 proot 报 "not found"，而只 bind realpath 又会丢掉
+    ``pyvenv.cfg`` 与 venv 的 site-packages。"""
+
+    roots: list[str] = []
+    current = os.path.abspath(path)
+    for _ in range(8):
+        root = _root_of(current)
+        if root:
+            roots.append(root)
+        if not os.path.islink(current):
+            break
+        target = os.readlink(current)
+        current = os.path.normpath(target if os.path.isabs(target) else os.path.join(os.path.dirname(current), target))
+    final = _root_of(os.path.realpath(path))
+    if final:
+        roots.append(final)
+    return tuple(dict.fromkeys(roots))
+
+
 def require_sandbox() -> None:
     """缺 `datafarm.adapters.sandbox` 包时抛 ConfigError（点名缺的包），而不是 ImportError。"""
     if SANDBOX_IMPORT_ERROR is not None:
@@ -131,7 +160,13 @@ class AuthoringSandbox:
             return
         require_sandbox()
         base = self.cfg["python"] or getattr(sys, "_base_executable", None) or sys.executable
-        self.python = os.path.realpath(base)
+        # 用配置路径本身（venv 的 bin/python 符号链接）而不是 realpath：直接跑 realpath 时 CPython
+        # 找不到 pyvenv.cfg，venv 的 site-packages（pxr/coacd 等）就不可见。
+        self.python = os.path.abspath(base)
+        # Guest 里必须同时看见：venv 根（site-packages、pyvenv.cfg）、符号链接链上每一跳的目标目录
+        # （否则链接在 guest 里悬空——uv 的 .venv/bin/python -> .../cpython-3.12-linux-x86_64-gnu/...
+        # -> .../cpython-3.12.16-...）、以及 realpath 的真实前缀（stdlib/so）。
+        self.python_roots = _interpreter_roots(self.python)
         self.tools = self.snapshot / "tools"
         # 选不出后端就在任何会话之前失败关闭（IsolationUnavailable）。
         self._resolve(SandboxSpec(mode=self.mode, base="allowlist", proot_bin=self.proot_bin))
@@ -170,9 +205,9 @@ class AuthoringSandbox:
         self._refresh_snapshot()
         system = list(DEFAULT_SYSTEM_RO)
         ro = [str(self.snapshot)]
-        prefix = str(Path(self.python).parents[1])
-        if not _covered(prefix, system):
-            ro.append(prefix)
+        for root in self.python_roots:
+            if not _covered(root, system) and root not in ro:
+                ro.append(root)
         for path in dict.fromkeys((program, os.path.realpath(program))):
             if not _covered(path, system + ro):
                 ro.append(path)

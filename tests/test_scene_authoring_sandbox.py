@@ -97,6 +97,26 @@ def test_cache_and_robot_package_are_visible_read_only_and_not_masked(tmp_path):
     assert str(ROOT / "examples") in paths["masked"]  # the repo itself stays hidden
 
 
+def test_venv_interpreter_brings_its_venv_root_and_link_targets_into_the_guest(tmp_path):
+    # proot guest: the configured interpreter is a venv symlink whose target goes through another
+    # symlinked directory (uv layout). venv root, every hop's target dir and the realpath prefix must be
+    # bound: otherwise the link dangles in the guest ("not found") or pyvenv.cfg/site-packages disappear.
+    real = tmp_path / "real" / "cpython-3.12.16"
+    (real / "bin").mkdir(parents=True)
+    (real / "bin" / "python3.12").write_text("")
+    hop = tmp_path / "real" / "cpython-3.12"
+    hop.symlink_to(real, target_is_directory=True)
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "python").symlink_to(hop / "bin" / "python3.12")
+    sandbox, work = make_sandbox(tmp_path, python=str(venv / "bin" / "python"))
+    spec, _ = sandbox.spec(1, work / "workspace", "/opt/agent/bin/claude")
+    for root in (venv, hop, real):
+        assert str(root) in spec.ro, root  # venv root, link hop, real prefix
+    assert sandbox.python == str(venv / "bin" / "python")  # run the venv path, not its realpath
+    assert sandbox.simready_command.startswith(str(venv / "bin" / "python") + " ")
+
+
 def test_missing_sandbox_package_is_a_config_error_and_none_still_opts_out(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(scene_author_sandbox, "SANDBOX_IMPORT_ERROR",
                         ImportError("No module named 'datafarm.adapters.sandbox'"))
@@ -250,8 +270,10 @@ def test_real_proot_round_hides_the_repo_and_writes_the_workspace(tmp_path):
     sandbox = AuthoringSandbox(sandbox_config({"mode": "proot", "fallback": [], "proot": PROOT,
                                                "python": BASE_PYTHON, "extra_ro": [str(tmp_path / "agent")]}),
                                repo=ROOT, work=work)
+    # 仓库本体的文档不可见；角色读的是 WORK/sandbox/repo 下的快照。
+    snapshot_doc = work / "sandbox" / "repo" / "docs" / "ir" / "scene-layout.md"
     probe_paths = [str(ROOT / "examples" / "scene"), str(ROOT / "verification"), str(ROOT / ".git"),
-                   str(work / "sessions"), str(ROOT / "docs" / "ir" / "scene-layout.md")]
+                   str(work / "sessions"), str(snapshot_doc), str(ROOT / "docs" / "ir" / "scene-layout.md")]
     (tmp_path / "agent" / "plan.json").write_text("{}")
     sessions = fake_sessions(tmp_path, sandbox, work, [{"op": "probe", "paths": probe_paths},
                                                        {"op": "write", "path": LAYOUT_FILE, "text": "{}"}],
@@ -264,6 +286,6 @@ def test_real_proot_round_hides_the_repo_and_writes_the_workspace(tmp_path):
     assert turn.status == "ok", (work / "sessions" / "session-001.stderr.log").read_text()
     assert call.extra["isolation"]["mode"] == "proot" and call.extra["isolation"]["ok"] is True
     seen = json.loads((workspace / "isolation-probe.json").read_text())
-    assert all(seen[p].startswith("hidden") for p in probe_paths[:4]), seen
+    assert all(seen[p].startswith("hidden") for p in probe_paths[:4] + [probe_paths[5]]), seen
     assert seen[probe_paths[4]] == "readable"  # the snapshot is mounted at WORK/sandbox/repo, not the repo path
     assert (workspace / LAYOUT_FILE).read_text() == "{}"
