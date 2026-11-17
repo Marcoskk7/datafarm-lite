@@ -28,6 +28,8 @@ def compare_states(expected, actual, tolerances):
     if set(expected["entities"]) != set(actual["entities"]):
         raise ValueError("replay entity coverage differs")
     def update(key, value):
+        if not math.isfinite(value):
+            raise ValueError("nonfinite replay difference")
         errors[key] = max(errors[key], value)
     def poses(a, b):
         update("position_m", math.dist(a["position_m"], b["position_m"]))
@@ -47,6 +49,29 @@ def compare_states(expected, actual, tolerances):
             unit = "m" if left["type"] == "prismatic" else "rad"
             update("joint_position_" + unit, abs(left["q"] - right["q"]))
             update("joint_velocity_" + unit + "_s", abs(left["dq"] - right["dq"]))
+    for value in (expected, actual):
+        robot = value.get("robot")
+        if not isinstance(robot, dict) or not isinstance(robot.get("joint_names"), list):
+            raise ValueError("measured robot joint names required")
+        names = robot["joint_names"]
+        if not names or len(set(names)) != len(names) or any(not isinstance(n, str) or not n for n in names):
+            raise ValueError("unique robot joint names required")
+        for key in ("q", "dq"):
+            if not isinstance(robot.get(key), list) or len(robot[key]) != len(names) or any(type(v) not in (int,float) or not math.isfinite(v) for v in robot[key]):
+                raise ValueError("finite measured robot q/dq required")
+        if "tcp_pose" in robot:
+            pose = robot["tcp_pose"]
+            if pose.get("frame_id") != "world":
+                raise ValueError("TCP world frame required")
+            for key, size in (("position_m",3),("quaternion_xyzw",4)):
+                if not isinstance(pose.get(key),list) or len(pose[key]) != size or any(type(v) not in (int,float) or not math.isfinite(v) for v in pose[key]):
+                    raise ValueError("finite TCP pose required")
+            if not math.isclose(math.hypot(*pose["quaternion_xyzw"]),1,abs_tol=1e-6):
+                raise ValueError("normalized TCP quaternion required")
+        if "gripper" in robot and (type(robot["gripper"].get("width_m")) not in (int,float) or not math.isfinite(robot["gripper"]["width_m"])):
+            raise ValueError("finite measured gripper width required")
+    if expected["robot"]["joint_names"] != actual["robot"]["joint_names"] or ("gripper" in expected["robot"]) != ("gripper" in actual["robot"]):
+        raise ValueError("robot semantic coverage differs")
     # TCP/gripper are independently measured and must not silently disappear.
     for key in ("tcp_pose",):
         if (key in expected["robot"]) != (key in actual["robot"]):
@@ -72,10 +97,17 @@ def verify_action_replay(payload, host, tolerances, *, verifier_id):
         raise ValueError("incomplete trace cannot be replay-qualified")
     if host.source_binding() != payload["setup"]:
         raise ValueError("replay source/runtime binding differs")
+    qualification = host.qualification()
+    if qualification not in ("software_fixture", "source_bound_runtime"):
+        raise ValueError("explicit replay host qualification required")
     states = payload["state_trace"]
     maxima = {k: 0. for k in TOLERANCES}
     checked, mismatch = 0, []
+    acquired = False
     try:
+        if not host.acquire():
+            raise ValueError("replay physics owner busy")
+        acquired = True
         host.restore(deepcopy(states[0]))
         for step, expected in enumerate(states):
             if step:
@@ -93,8 +125,11 @@ def verify_action_replay(payload, host, tolerances, *, verifier_id):
         status, reason = ("verified", "WITHIN_EXPLICIT_TOLERANCES") if not mismatch else ("rejected", "STATE_DIVERGENCE")
     except Exception:
         status, reason = "error", "REPLAY_RUNTIME_OR_COVERAGE_ERROR"
+    finally:
+        if acquired:
+            host.release()
     report = {"schema": PROFILE, "verifier_id": verifier_id, "episode_id": payload["setup"]["episode_id"],
-              "source_binding": deepcopy(payload["setup"]), "status": status, "reason_code": reason,
+              "source_binding": deepcopy(payload["setup"]), "qualification": qualification, "status": status, "reason_code": reason,
               "checked_states": checked, "expected_states": len(states), "max_errors": maxima,
               "mismatched_steps": mismatch, "tolerances": tolerances,
               "contact_replay": "unverified", "hidden_solver_state_restore": "unverified", "bitwise_replay": "unverified"}
