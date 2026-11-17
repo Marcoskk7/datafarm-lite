@@ -105,6 +105,37 @@ Allowed tools that worked under proot (checked before spending money, `preflight
 the cache and robot URDF readable by path, `/proc` readable, DNS/TLS to `hf-mirror.com` (200). The agent itself ran
 `simready.py search` four times and `probe` on two assets through the venv interpreter (`agent-tool-calls.txt`).
 
+## GPU check (physics + reachability, same host)
+
+The exact `next_step` from `scene-authoring-report.json`, run with the IsaacLab venv interpreter after
+`source /home/isaac/isaaclab30_env.sh`, `setsid nohup` (`check.sh`, log in `check.log`, work `prepared/78c0d8dceaa3310a`):
+
+```
+/home/isaac/IsaacLab30/.venv/bin/python tools/scene_assemble.py check \
+  --spec …/runs/1b-proot-20261117-233440/scene-layout.json \
+  --work …/runs/1b-proot-20261117-233440/prepared/78c0d8dceaa3310a --headless
+```
+
+| Metric | Measured (this layout) | Tolerance | Hand-written baseline (context only) |
+| --- | --- | --- | --- |
+| settle drift | **1.057 mm** (run 1: 1.040 mm), max end speed 0.001139 m/s | 5 mm / 0.01 m/s | 1.04 mm |
+| drawer joint drift | **0.0409 rad** (0.35 → 0.309, the drawer slides in) | 0.005 rad | — |
+| max penetration | **61.922 mm** (`object.cabinet` part_01 vs table `sm_table_metal_stainless_a03_obj_00`) | 3 mm | 47 µm |
+| probe `plate_in_drawer` | rest z **0.759335 m**, touching `object.cabinet`, end speed 0.000584 m/s → ok | 0.55–0.85 m | z 0.759 |
+| reachability | **2/2** targets, worst 0.23 mm / 7.1e-5 rad | — | 10/10 |
+| footprint | ok | — | — |
+| exit code | **1** (not accepted: `settle.stable=false`, `penetration.ok=false`) | | |
+
+Run 1 of the same command (evidence in `check-run1.json`; its log was overwritten by run 2) measured drift 1.040 mm,
+penetration 0.061922 m and `probes_ok=false`: the probe's end speed was 0.013623 m/s, just over the 0.01 m/s
+tolerance, while rest z and contact were the same. Run 2 settled to 0.000584 m/s and passed. So the probe assertion is
+flaky run to run; the penetration failure is reproducible and identical in both runs.
+
+The 61.9 mm penetration is the agent's own placement error: it put the cabinet 62 mm into the table, which the
+kinematic host gate (plan/footprint, which only checks footprint overlap and IK) cannot see. The joint drift is the
+drawer sliding under its authored damping after the initial state — also present in the check's model, not the
+sandbox. Neither was tuned; the layout is reported as-is. See `check.json` / `check.log`.
+
 ## Remaining risks
 
 - proot is a ptrace path translator, not a hard security boundary; it is the only option here. Masks are verified
@@ -115,8 +146,9 @@ the cache and robot URDF readable by path, `/proc` readable, DNS/TLS to `hf-mirr
   `../sandbox/repo`). That path is not in the round prompt; a less lucky agent could burn a round locating it.
 - `setting_sources: user` with a private HOME means Claude Code starts without host user settings; it worked
   (auth via `ANTHROPIC_BASE_URL` + placeholder token), but per-user settings/plugins are not available.
-- Not re-verified on this run: the GPU `check` step (settle drift / penetration / probe) requested by
-  `scene-authoring-report.json` `next_step`; the host gate (conformance + plan) is what accepted the layout.
+- The GPU check now fails on this layout (61.9 mm cabinet–table penetration, drawer joint drift), i.e. the kinematic
+  host gate (conformance + plan) accepted a layout that is not physically sound. That is a gate-coverage gap, not a
+  sandbox issue; the `check` applies no penetration/joint-drift limits to the agent's own placement before acceptance.
 - The snapshot is not reproducible from the commit alone: it needs the uncommitted `src/datafarm/adapters/sandbox/`
   package, recorded above.
 
