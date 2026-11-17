@@ -197,8 +197,9 @@ def settle(sim, scene, *, nodes: Sequence[Mapping[str, Any]], assets: Mapping[st
            active_joints: Mapping[str, Sequence[str]] | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     """返回 (settle, penetration)；两者都是 SceneGraph `checks` 的超集（多出的字段是证据）。
 
-    关节分两类。**主动关节**（`active_joints` 里列出的、以及机器人自身的关节）由驱动程序保持，
-    漂移必须不超过 `joint_tolerance_active`。**被动关节**（其余关节，家具的抽屉/门）可以动：
+    关节分两类。**主动关节**（`active_joints` 里列出的驱动关节）由驱动程序保持，
+    漂移必须不超过 `joint_tolerance_active`。机器人自身关节的静置漂移只记录（`robot_joint_drift_rad`、
+    `measured_joint_state`），不判定。**被动关节**（其余关节，家具的抽屉/门）可以动：
     只要求 (a) 该节点静置期间没有新增接触对，(b) 测量值仍在关节限位内，(c) 测量值被记录
     （`settle["measured_joint_state"]`）。`joint_tolerance_passive` 只是"是否报告为动了"的阈值，
     不是接受边界。布局里的 `joint_state` 是意图，静置后的测量值才是下游的初始状态。
@@ -236,18 +237,20 @@ def settle(sim, scene, *, nodes: Sequence[Mapping[str, Any]], assets: Mapping[st
         worst_drift = max(worst_drift, drift)
         per_node[node["node_id"]] = entry
     robot_end = _row(robot.data.joint_pos.torch)
+    # 机器人自身关节由机器人包的位置驱动保持，静置时的重力下垂（lab30 实测 left_joint3 约 0.0127 rad）取决于
+    # 驱动增益而不是布局，布局作者无法修正；与 main 一致只记录 `robot_joint_drift_rad`，不进主动关节闸门。
+    robot_drift = max((abs(a - b) for a, b in zip(robot_end, robot_start)), default=0.0)
     per_node[robot_node_id] = {"joint_names": list(robot.joint_names), "joint_start": robot_start,
-                               "joint_end": robot_end, "joint_drift": 0.0}
+                               "joint_end": robot_end, "joint_drift": round(robot_drift, 6)}
     measured[robot_node_id] = dict(zip(robot.joint_names, robot_end))
 
     final_contacts = penetration_summary(contacts(node_ids), penetration_tolerance_m)
     new_contacts = added_contacts(initial_contacts, final_contacts)
     held = {node_id: set(names) for node_id, names in (active_joints or {}).items()}
-    held.setdefault(robot_node_id, set(robot.joint_names))
 
     worst_active = worst_passive = 0.0
     active_ok = passive_ok = True
-    for node in list(nodes) + [{"node_id": robot_node_id, "asset_id": None, "joint_state": {}}]:
+    for node in nodes:
         node_id = node["node_id"]
         entry = per_node.get(node_id)
         if entry is None or not entry.get("joint_names"):
@@ -293,8 +296,8 @@ def settle(sim, scene, *, nodes: Sequence[Mapping[str, Any]], assets: Mapping[st
                                     "joint_active": joint_tolerance_active,
                                     "joint_passive": joint_tolerance_passive},
                      "max_end_speed_mps": round(worst_speed, 6), "max_joint_drift": round(worst_active, 6),
-                     "max_passive_joint_drift": round(worst_passive, 6), "nodes": per_node,
-                     "measured_joint_state": measured, "new_contacts": new_contacts}
+                     "max_passive_joint_drift": round(worst_passive, 6), "robot_joint_drift_rad": round(robot_drift, 6),
+                     "nodes": per_node, "measured_joint_state": measured, "new_contacts": new_contacts}
     penetration = {**final_contacts, "ok": final_contacts["ok"] and initial_contacts["ok"],
                    "max_depth_m": max(final_contacts["max_depth_m"], initial_contacts["max_depth_m"]),
                    "initial": initial_contacts}

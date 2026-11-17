@@ -34,7 +34,7 @@ python tools/scene_assemble.py check --spec ... --work WORK --headless  # Isaac 
 - `prepare`（需要 pxr + coacd）：给每个 SimReady 资产写碰撞包装层。上游碰撞网格换成 CoACD 凸包（参数见 `DEFAULT_COACD`，结果按网格内容和参数缓存），原网格上的质量移到刚体上，Newton variant 选中。铰接资产在 `anchor_body` 上加固定关节锚到世界。AssetRecord 的 `collision.bbox_*` 记录凸包的包围盒；机器人记录 `collision.base_bbox_*`，即基座刚体碰撞体的包围盒。
 - `plan`：节点按支撑面顶面（有凸包包围盒时用凸包）加 `SUPPORT_CLEARANCE_M` 放置；机器人让基座碰撞体底面贴到支撑面上。占地检查用按偏航旋转的包围盒底面矩形：越出支撑面，或与同一支撑面上的其他东西重叠，都判失败。可达性对每个目标用多起点阻尼最小二乘 IK，作用在模型 TCP 上，自上而下接近，留关节限位余量；不做碰撞感知规划。
 - `check`：加载场景，显式写入 `joint_state`（Isaac Lab 3.0 + Newton 下 `scene.reset()` 不会把它写回仿真；写入后读回值和目标不一致就报错），然后静置并检查穿透，再把物体放进打开的抽屉做探针，最后写出 SceneGraph。铰接家具关闭自碰撞：相邻抽屉的凸包互相外扩，会在初始时互相顶住。
-- 关节分**主动**（机器人关节，以及 `active_joints` 里列出的驱动关节）和**被动**（其余铰接关节）。主动关节漂移上限 `--joint-tol-active`（`--joint-tol` 是同一参数的别名）；被动关节没有固定漂移上限，只要求静置后测量值仍在关节限位内、且该节点没有新增接触对（`added_contacts`），`--joint-tol-passive` 只决定什么时候报告"动了"。`check.json` 的 `settle.measured_joint_state` 是按节点、按关节名的静置后测量值，`settle.new_contacts` 是相对初始状态新增的接触对及其深度；顶层 `initial_joint_state` 是声明的意图。下游 episode 的初始状态取测量值。
+- 关节分**主动**（`active_joints` 里列出的驱动关节）和**被动**（其余铰接关节）。机器人自身关节的静置漂移只记录在 `settle.robot_joint_drift_rad` 与 `measured_joint_state`，不判定：位置驱动在重力下的稳态下垂（lab30 实测 `left_joint3` 0.0127 rad）由机器人包的增益决定，布局改不了，main 上的 `check` 也只记录它。主动关节漂移上限 `--joint-tol-active`（`--joint-tol` 是同一参数的别名）；被动关节没有固定漂移上限，只要求静置后测量值仍在关节限位内、且该节点没有新增接触对（`added_contacts`），`--joint-tol-passive` 只决定什么时候报告"动了"。`check.json` 的 `settle.measured_joint_state` 是按节点、按关节名的静置后测量值，`settle.new_contacts` 是相对初始状态新增的接触对及其深度；顶层 `initial_joint_state` 是声明的意图。下游 episode 的初始状态取测量值。
 
 退出码为 0 当且仅当静置稳定（含主动/被动关节规则）、穿透、探针、可达性、占地全部通过。`WORK/store/` 是内容寻址的证据；主机路径只出现在 `prepared.json`，不会进入 IR。
 
@@ -97,7 +97,20 @@ python tools/scene_author.py --request request.yaml --work WORK \
 
 接受条件：符合性 `ok` 且 `complete`，plan `ok`，并且 check `ok`。接受后布局复制到 `WORK/scene-layout.json`；到 `--max-rounds` 仍未接受就停，报告写明。报告是 `WORK/scene-authoring-report.json`（`datafarm.scene-authoring-report/1`）。同一个 `WORK` 再跑会从下一轮续跑（已接受则不再起会话）；换了 request 会被拒绝。退出码：0 接受，1 未接受，2 配置错误、没有可用沙箱、解释器缺失，或可见性探针发现泄漏（agent 未启动）。
 
-**容差只有一个来源**：agent 配置的 `check` 节（模板见 `configs/scene-author.template.json`）。`check.python` / `check.env_script` / `check.timeout_s` 与 `settle_s`、`probe_s`、`drift_tol`、`speed_tol`、`joint_tol_active`、`joint_tol_passive`、`penetration_tol`、`nconmax`、`njmax` 全部由主机显式转成工具参数；未知键被拒绝。CLI 的 `--check-python`、`--check-env-script`、`--check-timeout-s` 覆盖配置，`--check-python` 缺省依次取 `check.python` 和 `$ISAAC_PYTHON`。`--headless` 总是传给工具。`check.env_script` 非空时命令包成 `bash -c 'source <script> && exec "$@"'`（Isaac Lab 的激活脚本）。
+**容差只有一个来源**：agent 配置的 `check` 节（模板见 `configs/scene-author.template.json`）。`check.python` / `check.env_script` / `check.timeout_s` 与 `settle_s`、`probe_s`、`drift_tol`、`speed_tol`、`joint_tol_active`、`joint_tol_passive`、`penetration_tol`、`nconmax`、`njmax` 全部由主机显式转成工具参数；未知键被拒绝。CLI 的 `--check-python`、`--check-env-script`、`--check-timeout-s` 覆盖配置，`--check-python` 缺省依次取 `check.python` 和 `$ISAAC_PYTHON`。解释器路径只取绝对路径、**不解析符号链接**（venv 的 `bin/python` 是指向基础解释器的链接，跟过去就没有 isaaclab）。`--headless` 总是传给工具。`check.env_script` 非空时命令是 `bash -c 'source "$0" || exit $?; exec "$@"' <script> <python> tools/scene_assemble.py check ...`：脚本里 export 的变量（Vulkan 的 `VK_ICD_FILENAMES`、`LD_LIBRARY_PATH`）进入 exec 后的解释器。
+
+### lab30 实测配置（2026-11-18，test/integration-20261118）
+
+| 参数 | 值 |
+|---|---|
+| `check.python` / `--check-python` | `/home/isaac/IsaacLab30/.venv/bin/python` |
+| `check.env_script` / `--check-env-script` | `/home/isaac/isaaclab30_env.sh`（不 source 时 Kit 报 `Failed to create any GPU devices`） |
+| `--prepare-python` | 同 `check.python`（pxr + coacd） |
+| headless | 主机总是传 `--headless`；在 `DISPLAY`/`XAUTHORITY` 均未设置的 SSH 会话里实跑通过 |
+| `--cache` / `--robot-package` | `/opt/data/private/isaaclab/simready-cache`、`/opt/data/private/isaaclab/a-scene/runtime/robot_assets_isaaclab3_validated_20261113` |
+| `--endpoint` | `https://hf-mirror.com` |
+
+首次实跑修掉的三处（均附测试）：USD body 路径进 check 证据被可移植校验拒绝（加 `usd:` 前缀）；`bash -c` 包装里多余的 `shift` 把解释器从 argv 丢掉；`resolve_check_interpreter` 解析符号链接后离开 venv。
 
 **没有物理验证就不接受。** 配不出 check 解释器时工具在启动任何 agent 会话之前以 2 退出。唯一例外是显式 `--kinematic-only`：此时只按符合性 + plan 接受，`attempts.jsonl` 与报告都写 `check.mode: "kinematic-only"`，报告的 `not_verified` 保留 check 未跑，`next_step` 给出 GPU 主机上要跑的 check 命令。物理闸门通过时 `verified` 含 check，`next_step` 为空。可达性只是运动学 IK，不做避碰规划，也不判断抓取是否可行。
 

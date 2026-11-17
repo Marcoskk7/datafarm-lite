@@ -175,7 +175,8 @@ AssetRecord 没有 `collision.base_bbox_min_m` 时报错，不假设基座原点
 1. 读 `plan.json`，`spec_sha256` 与当前布局不一致直接报错，要求重跑 `plan`。
 2. 加载场景，显式写入 `joint_state` 并读回校验（`scene.reset()` 不会把它写回仿真）。
 3. 静置检查根漂移与末速度，接触缓冲检查穿透，跑 `probes`。
-4. 关节漂移分**主动**（机器人关节，以及 `active_joints` 里列出的驱动关节）与**被动**（其余铰接关节）：
+4. 关节漂移分**主动**（`active_joints` 里列出的驱动关节）与**被动**（其余铰接关节）；机器人自身关节的静置漂移
+   只记录（`settle.robot_joint_drift_rad`、`measured_joint_state`），不判定——它是驱动增益下的重力下垂，布局改不了。
    主动关节有严格上限 `--joint-tol-active`；被动关节没有固定上限，只要求静置后的测量值仍在关节 `limits` 内、
    且该节点没有新增接触对（`settle.new_contacts`），`--joint-tol-passive` 只决定何时报告"动了"。
    `check.json` 的 `settle.measured_joint_state` 是静置后按节点、按关节名的测量值，下游 episode 的初始状态
