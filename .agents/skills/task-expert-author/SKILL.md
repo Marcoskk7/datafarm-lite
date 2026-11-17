@@ -9,6 +9,15 @@ The orchestration/task-design role first generates the adapter, brief, seeded in
 review and freezing is the expert-harness started for the restricted author. The author role text is in prompts/roles/task-expert-author.md.
 The orchestrating agent configures the adapter; no human fills it in by hand.
 
+Simulation-native branches can generate the judge with `python -m datafarm.entry.judge_cli` from the task, scene and
+actual observation spec supplied by orchestration / the A line: it freezes automatically only after the author, the
+independent reviewer and the host positive/negative cases all pass. The frozen content is bound through the
+TaskContract source reference, SHA-256 and condition list, and plugs directly into adapter/1 via
+`verifier.judge_bundle` and the existing ManifestGuard. CaP receives only the public task projection and cannot read
+the full judge contract; production search does not start when a required capability is missing or only a scripted
+fixture exists. See `docs/reference/judge-generation.md`. This entry point does not replace independent review and
+never derives criteria from hidden trajectories.
+
 1. Against this real task, define the observations, actions, state/units/clock and success conditions; it is forbidden to read future target trajectories
    or to replay a fixed animation and pass it off as a closed-loop expert. Short action sequences may be used for verifiable sub-skills, but state judgments must come from actual observations.
 2. Use the generic expert-harness adapter schema to wire up the rollout command, result fields, development seeds, budget,

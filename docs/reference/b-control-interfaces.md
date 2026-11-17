@@ -225,6 +225,8 @@ all robot models/scenes, obstacle avoidance or task success.
 
 ## 5. TaskContract and Judge
 
+Generated, independently reviewed and frozen Judges plug into the new adapter/1 contract; see [Judge generation](judge-generation.md). Runtime availability alone does not certify a task.
+
 ### 5.1 Contract fields
 
 | Field | Meaning |
