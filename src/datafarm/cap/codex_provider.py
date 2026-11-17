@@ -53,7 +53,7 @@ def response_schema(role, api=None):
                  code={'type':['string','null']},
                  # 结构化输出不支持按 action 分支的根级 anyOf；hypothesis/expected_failure 统一为非空字符串，
                  # 与 propose 的校验一致，避免 schema 允许 null 而校验器拒绝。inspect 时二者说明所缺证据。
-                 hypothesis=text, expected_failure=text,
+                 hypothesis={'type':'string','pattern':r'\S'}, expected_failure={'type':'string','pattern':r'\S'},
                  episode_id={'type':['string','null']},
                  event_ids={'type':'array','items':{'type':'integer'}},
                  proposal_applied_as_written={'type':['boolean','null']})
