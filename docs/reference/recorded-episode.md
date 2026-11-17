@@ -26,6 +26,12 @@ each state time equals its control index times explicit dt. Node, joint and body
 link coverage stays fixed. Requested targets, applied all-joint actuator readback
 and measured states are separate. A primitive summary is not a full trace.
 
+Each `state_trace` entry has exactly the fields in
+[docs/ir/episode.md#state_trace](../ir/episode.md#state_trace), checked by
+`datafarm.ir.episode_state.validate_state`. CaP privileged feedback, Judge input
+(`judge.protocol.project_episode`) and render playback consume these entries
+unchanged; none of them renames a state field.
+
 Recording byte and step budgets are explicit. Known exhaustion refuses the next
 application. Final termination metadata has a bounded 64 KiB reserve; raw trace
 is not truncated to fit. A late state/physics failure may have N inputs and N

@@ -13,14 +13,13 @@ from datafarm.entry.cap_provider import build_provider
 from datafarm.cap.io import read_json, write_json
 from datafarm.cap.search import SearchConfig, SearchRunner
 from datafarm.cap.library import SkillLibrary
-from datafarm.cap.state_feedback import feedback
+from datafarm.cap.state_feedback import SCHEMA_VERSION, feedback
 from test_cap_search import Actor, Engine, TASK as LEGACY_TASK
+from test_ir_episode_state import STATE
 
 POPEN='datafarm.adapters.agent_harness.codex.structured.subprocess.Popen'
 
 
-STATE = {'schema_version':'privileged-state/1','control_step':0,
-         'frame_id':'world','units':{'length':'m','angle':'rad','time':'s'},'objects':{}}
 TASK = {'name':'state-fixture','instruction':'Return home', 'api':{'move':'move()'},
         'program_contract':'Return restricted Python with a main function'}
 SKILL = {'name':'relative motion','failure_signature':'wrong frame','when_to_apply':'relative request',
@@ -51,7 +50,8 @@ class StateEngine:
         self.requests.append((code,phase))
         return {'episodes':[dict(episode_id=f'{phase}-{len(self.requests)}-{s}',seed=s,phase=phase,
                                  success=code=='repaired',score=float(code=='repaired'),
-                                 privileged_state={'availability':'available','initial':STATE,'final':STATE}) for s in seeds]}
+                                 privileged_state={'schema_version':SCHEMA_VERSION,'availability':'available',
+                                                   'initial':STATE,'final':STATE}) for s in seeds]}
 
 
 class CodexProviderTests(unittest.TestCase):
@@ -114,6 +114,9 @@ class CodexProviderTests(unittest.TestCase):
     def test_state_contract_and_legacy_state_rejected(self):
         self.assertEqual(feedback([{'before':STATE,'after':STATE}])['availability'],'available')
         with self.assertRaises(ValueError): feedback([{'before':[0,0],'after':[1,0]}])
+        legacy={**{k:v for k,v in STATE.items() if k!='robot'},'schema_version':'privileged-state/1',
+                'tcp_pose':STATE['robot']['tcp'],'objects':{},'validity':True}
+        with self.assertRaises(ValueError): feedback([{'before':legacy,'after':legacy}])
         with self.assertRaises(ValueError): feedback([])
         self.assertEqual(feedback([],True)['availability'],'unavailable')
         schema=response_schema('distiller',TASK['api'])

@@ -176,7 +176,7 @@ class IsaacLabIKBackend:
         jac[:, :3] += torch.linalg.cross(jac[:, 3:], offset_w[:, :, None], dim=1)
         if not torch.isfinite(jac).all() or not torch.isfinite(q).all():
             raise ControlFault("NONFINITE_STATE")
-        measured = pose(self.api.observe()["tcp_pose"])
+        measured = pose(self.api.observe()["tcp"])
         current = torch.tensor([[*measured["position_m"], *measured["quaternion_xyzw"]]], device=q.device, dtype=torch.float32)
         return current, jac.contiguous(), q[:, self._joint_ids].to(torch.float32).contiguous()
 

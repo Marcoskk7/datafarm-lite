@@ -46,7 +46,7 @@ descriptor = discover_urdf(source_bytes, mesh_resolver)  # resolver(uri) -> exac
 # robot is an articulation initialized by the host; profile is an explicit configuration or None.
 api = IsaacRobotAPI(robot, descriptor, profile)
 binding = api.binding
-state = api.observe()                  # does not advance physics
+state = api.observe()                  # Episode IR state_trace[k].robot: joint_names/q/dq/tcp?/gripper?; does not advance physics
 caps = api.capabilities()
 result = api.set_joint_targets({joint_name: target})  # status='staged'
 # The host calls robot.write_data_to_sim(), sim.step(), robot.update(dt).

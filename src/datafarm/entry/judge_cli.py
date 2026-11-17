@@ -14,7 +14,7 @@ from datafarm.adapters.agent_harness.codex import structured
 from datafarm.cap.io import read_json, write_json
 from datafarm.judge.compiler import JudgeCompiler, evaluate_bundle, verify_bundle
 from datafarm.judge.integration import attach_adapter
-from datafarm.judge.protocol import build_input, file_sha
+from datafarm.judge.protocol import build_input, file_sha, project_episode
 from datafarm.judge.provider import JudgeCodexProvider
 
 
@@ -58,7 +58,8 @@ def main(argv=None) -> int:
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0 if result['status'] == 'frozen' else 2
         if args.command == 'evaluate':
-            result = evaluate_bundle(args.bundle, read_json(args.episode), args.freeze_sha256)
+            # --episode 是录制器的 measured-scene-episode/1 payload；投影只裁字段，不改 state_trace 字段名。
+            result = evaluate_bundle(args.bundle, project_episode(read_json(args.episode)), args.freeze_sha256)
             write_json(args.output, result)
             # error/aborted 也要持久化结构化结果，由 harness 区分计数，不能转换成 false。
             return 0

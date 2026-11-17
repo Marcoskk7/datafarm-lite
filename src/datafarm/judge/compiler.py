@@ -42,7 +42,7 @@ def model_inputs(inputs):
     """模型只需任务与状态规格；完整开发轨迹留给宿主，避免上下文膨胀和样例记忆。"""
     value = {k: deepcopy(v) for k, v in inputs.items() if k != 'development_cases'}
     value['development_case_summary'] = [dict(id=c['id'], expected_outcome=c['expected_outcome'],
-        violates=c.get('violates', []), state_count=len(c['episode'].get('states', [])))
+        violates=c.get('violates', []), state_count=len(c['episode'].get('state_trace', [])))
         for c in inputs['development_cases']]
     return value
 
@@ -102,6 +102,7 @@ def runtime_dependencies():
     # 正式入口 entry/judge_cli.py 与注入的 Codex 传输同样纳入：改动它们必须使冻结失效。
     return sorted(root.glob('*.py')) + [root.parent / n for n in (
         '__init__.py', 'kernel/__init__.py', 'kernel/io.py', 'kernel/file_lock.py',
+        'kernel/artifacts.py', 'kernel/schema.py', 'ir/__init__.py', 'ir/common.py', 'ir/episode_state.py',
         'cap/__init__.py', 'cap/io.py', 'adapters/__init__.py', 'adapters/agent_harness/__init__.py',
         'adapters/agent_harness/codex/__init__.py', 'adapters/agent_harness/codex/structured.py',
         'expert/__init__.py', 'expert/manifest.py', 'expert/util.py', 'expert/state.py',

@@ -5,6 +5,9 @@ import json
 import math
 import re
 
+from datafarm.ir.common import IRError
+from datafarm.ir.episode_state import UNITS, validate_state
+
 BUILD_SCHEMA = 'judge-build-input/1'
 CONTRACT_SCHEMA = 'task-contract/1'
 RESULT_SCHEMA = 'judge-result/1'
@@ -179,37 +182,47 @@ def has_path(value, path):
     return isinstance(value, dict) and head in value and has_path(value[head], tail)
 
 
+EPISODE_SCHEMA = 'judge-episode/2'
+
+
+def project_episode(recorded):
+    """把录制的 Episode（`datafarm.episode-ir` 文档或其 `measured-scene-episode/1` payload）投影成 Judge 输入。
+
+    state_trace 原样保留，不改字段名；只去掉 Judge 不需要的来源绑定（refs、源码摘要、初始化记录），
+    动作只保留请求/实际施加的关节目标。
+    """
+    if isinstance(recorded, dict) and recorded.get('schema') == 'datafarm.episode-ir':
+        recorded = recorded.get('payload')
+    check(isinstance(recorded, dict) and recorded.get('profile') == 'measured-scene-episode/1',
+          'Judge input must be projected from a measured-scene-episode/1 payload')
+    setup = recorded['setup']
+    return dict(schema_version=EPISODE_SCHEMA, units=deepcopy(UNITS), frame_id='world',
+                control_dt_s=setup['control_dt_s'], node_ids=list(setup['node_ids']),
+                state_trace=deepcopy(recorded['state_trace']),
+                actions=[{k: deepcopy(a[k]) for k in ('control_step', 'requested_joint_targets', 'applied_joint_targets')}
+                         for a in recorded['actions']],
+                events=deepcopy(recorded['events']), termination=deepcopy(recorded['termination']))
+
+
 def validate_episode(episode, contract):
     finite_tree(episode)
-    check(episode.get('schema_version') == 'judge-episode/1', 'Unsupported episode version')
-    check(episode.get('units') == {'length':'m', 'angle':'rad', 'time':'s'} and episode.get('frame_id') == 'world',
+    check(episode.get('schema_version') == EPISODE_SCHEMA, 'Unsupported episode version')
+    check(episode.get('units') == UNITS and episode.get('frame_id') == 'world',
           'Episode requires explicit SI units and world frame')
     dt = episode.get('control_dt_s')
     check(type(dt) in (int, float) and math.isfinite(dt) and dt > 0, 'Episode control_dt_s missing or invalid')
-    states, actions = episode.get('states'), episode.get('actions')
+    nodes = episode.get('node_ids')
+    check(isinstance(nodes, list) and bool(nodes) and len(set(nodes)) == len(nodes), 'Episode node_ids missing')
+    states, actions = episode.get('state_trace'), episode.get('actions')
     check(isinstance(states, list) and len(states) >= 2 and isinstance(actions, list)
           and len(actions) + 1 == len(states), 'Expected N actions and N+1 full measured states')
-    check([s.get('control_step') for s in states] == list(range(len(states))), 'State clock gaps or reorder')
-    check(all(type(s.get('control_step')) is int for s in states), 'Invalid state clock')
     check(all(isinstance(a, dict) and type(a.get('control_step')) is int and a['control_step'] == i
               for i, a in enumerate(actions)), 'Action clock gaps or reorder')
-    for state in states:
-        if 'time_s' in state:
-            check(type(state['time_s']) in (int, float) and math.isclose(state['time_s'], state['control_step']*dt,
-                  abs_tol=1e-8), 'State time disagrees with control clock')
-        if 'units' in state:
-            check(state['units'] == episode['units'], 'State unit mismatch')
-        if 'frame_id' in state:
-            check(state['frame_id'] == 'world', 'State frame mismatch')
-        for key in ('q', 'dq'):
-            if key in state:
-                check(isinstance(state[key], list) and all(type(v) in (int, float) for v in state[key]),
-                      'Invalid measured joint vector')
-        if 'joint_names' in state:
-            names = state['joint_names']
-            check(isinstance(names, list) and all(isinstance(n, str) and n for n in names)
-                  and len(set(names)) == len(names) and ('q' not in state or len(names) == len(state['q'])),
-                  'Measured joint names/order dimensions invalid')
+    for i, state in enumerate(states):
+        try:
+            validate_state(state, node_ids=nodes, step=i, dt=dt)
+        except IRError as exc:
+            raise JudgeError(f'state_trace[{i}]: {exc}') from exc
     for condition in contract['conditions']:
         for field in condition['evidence_fields']:
             check(has_path(episode, field.split('.')), 'Required evidence missing: ' + field)

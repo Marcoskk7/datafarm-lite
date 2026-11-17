@@ -1,7 +1,8 @@
 """在 Isaac Lab 3.0 场景里回放 `state_trace` 并用 RTX 相机出图。只能在 `launch_simulation` 上下文内调用。
 
-回放只写状态、不步进物理：每帧写入机器人关节 q（补全 mimic）、`entities` 根位姿和 `articulations` 关节，
-`sim.forward()` 刷新运动学后只做渲染更新，再从仿真读回同一批量与 `state_trace` 比较。
+回放只写状态、不步进物理：每帧写入机器人关节（`robot.joint_names`/`robot.q`，补全 mimic）、其余
+`entities` 的根位姿和 `entities[node].joints`，`sim.forward()` 刷新运动学后只做渲染更新，再从仿真读回同一批量与
+`state_trace` 比较。字段见 docs/ir/episode.md#state_trace。
 
 实测（lab30，Isaac Sim 6.2 / Lab 3.0）得出的约束：
 - Isaac RTX 渲染器按 `/World/envs/env_i` 做场景分区，相机必须放在 `env_0` 下，否则只看得见 env 外的几何。
@@ -126,35 +127,34 @@ class Playback:
                                   orientation=tuple(light["pose"]["quaternion_xyzw"]))
 
     # ---- 状态 ----
-    def write_state(self, state: Mapping[str, Any], joint_names: Sequence[str]) -> None:
+    def _scene_entities(self, state: Mapping[str, Any]):
+        """非机器人实体；机器人由 `robot` 段写入，它的根由场景挂载决定。"""
+        return [(node_id, entry) for node_id, entry in state["entities"].items() if node_id != self.robot_id]
+
+    def write_state(self, state: Mapping[str, Any]) -> None:
         import torch
 
         robot = entity(self.scene, self.robot_id)
-        values = plan.full_joint_positions(self.descriptor["joints"], joint_names, state["q"],
-                                           simulated=self.robot_joints)
+        values = plan.full_joint_positions(self.descriptor["joints"], state["robot"]["joint_names"],
+                                           state["robot"]["q"], simulated=self.robot_joints)
         position = robot.data.joint_pos.torch.clone()
         position[0] = torch.tensor([values[n] for n in self.robot_joints], device=position.device)
         robot.write_joint_position_to_sim_index(position=position)
         robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(position))
 
-        for node_id, entry in (state.get("entities") or {}).items():
-            check(entry["pose"]["frame_id"] == "world", f"state_trace entity {node_id} pose must be in world frame")
+        for node_id, entry in self._scene_entities(state):
             handle = entity(self.scene, node_id)
-            pose = torch.tensor([list(entry["pose"]["position_m"]) + list(entry["pose"]["quaternion_xyzw"])],
+            pose = torch.tensor([list(entry["position_m"]) + list(entry["quaternion_xyzw"])],
                                 dtype=torch.float32, device=position.device)
             handle.write_root_pose_to_sim_index(root_pose=pose)
             handle.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=position.device))
-
-        by_node: dict[str, dict[int, float]] = {}
-        for name, value in (state.get("articulations") or {}).items():
-            check(name in self.joint_owner, f"state_trace articulation joint {name!r} is not in the scene")
-            node_id, index = self.joint_owner[name]
-            by_node.setdefault(node_id, {})[index] = float(value)
-        for node_id, joints in by_node.items():
-            handle = entity(self.scene, node_id)
+            if not entry["joints"]:
+                continue
             target = handle.data.joint_pos.torch.clone()
-            for index, value in joints.items():
-                target[0, index] = value
+            for joint in entry["joints"]:
+                check(self.joint_owner.get(joint["name"], (None,))[0] == node_id,
+                      f"state_trace joint {joint['name']!r} of {node_id} is not in the scene")
+                target[0, self.joint_owner[joint["name"]][1]] = float(joint["q"])
             handle.write_joint_position_to_sim_index(position=target)
             handle.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(target))
 
@@ -170,12 +170,13 @@ class Playback:
         got = robot.data.joint_pos.torch[0].tolist()
         joint_error = max(abs(got[i] - values[n]) for i, n in enumerate(self.robot_joints))
         position_error = 0.0
-        for node_id, entry in (state.get("entities") or {}).items():
-            root = entity(self.scene, node_id).data.root_pose_w.torch[0, :3].tolist()
-            position_error = max(position_error, float(np.linalg.norm(np.subtract(root, entry["pose"]["position_m"]))))
-        for name, value in (state.get("articulations") or {}).items():
-            node_id, index = self.joint_owner[name]
-            joint_error = max(joint_error, abs(float(entity(self.scene, node_id).data.joint_pos.torch[0, index]) - value))
+        for node_id, entry in self._scene_entities(state):
+            handle = entity(self.scene, node_id)
+            root = handle.data.root_pose_w.torch[0, :3].tolist()
+            position_error = max(position_error, float(np.linalg.norm(np.subtract(root, entry["position_m"]))))
+            for joint in entry["joints"]:
+                index = self.joint_owner[joint["name"]][1]
+                joint_error = max(joint_error, abs(float(handle.data.joint_pos.torch[0, index]) - joint["q"]))
         return position_error, joint_error
 
     # ---- 相机 ----

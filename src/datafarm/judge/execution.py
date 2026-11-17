@@ -73,7 +73,7 @@ def run_source(source, episode, contract, scene, *, timeout_s=10, memory_mb=256)
     try:
         audit_source(source)
         finite_tree(episode)
-        reason = episode.get('termination', {}).get('reason')
+        reason = episode.get('termination', {}).get('status')
         if reason == 'aborted':
             return dict(error_result('aborted'), outcome='aborted')
         validate_episode(episode, contract)

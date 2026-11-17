@@ -42,15 +42,16 @@ The CLI usage (stdin, JSONL, `--output-schema`, `--output-last-message`) was che
 
 ## Privileged-state protocol
 
-Both the xh engine and `SearchConfig` must set `observation_mode=privileged_state`. The before/after of every primitive is a `privileged-state/1` object, which requires:
+Both the xh engine and `SearchConfig` must set `observation_mode=privileged_state`. The before/after of every primitive is one Episode IR `state_trace` entry ([docs/ir/episode.md](../ir/episode.md#state_trace)), validated by `datafarm.ir.episode_state.validate_state`, with exactly the recorder's field names:
 
-- `control_step`: non-negative integer; `frame_id`: `world`.
-- `units`: length=m, angle=rad, time=s.
-- Allowed physical fields: `joint_names`, `joint_types`, `q`, `dq`, `tcp_pose`, `objects`, `articulations`, `gripper`, `contacts`, `time_s`, `validity`.
+- `control_step` (non-negative integer), `time_s`, `units` (length=m, angle=rad, time=s), `frame_id=world`.
+- `entities{node_id: {availability, asset_id, position_m, quaternion_xyzw, linear_velocity_m_s, angular_velocity_rad_s, joints[{name,type,unit,q,dq}], links}}` for every scene node.
+- `robot{joint_names, q, dq, tcp?, gripper?}`, the output of `IsaacRobotAPI.observe()`.
+- `contacts{control_step, sampling, availability, rows, coverage, ...}`; unavailable is `rows=null`, never `[]`.
 
-The host reads the measured robot API and task entity states into these fields. It never reports control targets as measured positions and never writes unavailable contacts as 0. For prismatic source joints `q` is in m according to `joint_types`; revolute joints use rad.
+The host forwards measured recorder states unchanged. It never reports control targets as measured positions and never writes unavailable contacts as 0. Joint units follow each joint's `type` (prismatic m, revolute rad).
 
-Every public episode additionally carries `privileged_state={availability,initial,final}`. The Actor sees initial and final states in the summary and may `inspect` the before/after states of actions in the current history. Missing or malformed state fails immediately; there is no silent fallback to vision or fabricated state. Only records where the expert errored before its first primitive may be marked `unavailable`, with the error reason kept.
+Every public episode additionally carries `privileged_state={schema_version: "privileged-state/2", availability, initial, final}` (`cap/state_feedback.py::feedback`, checked by `validate_feedback`). The Actor sees initial and final states in the summary and may `inspect` the before/after states of actions in the current history. Missing or malformed state fails immediately; there is no silent fallback to vision or fabricated state. Only records where the expert errored before its first primitive may be `{schema_version, availability: "unavailable", reason: "expert_error_before_first_primitive"}`.
 
 Privileged means physical state only. It excludes the task-success implementation, judge source, hidden seeds and private files. The provider rejects extra top-level context fields, known private evaluation/credential fields, visual inputs and non-finite values. The host must still ensure that nested object contents come only from public physical state.
 
