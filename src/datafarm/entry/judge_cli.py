@@ -68,8 +68,13 @@ def main(argv=None) -> int:
                 ref = bind_contract(store, read_json(args.task_ref), read_json(args.scene_ref), args.bundle, args.freeze_sha256)
                 write_json(args.output, ref.to_dict())
             else:
-                receipt, ref = evaluate_episode(store, read_json(args.episode_ref), read_json(args.contract_ref), args.bundle, args.freeze_sha256)
-                write_json(args.output, {'receipt_ref':ref.to_dict(), **receipt})
+                episode_ref = read_json(args.episode_ref)
+                if isinstance(episode_ref, dict) and 'episode_ref' in episode_ref:
+                    episode_ref = episode_ref['episode_ref']
+                if episode_ref is None:
+                    raise ValueError('initialization failed; no valid Episode')
+                receipt, ref = evaluate_episode(store, episode_ref, read_json(args.contract_ref), args.bundle, args.freeze_sha256)
+                write_json(args.output, {**receipt['result'], 'receipt_ref':ref.to_dict(), 'episode_ref':episode_ref})
             return 0
         if args.command == 'build':
             inputs = build_input(read_json(args.task), read_json(args.scene), read_json(args.observations),

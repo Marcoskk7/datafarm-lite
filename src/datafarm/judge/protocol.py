@@ -6,7 +6,6 @@ import math
 import re
 
 BUILD_SCHEMA = 'judge-build-input/1'
-BUILD_SCHEMA_V2 = 'judge-build-input/2'
 CONTRACT_SCHEMA = 'task-contract/1'
 RESULT_SCHEMA = 'judge-result/1'
 ID = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}')
@@ -63,59 +62,43 @@ def private_fields(value):
 
 
 def normalize_task(raw):
-    """适配已有 A 线任务字典/Task IR；新增结构只存在于 B 的内部构建请求中。"""
+    """Current /1 consumes request-task/1 directly; no legacy ID inference."""
+    from datafarm.task.request_profile import validate_task_payload
+    from datafarm.kernel.identifiers import logical_id
     check(isinstance(raw, dict), 'Task must be an object')
-    payload = raw.get('payload', raw)
-    if payload.get('profile') == 'request-task/1':
-        from datafarm.task.request_profile import validate_task_payload
-        payload = validate_task_payload(payload)
-        from datafarm.kernel.identifiers import logical_id
-        logical_id(payload['task_id'])
-        requirements = deepcopy(payload['predicates'] + payload['forbidden_shortcuts'])
-        check({r['id'] for r in requirements} == set(payload['requirement_ids']), 'Task requirement coverage differs')
-        return dict(task_id=payload['task_id'], task_version=payload['task_revision'],
-                    requirements=requirements, provided_thresholds={p['id']:deepcopy(p) for p in payload['parameters']},
-                    original=deepcopy(raw))
-    task_id = raw.get('task_id', raw.get('name', raw.get('artifact_id')))
-    identifier(task_id)
-    requirements = payload.get('requirements')
-    if requirements is None:
-        requirements = [{'id': 'task.goal', 'text': text(payload.get('instruction', payload.get('demand')))}]
-        for name, predicate in payload.get('predicates', {}).items():
-            requirements.append({'id': identifier(name), 'text': text(predicate.get('expr'))})
-    check(isinstance(requirements, list) and bool(requirements), 'Task requirements missing')
-    ids = []
-    for item in requirements:
-        ids.append(identifier(item.get('id')))
-        text(item.get('text'))
-    check(len(set(ids)) == len(ids), 'Duplicate requirement IDs')
-    # provided_thresholds 的值和单位是上游明确给定值，模型不得修改或删除。
-    thresholds = payload.get('provided_thresholds', payload.get('thresholds', {}))
-    check(isinstance(thresholds, dict), 'thresholds must be an object')
-    for name, spec in thresholds.items():
-        identifier(name)
-        check(isinstance(spec, dict) and type(spec.get('value')) in (int, float), 'Threshold requires value and unit')
-        text(spec.get('unit'))
-    return dict(task_id=task_id, task_version=str(raw.get('task_version', '1')),
-                requirements=deepcopy(requirements), provided_thresholds=deepcopy(thresholds), original=deepcopy(raw))
+    payload = validate_task_payload(raw.get('payload', raw))
+    logical_id(payload['task_id'])
+    requirements = deepcopy(payload['predicates'] + payload['forbidden_shortcuts'])
+    ids = [r['id'] for r in requirements]
+    check(len(ids) == len(set(ids)) and set(ids) == set(payload['requirement_ids']), 'Task requirement coverage differs')
+    return dict(task_id=payload['task_id'], task_version=payload['task_revision'],
+                requirements=requirements, provided_thresholds={p['id']:deepcopy(p) for p in payload['parameters']},
+                original=deepcopy(raw))
 
 
 def build_input(task, scene, observations, cases):
+    from .episode_input import validate_observation_spec
     value = dict(schema_version=BUILD_SCHEMA, task=normalize_task(task), scene=deepcopy(scene),
                  observations=deepcopy(observations), development_cases=deepcopy(cases))
-    if task.get('payload', task).get('profile') == 'request-task/1':
-        value['schema_version'] = BUILD_SCHEMA_V2
-        check(observations.get('profile') == 'judge-episode/2', 'Measured task requires Judge observations/2')
-        check(isinstance(observations.get('source_binding'), dict), 'Judge source binding missing')
-        check(observations['source_binding']['task_id'] == value['task']['task_id'] and
-              observations['source_binding']['task_revision'] == value['task']['task_version'], 'Judge task binding differs')
     finite_tree(value)
     private_fields(value)
-    check(isinstance(scene, dict), 'Scene metadata must be an object')
-    check(isinstance(observations, dict), 'Observation specification missing')
-    for key in ('capabilities', 'available_fields'):
-        check(isinstance(observations.get(key), list) and all(isinstance(v, str) for v in observations[key]),
-              'Observation specification needs ' + key)
+    validate_observation_spec(observations)
+    binding = observations['source_binding']
+    check(binding['task_id'] == value['task']['task_id'] and binding['task_revision'] == value['task']['task_version'],
+          'Judge task binding differs')
+    from datafarm.kernel.io import sha256_json
+    check(sha256_json(task) == binding['task_ref']['sha256'], 'Task IR content differs from its source reference')
+    public = observations['public_task']
+    payload = task.get('payload', task)
+    check(isinstance(scene, dict) and scene.get('scene_id') == public['scene_id'] and sha256_json(scene) == binding['scene_ref']['sha256'],
+          'Scene binding differs')
+    check(binding['node_ids'] == [n['node_id'] for n in scene['nodes']], 'Source scene nodes differ')
+    check(public['roles'] == payload['roles'] and public['instruction'] == payload['demand'] and public['request_id'] == payload['request_id'],
+          'Public role/request semantics differ')
+    check(public['goals'] + public['constraints'] == payload['predicates'] and public['forbidden_shortcuts'] == payload['forbidden_shortcuts'],
+          'Public requirements differ')
+    check(public['parameters'] == [{k:deepcopy(v) for k,v in p.items() if k != 'evidence_ref'} for p in payload['parameters']],
+          'Public thresholds differ')
     validate_cases(cases)
     return value
 
@@ -167,18 +150,13 @@ def validate_candidate(candidate, inputs):
         check(isinstance(fields, list) and fields and set(fields) <= set(inputs['observations']['available_fields']),
               'Condition evidence unavailable')
     check(len(set(condition_ids)) == len(condition_ids), 'Duplicate condition IDs')
-    # 已有 stage-graph/1 的映射属于上游契约，不能让模型重命名后破坏阶段交叉引用。
-    original = inputs['task']['original'].get('payload', inputs['task']['original'])
-    required_ids = {p.get('judge_criterion') for p in (original.get('predicates', {}).values() if isinstance(original.get('predicates'), dict) else [])
-                    if p.get('kind') in ('terminal', 'transient') and p.get('judge_criterion')}
-    if required_ids:
-        check(set(condition_ids) == required_ids, 'Upstream judge_criterion IDs changed')
     check(covered == requirements, 'Requirements not fully covered')
     indexed = {t['id']: t for t in thresholds}
     for name, supplied in inputs['task']['provided_thresholds'].items():
         got = indexed.get(name, {})
         check(got.get('origin') == 'provided' and got.get('value') == supplied['value']
-              and got.get('unit') == supplied['unit'], 'Provided threshold changed or omitted: ' + name)
+              and got.get('unit') == supplied['unit'] and got.get('basis') == supplied['basis']
+              and got.get('requirement_ids') == supplied['requirement_ids'], 'Provided threshold changed or omitted: ' + name)
     check(isinstance(candidate['missing_inputs'], list) and all(isinstance(v, str) for v in candidate['missing_inputs']),
           'Invalid missing input list')
     caps = candidate['required_capabilities']
@@ -186,53 +164,10 @@ def validate_candidate(candidate, inputs):
     return sorted(set(caps) - set(inputs['observations']['capabilities']))
 
 
-def has_path(value, path):
-    """路径以点分隔，数组自动对每条记录核对；不通过目标值补齐缺失观测。"""
-    if not path:
-        return value is not None
-    if isinstance(value, list):
-        return bool(value) and all(has_path(v, path) for v in value)
-    head, *tail = path
-    return isinstance(value, dict) and head in value and has_path(value[head], tail)
-
-
 def validate_episode(episode, contract):
-    finite_tree(episode)
-    if contract.get('schema_version') == 'task-contract/2':
-        from .episode_input import validate_input
-        return validate_input(episode, contract)
-    check(episode.get('schema_version') == 'judge-episode/1', 'Unsupported episode version')
-    check(episode.get('units') == {'length':'m', 'angle':'rad', 'time':'s'} and episode.get('frame_id') == 'world',
-          'Episode requires explicit SI units and world frame')
-    dt = episode.get('control_dt_s')
-    check(type(dt) in (int, float) and math.isfinite(dt) and dt > 0, 'Episode control_dt_s missing or invalid')
-    states, actions = episode.get('states'), episode.get('actions')
-    check(isinstance(states, list) and len(states) >= 2 and isinstance(actions, list)
-          and len(actions) + 1 == len(states), 'Expected N actions and N+1 full measured states')
-    check([s.get('control_step') for s in states] == list(range(len(states))), 'State clock gaps or reorder')
-    check(all(type(s.get('control_step')) is int for s in states), 'Invalid state clock')
-    check(all(isinstance(a, dict) and type(a.get('control_step')) is int and a['control_step'] == i
-              for i, a in enumerate(actions)), 'Action clock gaps or reorder')
-    for state in states:
-        if 'time_s' in state:
-            check(type(state['time_s']) in (int, float) and math.isclose(state['time_s'], state['control_step']*dt,
-                  abs_tol=1e-8), 'State time disagrees with control clock')
-        if 'units' in state:
-            check(state['units'] == episode['units'], 'State unit mismatch')
-        if 'frame_id' in state:
-            check(state['frame_id'] == 'world', 'State frame mismatch')
-        for key in ('q', 'dq'):
-            if key in state:
-                check(isinstance(state[key], list) and all(type(v) in (int, float) for v in state[key]),
-                      'Invalid measured joint vector')
-        if 'joint_names' in state:
-            names = state['joint_names']
-            check(isinstance(names, list) and all(isinstance(n, str) and n for n in names)
-                  and len(set(names)) == len(names) and ('q' not in state or len(names) == len(state['q'])),
-                  'Measured joint names/order dimensions invalid')
-    for condition in contract['conditions']:
-        for field in condition['evidence_fields']:
-            check(has_path(episode, field.split('.')), 'Required evidence missing: ' + field)
+    """Current Judge /1 always checks full measured, source-bound input."""
+    from .episode_input import validate_input
+    return validate_input(episode, contract)
 
 
 def result(predicates, metrics=None, reason_code='evaluated'):
