@@ -25,6 +25,8 @@ Compare success and regressions across development states, not seed identities.
 Skills are fallible guidance: check API compatibility and applicability.
 Actor: inspect relevant failing actions if essential evidence is missing, then
 propose an executable program. Respect all motion, operation and call budgets.
+Every decision states a non-empty hypothesis and expected_failure (the measured
+observation that would falsify it); for inspect, explain the missing evidence.
 Distiller: extract a reusable failure-to-repair rule, with applicability and
 limits; do not memorize task coordinates or reproduce the whole winning program.
 The skill.requires array contains ONLY exact keys from task.api, never prose
@@ -48,8 +50,10 @@ def response_schema(role, api=None):
                      required=['name','failure_signature','when_to_apply','repair','limitations','requires'])
         return dict(type='object', additionalProperties=False, properties={'skill': {'anyOf': [skill, {'type':'null'}]}}, required=['skill'])
     props = dict(action={'type':'string','enum':['propose','inspect']},
-                 code={'type':['string','null']}, hypothesis={'type':['string','null']},
-                 expected_failure={'type':['string','null']},
+                 code={'type':['string','null']},
+                 # 结构化输出不支持按 action 分支的根级 anyOf；hypothesis/expected_failure 统一为非空字符串，
+                 # 与 propose 的校验一致，避免 schema 允许 null 而校验器拒绝。inspect 时二者说明所缺证据。
+                 hypothesis=text, expected_failure=text,
                  episode_id={'type':['string','null']},
                  event_ids={'type':'array','items':{'type':'integer'}},
                  proposal_applied_as_written={'type':['boolean','null']})
