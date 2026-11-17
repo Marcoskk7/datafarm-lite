@@ -108,7 +108,8 @@ the cache and robot URDF readable by path, `/proc` readable, DNS/TLS to `hf-mirr
 ## GPU check (physics + reachability, same host)
 
 The exact `next_step` from `scene-authoring-report.json`, run with the IsaacLab venv interpreter after
-`source /home/isaac/isaaclab30_env.sh`, `setsid nohup` (`check.sh`, log in `check.log`, work `prepared/78c0d8dceaa3310a`):
+`source /home/isaac/isaaclab30_env.sh`, `setsid nohup` (`check.sh` here; the `check.log` with the printed summary and
+`EXIT=1` stays in the run directory — `*.log` is gitignored, as for the 1b run; work `prepared/78c0d8dceaa3310a`):
 
 ```
 /home/isaac/IsaacLab30/.venv/bin/python tools/scene_assemble.py check \
