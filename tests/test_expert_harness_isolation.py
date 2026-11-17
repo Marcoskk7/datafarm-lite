@@ -31,7 +31,7 @@ def fake_spec(**changes) -> SandboxSpec:
 
 
 def argv(spec: SandboxSpec) -> list[str]:
-    return bwrap_argv(spec, ["agent", "--flag"], lexists=lambda p: p in EXISTING or p in ("/usr", "/etc"),
+    return bwrap_argv(spec, ["agent", "--flag"], bwrap="bwrap", lexists=lambda p: p in EXISTING or p in ("/usr", "/etc"),
                       isdir=lambda p: p in DIRS)
 
 
