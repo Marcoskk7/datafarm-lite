@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import uuid
@@ -27,14 +28,58 @@ from datafarm.entry.scene_files import load_prepared, robot_descriptor
 from datafarm.expert.util import ConfigError, HarnessError
 from datafarm.instructions import build_context, repository_root
 from datafarm.kernel.io import atomic_write_json, sha256_file, sha256_text, utc_now
-from datafarm.scene.authoring import HOST_DIR, LAYOUT_FILE, AgentTurn, PrepareError, author_layout
+from datafarm.scene.authoring import (HOST_DIR, LAYOUT_FILE, AgentTurn, CheckError, CheckResult, PrepareError,
+                                      RunCheck, author_layout, check_diagnostics, check_summary)
 from datafarm.scene.conformance import load_role_rules
 
 ROLE = "scene-author"
 COMPONENT = "scene-author/session"
 CONFIG_SCHEMA = "datafarm.scene-author/1"
 CONFIG_KEYS = frozenset({"schema", "notes", "agent", "price_table", "wall_s_per_round", "max_budget_usd_per_round",
-                         "env_passthrough", "sandbox"})
+                         "env_passthrough", "sandbox", "check"})
+CHECK_DEFAULTS: dict[str, Any] = {
+    "python": None, "env_script": None, "timeout_s": 1500.0,
+    "settle_s": 2.0, "probe_s": 2.0, "drift_tol": 0.005, "speed_tol": 0.01,
+    "joint_tol_active": 0.005, "joint_tol_passive": 0.005, "penetration_tol": 0.003,
+    "nconmax": 4096, "njmax": 8192,
+}
+CHECK_KEYS = frozenset(CHECK_DEFAULTS) | {"notes"}
+CHECK_NUMERIC = ("timeout_s", "settle_s", "probe_s", "drift_tol", "speed_tol", "joint_tol_active",
+                 "joint_tol_passive", "penetration_tol", "nconmax", "njmax")
+
+
+def check_config(raw: Any) -> dict[str, Any]:
+    """校验并补全 agent 配置的 `check` 节；容差的唯一来源就是这里，再由 CLI 显式转成工具参数。"""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, Mapping):
+        raise ValueError("'check' must be an object")
+    unknown = sorted(set(raw) - CHECK_KEYS)
+    if unknown:
+        raise ValueError(f"check: unknown keys {unknown}")
+    out = {key: raw.get(key, default) for key, default in CHECK_DEFAULTS.items()}
+    for key in CHECK_NUMERIC:
+        value = out[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not value > 0:
+            raise ValueError(f"check.{key} must be a positive number, got {value!r}")
+    for key in ("python", "env_script"):
+        if out[key] is not None and (not isinstance(out[key], str) or not out[key]):
+            raise ValueError(f"check.{key} must be a non-empty string or null")
+    return out
+
+
+def resolve_check_interpreter(python: str | None) -> str | None:
+    """`--check-python` / `check.python` / `$ISAAC_PYTHON` → 可执行文件的绝对路径；找不到返回 None。"""
+    if not python:
+        return None
+    path = Path(python).expanduser()
+    if path.is_file() and os.access(path, os.X_OK):
+        return str(path.resolve())
+    if os.sep not in python:
+        found = shutil.which(python)
+        if found:
+            return found
+    return None
 
 
 def load_config(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -47,6 +92,7 @@ def load_config(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     if not isinstance(config.get("agent"), Mapping) or not config["agent"].get("backend"):
         raise ValueError(f"{path}: needs an 'agent' object with a backend")
     config["sandbox"] = sandbox_config(config.get("sandbox"))
+    config["check"] = check_config(config.get("check"))
     prices: dict[str, Any] = {}
     if config.get("price_table"):
         prices = json.loads((path.parent / config["price_table"]).read_text(encoding="utf-8")).get("models", {})
@@ -141,6 +187,56 @@ def refuse_links(workspace: Path) -> list[str]:
     return removed
 
 
+def check_with_tool(*, python: str, tools: Path, env_script: str | None, timeout_s: float,
+                    tolerances: Mapping[str, Any]) -> RunCheck:
+    """主机物理闸门：用 Isaac Lab 解释器跑 `tools/scene_assemble.py check`，读它写的 `check.json`。
+
+    布局参数是本轮留存的 `attempts/<n>/scene-layout.json`（与 `plan.json.spec_sha256` 记录的字节相同），
+    工作目录是同一 prepared 目录。0 = 通过，1 = 检查失败，其他退出码或缺失 `check.json` 是 CheckError。
+    """
+    def value(key: str) -> str:
+        return f"{float(tolerances[key]):g}"
+
+    def run(layout_path: Path, prep_dir: Path) -> CheckResult:
+        argv = [python, str(tools / "scene_assemble.py"), "check", "--spec", str(layout_path),
+                "--work", str(prep_dir), "--headless",
+                "--settle-s", value("settle_s"), "--probe-s", value("probe_s"),
+                "--drift-tol", value("drift_tol"), "--speed-tol", value("speed_tol"),
+                "--joint-tol-active", value("joint_tol_active"),
+                "--joint-tol-passive", value("joint_tol_passive"),
+                "--penetration-tol", value("penetration_tol"),
+                "--nconmax", str(int(tolerances["nconmax"])), "--njmax", str(int(tolerances["njmax"]))]
+        if env_script:
+            argv = ["bash", "-c", 'source "$0" || exit $?; shift; exec "$@"', env_script, *argv]
+        check_path = prep_dir / "check.json"
+        check_path.unlink(missing_ok=True)  # never read a previous round's evidence
+        try:
+            completed = subprocess.run(argv, capture_output=True, text=True, timeout=timeout_s)
+        except subprocess.TimeoutExpired as exc:
+            raise CheckError(f"tools/scene_assemble.py check timed out after {timeout_s:g} s") from exc
+        except OSError as exc:
+            raise CheckError(f"could not start the check interpreter {python!r}: {exc}") from exc
+        log = (completed.stdout or "") + (completed.stderr or "")
+        (prep_dir / "check.log").write_text(log, encoding="utf-8")
+        document = None
+        if check_path.is_file():
+            try:
+                document = json.loads(check_path.read_text(encoding="utf-8"))
+            except ValueError as exc:
+                raise CheckError(f"check.json is not valid JSON: {exc}") from exc
+        if document is None or completed.returncode not in (0, 1):
+            tail = log[-1500:]
+            raise CheckError(f"tools/scene_assemble.py check exit {completed.returncode} without check.json; "
+                             f"log tail:\n{tail}")
+        diagnostics = tuple(check_diagnostics(document))
+        if completed.returncode != 0 and not diagnostics:
+            diagnostics = (f"check: tools/scene_assemble.py check exit {completed.returncode}",)
+        return CheckResult(ran=True, ok=completed.returncode == 0, exit_code=completed.returncode,
+                           summary=check_summary(document), diagnostics=diagnostics, path=check_path)
+
+    return run
+
+
 def prepare_with_tool(*, python: str, cache: Path, robot_package: Path, endpoint: str):
     """主机 prepare：缓存里缺的 SimReady 资产先 `tools/simready.py fetch`，再跑 `tools/scene_assemble.py prepare`
     子进程；任一步失败时把日志尾部放进 `PrepareError`。"""
@@ -197,6 +293,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rules", type=Path, default=repository_root() / "configs" / "scene-roles.json")
     parser.add_argument("--prepare-python", default=sys.executable,
                         help="interpreter with pxr + coacd for tools/scene_assemble.py prepare")
+    parser.add_argument("--check-python", default=None,
+                        help="Isaac Lab interpreter for tools/scene_assemble.py check (default $ISAAC_PYTHON, then "
+                             "the config's check.python); without it the run refuses unless --kinematic-only")
+    parser.add_argument("--check-timeout-s", type=float, default=None,
+                        help="wall limit for the check subprocess (default the config's check.timeout_s)")
+    parser.add_argument("--check-env-script", default=None,
+                        help="bash script sourced before check (e.g. an Isaac Lab activation script)")
+    parser.add_argument("--kinematic-only", action="store_true",
+                        help="accept without the physics check; recorded in attempts.jsonl and the report")
     parser.add_argument("--endpoint", default=endpoint_from_env(), help="SimReady/Hugging Face endpoint for the agent")
     parser.add_argument("--call-log", type=Path, help="agent-call ledger (default WORK/agent-calls.jsonl)")
     args = parser.parse_args(argv)
@@ -207,6 +312,10 @@ def main(argv: list[str] | None = None) -> int:
     except (ConfigError, OSError, ValueError, KeyError) as exc:
         print(f"scene_author: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
+    check_cfg = config["check"]
+    check_timeout_s = args.check_timeout_s if args.check_timeout_s is not None else check_cfg["timeout_s"]
+    check_env_script = args.check_env_script or check_cfg["env_script"]
+    check_python = args.check_python or check_cfg["python"] or os.environ.get("ISAAC_PYTHON")
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=True)
     try:
@@ -220,6 +329,20 @@ def main(argv: list[str] | None = None) -> int:
               f"set sandbox.proot or DATAFARM_PROOT_BIN) or opt out explicitly with \"sandbox\": "
               f"{{\"mode\": \"none\"}} in the agent config.", file=sys.stderr)
         return 2
+    if check_timeout_s <= 0:
+        print("scene_author: --check-timeout-s must be positive", file=sys.stderr)
+        return 2
+    if check_env_script and not Path(check_env_script).is_file():
+        print(f"scene_author: check env script {check_env_script!r} does not exist", file=sys.stderr)
+        return 2
+    if not args.kinematic_only:
+        resolved = resolve_check_interpreter(check_python)
+        if resolved is None:
+            print("scene_author: no check interpreter (--check-python, $ISAAC_PYTHON or the config's check.python); "
+                  "the physics gate is mandatory - install Isaac Lab, point at its Python, or pass --kinematic-only "
+                  "to accept without physics verification (recorded, never silent)", file=sys.stderr)
+            return 2
+        check_python = resolved
     context = build_context(ROLE)
     atomic_write_json(work / "agent-instructions.json", context["receipt"])
     sessions = AgentSessions(backend=backend, config=config, work=work,
@@ -232,6 +355,10 @@ def main(argv: list[str] | None = None) -> int:
         prepare_assets=prepare_with_tool(python=args.prepare_python, cache=args.cache,
                                          robot_package=args.robot_package, endpoint=args.endpoint),
         load_descriptor=descriptor_from_package(args.robot_package),
+        run_check=None if args.kinematic_only else check_with_tool(
+            python=check_python, tools=repository_root() / "tools", env_script=check_env_script,
+            timeout_s=check_timeout_s, tolerances=check_cfg),
+        kinematic_only=args.kinematic_only,
         simready_command=f"{sandbox.simready_command} --endpoint {args.endpoint}",
         # 沙箱里仓库本体不可见：agent 只能读 WORK/sandbox/repo 下的快照，prompt 里点名它。
         docs_root=None if sandbox.mode == "none" else sandbox.snapshot)

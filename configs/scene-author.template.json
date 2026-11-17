@@ -18,6 +18,25 @@
     "codex": {"cli": "codex", "extra_args": []}
   },
   "price_table": "expert-harness/prices.json",
+  "check": {
+    "notes": [
+      "Physics gate: the host runs `tools/scene_assemble.py check` with this Isaac Lab interpreter against the kept attempt layout and the same prepared dir. Acceptance requires check to pass; without an interpreter the run refuses unless --kinematic-only is passed (recorded in attempts.jsonl and the report).",
+      "python: Isaac Lab interpreter (null = --check-python, then $ISAAC_PYTHON). env_script: bash script sourced before check, e.g. an Isaac Lab activation script (null = none).",
+      "These tolerances are the single source of truth; the host forwards each one as an explicit tool flag. joint_tol_active bounds actuated/held joints. Passive (non-actuated) joints have no drift bound: they pass when the measured value stays inside the joint limits and their node gains no new contact pair; joint_tol_passive only decides when a passive joint is reported as moved."
+    ],
+    "python": null,
+    "env_script": null,
+    "timeout_s": 1500,
+    "settle_s": 2.0,
+    "probe_s": 2.0,
+    "drift_tol": 0.005,
+    "speed_tol": 0.01,
+    "joint_tol_active": 0.005,
+    "joint_tol_passive": 0.005,
+    "penetration_tol": 0.003,
+    "nconmax": 4096,
+    "njmax": 8192
+  },
   "sandbox": {
     "mode": "bwrap",
     "fallback": ["proot"],

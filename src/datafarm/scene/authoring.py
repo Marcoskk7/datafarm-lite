@@ -2,11 +2,12 @@
 
 每一轮：拼 prompt（角色指令 + request + 上一轮诊断）→ 运行 agent → 读 `workspace/scene-layout.json`
 → 资产集合变化时由主机 prepare → 符合性检查 + `run_plan` → 追加一条 attempt 记录。接受与否只由
-主机判定：符合性 `ok` 且 `complete`（prepare 之后才有 AssetRecord），并且 `plan.ok`。agent 的自述不参与。
+主机判定：符合性 `ok` 且 `complete`（prepare 之后才有 AssetRecord）、`plan.ok`、`check.ok`。agent 的自述不参与。
 
-本模块是纯业务逻辑：agent 会话、资产 prepare、机器人描述符都由调用方注入（`entry/scene_author_cli.py`
-把它们接到 agent harness 和 `tools/scene_assemble.py prepare` 上）。不运行 `check`（Isaac Lab，GPU），
-接受的布局仍须在 GPU 主机上跑 `check`。
+本模块是纯业务逻辑：agent 会话、资产 prepare、机器人描述符、物理 check 都由调用方注入
+（`entry/scene_author_cli.py` 把它们接到 agent harness、`tools/scene_assemble.py prepare` 和
+`tools/scene_assemble.py check` 上）。接受条件是符合性 `ok` 且 `complete`、`plan.ok`、`check.ok`；
+没有配置 check 解释器时只有显式 `--kinematic-only` 才接受，且记录在 attempts 与报告里。
 """
 from __future__ import annotations
 
@@ -42,6 +43,23 @@ class PrepareError(RuntimeError):
     """主机侧 prepare（拉取 + AssetRecord）失败；作为诊断回给 agent，不终止循环。"""
 
 
+class CheckError(RuntimeError):
+    """`tools/scene_assemble.py check` 没能产出证据（超时、解释器缺失、崩溃）；作为诊断回给 agent。"""
+
+
+@dataclass(frozen=True)
+class CheckResult:
+    """一次物理闸门的结果；`summary` 是 `check.json` 的机器摘要，`diagnostics` 是逐行问题描述。"""
+
+    ran: bool
+    ok: bool
+    exit_code: int | None
+    summary: Mapping[str, Any]
+    diagnostics: tuple[str, ...] = ()
+    path: Path | None = None
+    error: str | None = None
+
+
 @dataclass(frozen=True)
 class AgentTurn:
     """一轮 agent 会话的摘要。`status` 取 `datafarm.agent-call/1` 的状态；`fatal` 非空时停止循环。"""
@@ -62,6 +80,7 @@ class AuthoringResult:
 RunAgent = Callable[[int, str, Path], AgentTurn]
 PrepareAssets = Callable[[Path, Path], Mapping[str, Mapping[str, Any]]]
 LoadDescriptor = Callable[[Mapping[str, Any], Mapping[str, Mapping[str, Any]]], Mapping[str, Any]]
+RunCheck = Callable[[Path, Path], CheckResult]
 
 
 def asset_set_key(layout: Mapping[str, Any]) -> str:
@@ -104,6 +123,106 @@ def _read_layout(path: Path) -> tuple[bytes | None, dict[str, Any] | None, list[
         return raw, None, [f"{LAYOUT_FILE} schema must be {scene_layout.LAYOUT_SCHEMA!r}, "
                            f"got {document.get('schema')!r}"]
     return raw, document, []
+
+
+def _brief(value: Any) -> str:
+    if value is None:
+        return "?"
+    return f"{float(value):g}"
+
+
+def check_summary(document: Mapping[str, Any]) -> dict[str, Any]:
+    """`check.json` 的机器摘要：漂移、穿透、探针、新接触对、测量关节值。"""
+    settle = document.get("settle") or {}
+    penetration = document.get("penetration") or {}
+    probes = document.get("probes") or []
+    return {
+        "drift": {key: settle.get(key) for key in
+                  ("max_drift_m", "max_end_speed_mps", "max_joint_drift", "max_passive_joint_drift", "stable")},
+        "penetration": {"max_depth_m": penetration.get("max_depth_m"), "ok": penetration.get("ok")},
+        "probes": {"ok": document.get("probes_ok"), "total": len(probes),
+                   "failed": [p.get("name") for p in probes if isinstance(p, Mapping) and not p.get("ok")]},
+        "new_contacts": dict(settle.get("new_contacts") or {}),
+        "measured_joint_state": dict(settle.get("measured_joint_state") or {}),
+    }
+
+
+def check_diagnostics(document: Mapping[str, Any]) -> list[str]:
+    """把 `check.json` 翻成逐行、可执行的问题描述（每行以 `check: ` 开头）；通过时返回空列表。"""
+    settle = document.get("settle") or {}
+    penetration = document.get("penetration") or {}
+    lines: list[str] = []
+    tolerance = penetration.get("tolerance_m")
+    pairs = penetration.get("pairs") or {}
+    reported = 0
+    for key in sorted(pairs, key=lambda k: -float((pairs[k] or {}).get("depth_m") or 0.0)):
+        entry = pairs[key] or {}
+        depth = float(entry.get("depth_m") or 0.0)
+        if tolerance is not None and depth <= float(tolerance):
+            continue
+        a, b = entry.get("a"), entry.get("b")
+        if a is None and b is None:
+            a, b = (key.split(" | ") + [None, None])[:2]
+        body_a = entry.get("body_a") or ((entry.get("bodies") or [""])[0])
+        body_b = entry.get("body_b") or ((entry.get("bodies") or ["", ""])[-1])
+        lines.append(f"check: penetration {a} {body_a} vs {b} {body_b} depth {depth * 1000:.1f} mm > "
+                     f"{float(tolerance or 0.0) * 1000:.1f} mm")
+        reported += 1
+    if not penetration.get("ok", True) and reported == 0:
+        lines.append(f"check: penetration max depth {float(penetration.get('max_depth_m') or 0.0) * 1000:.1f} mm "
+                     f"exceeds the tolerance")
+
+    joint_lines: list[str] = []
+    failed = (not settle.get("stable", True) or not penetration.get("ok", True)
+              or document.get("probes_ok") is False)
+    for node_id, node in (settle.get("nodes") or {}).items():
+        for joint in (node or {}).get("joint_checks") or []:
+            name = joint.get("name")
+            drift = float(joint.get("drift_m") or 0.0)
+            measured = float(joint.get("measured") or 0.0)
+            if joint.get("actuated"):
+                if not joint.get("ok"):
+                    joint_lines.append(f"check: joint {node_id}.{name} drifted {drift:.4f} m > "
+                                       f"{_brief(joint.get('tolerance_m'))} m (actuated/held)")
+                continue
+            limits = joint.get("limits") or [None, None]
+            lower, upper = _brief(limits[0]), _brief(limits[1])
+            added = joint.get("new_contacts") or {}
+            moved = bool(joint.get("moved"))
+            if not joint.get("within_limits"):
+                joint_lines.append(f"check: passive joint {node_id}.{name} measured {measured:.4f} m outside "
+                                   f"limits [{lower}, {upper}]")
+            if moved and added:
+                joint_lines.append(f"check: passive joint {node_id}.{name} moved {drift:.4f} m "
+                                   f"(limits {lower}..{upper}, {len(added)} new contacts) - new contact pairs: "
+                                   + ", ".join(sorted(added)))
+            elif joint.get("ok") and moved and failed:
+                joint_lines.append(f"check: passive joint {node_id}.{name} moved {drift:.4f} m "
+                                   f"(limits {lower}..{upper}, 0 new contacts) - recorded as measured initial state")
+    lines.extend(joint_lines)
+
+    for probe in document.get("probes") or []:
+        if not isinstance(probe, Mapping) or probe.get("ok"):
+            continue
+        rest = probe.get("rest_m") or [0.0, 0.0, 0.0]
+        bounds = probe.get("expected_rest_z_m") or [None, None]
+        z = float(rest[2]) if len(rest) > 2 else float("nan")
+        if bounds[0] is not None and not (float(bounds[0]) <= z <= float(bounds[1])):
+            lines.append(f"check: probe {probe.get('name')} failed: rest z {z:.2f} m outside "
+                         f"[{float(bounds[0]):.2f}, {float(bounds[1]):.2f}]")
+        else:
+            lines.append(f"check: probe {probe.get('name')} failed: touching {probe.get('touching')} does not "
+                         f"include support {probe.get('support_node')} or the body is still moving "
+                         f"({probe.get('end_speed_mps')} m/s)")
+
+    if not settle.get("stable", True) and not joint_lines:
+        tolerances = settle.get("tolerances") or {}
+        lines.append(f"check: settle unstable: max drift {settle.get('max_drift_m')} m "
+                     f"(tolerance {tolerances.get('drift_m')}), max end speed {settle.get('max_end_speed_mps')} m/s "
+                     f"(tolerance {tolerances.get('speed_mps')})")
+    if document.get("probes_ok") is False and not any(line.startswith("check: probe ") for line in lines):
+        lines.append("check: placement probes failed")
+    return lines
 
 
 def round_prompt(*, instructions: str, request_text: str, round_index: int, max_rounds: int,
@@ -159,17 +278,23 @@ def _write_host_files(host: Path, *, records: Mapping[str, Any] | None, plan: Ma
 
 def author_layout(*, request_path: str | Path, work: str | Path, rules: Mapping[str, Any], instructions: str,
                   max_rounds: int, run_agent: RunAgent, prepare_assets: PrepareAssets,
-                  load_descriptor: LoadDescriptor, simready_command: str = "python tools/simready.py",
+                  load_descriptor: LoadDescriptor, run_check: RunCheck | None = None,
+                  kinematic_only: bool = False, simready_command: str = "python tools/simready.py",
                   docs_root: Path | None = None) -> AuthoringResult:
     """跑到接受或 `max_rounds` 轮为止；已有 `attempts.jsonl` 时从下一轮续跑，已接受则直接返回。
 
     `run_agent(round, prompt, workspace)` 运行一次 agent 会话；`prepare_assets(layout_path, prep_dir)`
     为布局的资产集合产出 AssetRecord（按 asset_id，含机器人），失败抛 `PrepareError`；
-    `load_descriptor(layout, records)` 返回机器人描述符（robot-descriptor/2）。
+    `load_descriptor(layout, records)` 返回机器人描述符（robot-descriptor/2）；
+    `run_check(layout_path, prep_dir)` 跑 Isaac Lab 物理闸门（`tools/scene_assemble.py check`），失败抛
+    `CheckError`。接受条件是符合性 `ok` 且 `complete`、plan `ok`、check `ok`；只有显式
+    `kinematic_only=True` 时才接受没有 check 的布局（记录在 attempts 与报告里，绝不静默）。
     `docs_root` 是 agent 可读的仓库快照路径（沙箱里才有）；`None` 表示仓库根就是可读的。
     """
     if max_rounds < 1:
         raise ValueError("max_rounds must be >= 1")
+    if not kinematic_only and run_check is None:
+        raise ValueError("run_check is required unless kinematic_only=True")
     request_path = Path(request_path)
     work = Path(work)
     request_bytes = request_path.read_bytes()
@@ -187,6 +312,9 @@ def author_layout(*, request_path: str | Path, work: str | Path, rules: Mapping[
     stop_reason = "max_rounds"
 
     if attempts and attempts[-1]["accepted"]:
+        if not kinematic_only and (attempts[-1].get("check") or {}).get("mode") == "kinematic-only":
+            raise ValueError(f"{attempts_path} was accepted under --kinematic-only; rerun with --kinematic-only "
+                             f"or use a new --work to require the physics gate")
         stop_reason = "accepted"
     else:
         for round_index in range(len(attempts) + 1, max_rounds + 1):
@@ -195,7 +323,8 @@ def author_layout(*, request_path: str | Path, work: str | Path, rules: Mapping[
                 request_text=request_bytes.decode("utf-8"), work=work, workspace=workspace, rules=rules,
                 instructions=instructions, simready_command=simready_command, docs_root=docs_root,
                 previous=attempts[-1] if attempts else None, prepared=prepared, run_agent=run_agent,
-                prepare_assets=prepare_assets, load_descriptor=load_descriptor)
+                prepare_assets=prepare_assets, load_descriptor=load_descriptor, run_check=run_check,
+                kinematic_only=kinematic_only)
             attempt["request_sha256"] = request_sha256
             append_jsonl(attempts_path, attempt)
             attempts.append(attempt)
@@ -213,7 +342,7 @@ def author_layout(*, request_path: str | Path, work: str | Path, rules: Mapping[
         shutil.copyfile(work / attempts[-1]["layout"]["kept"], layout_path)
     report = _report(request_path=request_path, request_bytes=request_bytes, request_id=request.request_id,
                      work=work, attempts=attempts, max_rounds=max_rounds, stop_reason=stop_reason,
-                     layout_path=layout_path)
+                     layout_path=layout_path, kinematic_only=kinematic_only)
     report_path = work / REPORT_FILE
     atomic_write_json(report_path, report)
     return AuthoringResult(accepted=accepted, layout_path=layout_path, report_path=report_path, report=report)
@@ -223,7 +352,8 @@ def _run_round(*, round_index: int, max_rounds: int, request: Any, request_text:
                workspace: Path, rules: Mapping[str, Any], instructions: str, simready_command: str,
                docs_root: Path | None, previous: Mapping[str, Any] | None,
                prepared: dict[str, Mapping[str, Mapping[str, Any]]],
-               run_agent: RunAgent, prepare_assets: PrepareAssets, load_descriptor: LoadDescriptor
+               run_agent: RunAgent, prepare_assets: PrepareAssets, load_descriptor: LoadDescriptor,
+               run_check: RunCheck | None, kinematic_only: bool
                ) -> tuple[dict[str, Any], str | None]:
     attempt_dir = work / "attempts" / f"{round_index:03d}"
     attempt_dir.mkdir(parents=True, exist_ok=True)
@@ -306,14 +436,38 @@ def _run_round(*, round_index: int, max_rounds: int, request: Any, request_text:
     elif layout is not None:
         diagnostics.append("plan not run: no asset records for this layout")
 
-    accepted = bool(conformance and conformance["ok"] and conformance["complete"] and plan_info["ok"])
+    check_info: dict[str, Any] = {"ran": False, "ok": False, "mode": "check", "exit_code": None,
+                                  "summary": None, "diagnostics": [], "path": None, "error": None}
+    if kinematic_only:
+        check_info["mode"] = "kinematic-only"
+    elif layout is None or records is None or not plan_info["ok"]:
+        check_info["error"] = "not run: no passing plan for this layout"
+    elif run_check is not None:
+        check_info["ran"] = True
+        try:
+            result = run_check(attempt_dir / LAYOUT_FILE, work / prepare_info["dir"])
+        except CheckError as exc:
+            check_info.update(ok=False, ran=False, error=str(exc))
+            diagnostics.append(f"check could not run: {exc}")
+        else:
+            check_info.update(ok=result.ok, exit_code=result.exit_code, summary=dict(result.summary),
+                              diagnostics=list(result.diagnostics), error=result.error)
+            if result.path is not None:
+                try:
+                    check_info["path"] = Path(result.path).relative_to(work).as_posix()
+                except ValueError:
+                    check_info["path"] = str(result.path)
+            diagnostics.extend(result.diagnostics)
+
+    accepted = bool(conformance and conformance["ok"] and conformance["complete"] and plan_info["ok"]
+                    and (kinematic_only or (check_info["ran"] and check_info["ok"])))
     attempt = {
         "schema": ATTEMPT_SCHEMA, "round": round_index, "started_at": started_at,
         "agent_ended_at": agent_ended_at, "ended_at": utc_now(),
         "prompt_sha256": sha256_bytes(prompt.encode("utf-8")),
         "agent": {"status": turn.status, "call_ids": list(turn.call_ids), "fatal": turn.fatal},
         "layout": layout_info, "prepare": prepare_info, "conformance": conformance, "plan": plan_info,
-        "diagnostics": diagnostics, "accepted": accepted,
+        "check": check_info, "diagnostics": diagnostics, "accepted": accepted,
     }
     _write_host_files(workspace / HOST_DIR, records=records, plan=plan, attempt=attempt)
     return attempt, turn.fatal
@@ -321,9 +475,17 @@ def _run_round(*, round_index: int, max_rounds: int, request: Any, request_text:
 
 def _report(*, request_path: Path, request_bytes: bytes, request_id: str, work: Path,
             attempts: list[dict[str, Any]], max_rounds: int, stop_reason: str,
-            layout_path: Path | None) -> dict[str, Any]:
+            layout_path: Path | None, kinematic_only: bool) -> dict[str, Any]:
     last = attempts[-1] if attempts else None
     accepted = bool(last and last["accepted"])
+    check = (last or {}).get("check") or {}
+    checked = bool(check.get("ran") and check.get("ok"))
+    not_verified = [NOT_VERIFIED[1]]
+    verified = ["request conformance with AssetRecords (complete)", "plan: footprint and kinematic reachability"]
+    if checked:
+        verified.append("check: settle stability, penetration, placement probes (Isaac Lab)")
+    else:
+        not_verified.insert(0, NOT_VERIFIED[0])
     report: dict[str, Any] = {
         "schema": REPORT_SCHEMA,
         "request": {"path": str(request_path), "sha256": sha256_bytes(request_bytes), "request_id": request_id},
@@ -331,22 +493,28 @@ def _report(*, request_path: Path, request_bytes: bytes, request_id: str, work: 
         "stop_reason": stop_reason,
         "rounds": len(attempts),
         "max_rounds": max_rounds,
+        "kinematic_only": kinematic_only,
         "attempts_log": ATTEMPTS_FILE,
         "agent_call_ids": [cid for a in attempts for cid in a["agent"]["call_ids"]],
         "accepted_layout": None,
         "final": None if last is None else {key: last[key] for key in
-                                             ("round", "layout", "prepare", "conformance", "plan", "diagnostics")},
-        "verified": ["request conformance with AssetRecords (complete)", "plan: footprint and kinematic reachability"],
-        "not_verified": list(NOT_VERIFIED),
+                                             ("round", "layout", "prepare", "conformance", "plan", "check",
+                                              "diagnostics")},
+        "verified": verified if accepted else [],
+        "not_verified": not_verified if accepted else [],
         "next_step": None,
     }
     if accepted and layout_path is not None:
         prep_dir = last["prepare"]["dir"]
         report["accepted_layout"] = {"path": layout_path.relative_to(work).as_posix(),
                                      "sha256": last["layout"]["sha256"], "round": last["round"],
-                                     "prepared_dir": prep_dir}
-        report["next_step"] = (f"on a GPU host: python tools/scene_assemble.py check --spec {layout_path} "
-                               f"--work {work / prep_dir} --headless")
+                                     "prepared_dir": prep_dir,
+                                     "check_evidence": last["check"]["path"]}
+        if kinematic_only:
+            report["next_step"] = (f"kinematic-only: on a GPU host run python tools/scene_assemble.py check "
+                                   f"--spec {layout_path} --work {work / prep_dir} --headless")
+        else:
+            report["next_step"] = None
     else:
         report["next_step"] = "not accepted: inspect the final diagnostics and attempts, then rerun with more rounds"
     return report
