@@ -8,7 +8,7 @@ This document implements the route the user decided: use `translate-view` as the
 
 ## 1. Scope and responsibilities
 
-Phase one supports task execution with one AIRBOT + G2 in a single environment; identifiers and fields keep room for a dual arm. Task logic lives in a task adapter inside the run directory; there is no fixed task registry. The three cameras are declared by the scene and RenderSpec; while cameras are unimplemented, state collection is allowed but three-view data cannot be signed off.
+Phase one supports task execution with one AIRBOT + G2 in a single environment; identifiers and fields keep room for a dual arm. Task logic lives in a task adapter inside the run directory; there is no fixed task registry. The single-arm MVP has two physical cameras, `camera.head` and `camera.left_wrist` (no right wrist camera), plus the render-only virtual view `third_person`; they are declared by the scene and RenderSpec (sources in [SceneGraph](../ir/scene-graph.md)). While cameras are unimplemented, state collection is allowed but multi-view data cannot be signed off.
 
 | Module | Owner | Input | Output and boundary |
 |---|---|---|---|
@@ -301,7 +301,7 @@ Contact fields distinguish `available`, `unavailable` and `not_requested`. An em
 
 Cameras are either fixed or mounted on a link. The latter record the mount transform and derive world extrinsics from per-step rigid-body state; a free follow view is not named a real wrist camera. All cameras share a sampling plan defined by integer control_step.
 
-One physical episode can yield several material/lighting variants and still counts as one physical trajectory. RenderSpec specifies three physical views and the material and lighting variants; frame_map distinguishes them by camera_id and variant_id. Variants must not change geometry, collision, actions or contacts.
+One physical episode can yield several material/lighting variants and still counts as one physical trajectory. RenderSpec specifies the physical views (`head`, `left_wrist` in the single-arm MVP), any virtual views, and the material and lighting variants; frame_map distinguishes them by camera_id and variant_id. Variants must not change geometry, collision, actions or contacts.
 
 Rendering may skip frames but must keep the original state sample index. Linear interpolation must not be assumed to reproduce contact events; when interpolation is needed, the method and its limits are recorded explicitly. Invalid frames keep a missing/error status and must not copy the previous frame to fake synchronization.
 
@@ -412,10 +412,10 @@ The public primitive trace keeps `event="primitive"`, a unique integer `event_id
 
 The suggested reviewable delivery order is as follows, without restoring the cancelled probe stage:
 
-1. A and B confirm SceneBinding, frames/clock, TCP, available contact quantities and the identities of the three cameras; decide the concrete task and the basis of its thresholds.
+1. A and B confirm SceneBinding, frames/clock, TCP, available contact quantities and the identities of the two physical cameras; decide the concrete task and the basis of its thresholds.
 2. Implement data structures, validators and `RobotRuntime`, reusing the profile; verify joint-name mapping and the time and recording semantics of one step.
 3. Implement restricted primitives, the task Judge and negative controls; freeze the task contract and connect the existing CaP broker.
-4. Collect one complete Episode and finish state playback and three-view synchronization with the A line.
+4. Collect one complete Episode and finish state playback and multi-view synchronization with the A line.
 5. Complete task evaluation with ≥80% on hidden seeds, the action replay ≤1 cm check and HDF5 export, then collect all 20.
 
 Software acceptance should cover: mixed joint units, the WXYZ/XYZW boundary, rejecting control of mimic follower joints, N/N+1 alignment, primitive failure mid-way, unknown contact, Judge negative controls, hidden results not flowing back, and partial files not being admitted. Physical tasks and camera images need separate actual acceptance; none of those runs were executed for this document.
@@ -428,6 +428,6 @@ The interface rules are given; the items below should be confirmed from A-line a
 - AIRBOT's fixed TCP transform, gripper opening calibration, asset naming and initial scene layout.
 - The contact data, time windows and precision the current Newton runtime configuration can actually provide.
 - The basis for success height, stability window, allowed contacts and position/orientation/velocity thresholds.
-- The entity identities, optical calibration and sampling rate of the three cameras; file handoff between headless Lab 3.0 physics and the A-line renderer.
+- The entity identities, optical calibration and sampling rate of the two physical cameras; file handoff between headless Lab 3.0 physics and the A-line renderer.
 
 These open items do not change the decision to use Isaac Lab 3.0.
