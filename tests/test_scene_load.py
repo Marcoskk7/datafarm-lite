@@ -165,3 +165,28 @@ class SceneLoadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RobotBundleFilesTests(unittest.TestCase):
+    """`prepare` 必须把机器人包的每一层写进 asset bundle，否则 `load_scene` 拒绝整个场景（lab30 实跑踩到）。"""
+
+    def test_layers_come_from_the_per_asset_delivery_entry(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("scene_assemble", Path(__file__).resolve().parents[1]
+                                                      / "tools" / "scene_assemble.py")
+        tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tool)
+        # 实际机器人包 delivery_manifest.json 的形状：摘要挂在 assets.<name>.layer_sha256 下，顶层没有。
+        delivery = {"release": "r", "assets": {"airbot_single": {
+            "usd": "validated_usd/airbot_single/robot.usda", "urdf": "assets/a.urdf",
+            "layer_sha256": {"validated_usd/airbot_single/robot.usda": "a" * 64,
+                             "validated_usd/airbot_single/payloads/base.usda": "b" * 64}}}}
+        files = tool.robot_bundle_files(delivery, "robot.airbot", "airbot_single")
+        self.assertEqual(files, [
+            {"asset_id": "robot.airbot", "role": "robot_layer",
+             "member": "validated_usd/airbot_single/payloads/base.usda", "sha256": "b" * 64},
+            {"asset_id": "robot.airbot", "role": "robot_layer",
+             "member": "validated_usd/airbot_single/robot.usda", "sha256": "a" * 64}])
+        del delivery["assets"]["airbot_single"]["layer_sha256"]
+        with self.assertRaises(SystemExit):
+            tool.robot_bundle_files(delivery, "robot.airbot", "airbot_single")

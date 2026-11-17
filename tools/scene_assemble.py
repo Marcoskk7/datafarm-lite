@@ -89,13 +89,23 @@ def prepare(args) -> int:
     record_ref = store.put_json('ir.asset-record', record)
     prepared['assets'][robot['asset_id']] = {'record': record_ref.to_dict(), 'body': 'robot',
                                              'package': str(package.resolve()), 'package_asset': robot['package_asset']}
-    for layer, digest in delivery.get('layer_sha256', {}).items():
-        if f"/{robot['package_asset']}/" in layer:
-            prepared['bundle_files'].append({'asset_id': robot['asset_id'], 'role': 'robot_layer',
-                                             'member': layer, 'sha256': digest})
+    prepared['bundle_files'] += robot_bundle_files(delivery, robot['asset_id'], robot['package_asset'])
     atomic_write_json(work / 'prepared.json', prepared)
     print(f"prepared {len(prepared['assets'])} assets -> {work / 'prepared.json'}")
     return 0
+
+
+def robot_bundle_files(delivery: dict, asset_id: str, package_asset: str) -> list[dict]:
+    """机器人包每一层 USD 的 bundle 条目；摘要在 `delivery_manifest.json` 的 `assets.<package_asset>.layer_sha256`。
+
+    缺这张表就不能证明加载的机器人字节，`scene_runtime.load_scene` 会以 "bundle coverage incomplete" 拒绝场景，
+    所以这里直接失败，而不是产出一个下游加载不了的 prepared.json。
+    """
+    layers = delivery['assets'][package_asset].get('layer_sha256') or {}
+    if not layers:
+        raise SystemExit(f'robot package has no assets.{package_asset}.layer_sha256 in delivery_manifest.json')
+    return [{'asset_id': asset_id, 'role': 'robot_layer', 'member': layer, 'sha256': digest}
+            for layer, digest in sorted(layers.items())]
 
 
 def plan(args) -> int:
