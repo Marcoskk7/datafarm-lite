@@ -51,6 +51,14 @@ def inspection(lo, hi, *, joints=(), mass=1.0, material=None) -> dict:
 DRAWER = {"name": "drawer_joint", "type": "prismatic", "axis": [1.0, 0.0, 0.0],
           "limits": {"lower": 0.0, "upper": 0.4}, "parent": "Root/body", "child": "Root/drawer"}
 
+# SimReady 命名：分件是刚体 prim（`*_obj_00`），关节 `child` 是它下面的网格 prim（`*_mesh_00`）。
+CABINET_BODY = "RootNode/Geometry/body_01_obj_00"
+DRAWER_BODY = "RootNode/Geometry/part_01_obj_00"
+
+
+def part(name: str, prim: str, lo, hi) -> dict:
+    return {"name": name, "prim": prim, "bbox_min_m": list(lo), "bbox_max_m": list(hi)}
+
 
 def records() -> dict:
     table = asset_records.build_record(
@@ -200,9 +208,9 @@ class LayoutTests(unittest.TestCase):
                                                self.records)["ok"])
 
     def test_joint_sweep_is_a_conservative_bbox_gate(self):
-        # Accepted cost of the conservative variant: the whole root box is translated, z-blind, so a floor-level
-        # plate that the drawer passes over in 3D is flagged. Per-part boxes (`parts[]` in AssetRecord) would
-        # sharpen this; that is a cross-line contract pending B sign-off.
+        # Accepted cost of the fallback variant: the whole root box is translated, z-blind, so a floor-level
+        # plate that the drawer passes over in 3D is flagged. Records with `parts[]` take the per-part path
+        # (see the `joint_sweep` parts tests below); these records have no parts, so the output stays the old one.
         spec = deepcopy(SPEC)
         spec["nodes"].append({"node_id": "object.plate_floor", "asset_id": "object.plate_a",
                               "semantic_tag": "plate", "xy_m": [0.0, -0.55], "on": "floor"})
@@ -230,6 +238,121 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(len(footprint["joint_sweep"]["skipped"]), 1)
         self.assertIn("object.cabinet lid_joint", footprint["joint_sweep"]["skipped"][0])
         self.assertIn("revolute", footprint["joint_sweep"]["skipped"][0])
+
+    def test_joint_sweep_parts_prismatic_sweeps_only_the_moving_part(self):
+        # Per-part boxes: the drawer body sits 0.45 m inside the root box, so the conservative whole-root-box
+        # translation flags the table while the real moving part clears it. This case fails on the old code.
+        # Names mirror a real SimReady cabinet: the part is the rigid body `part_01_obj_00`, while the joint
+        # child prim is the mesh under it (`part_01_obj_00/part_01_mesh_00`), so only `child_body` links them.
+        spec = deepcopy(SPEC)
+        spec["nodes"][2]["xy_m"] = [0.0, -0.75]
+        spec["nodes"][2]["yaw_deg"] = 90
+        spec["nodes"][2]["joint_state"] = {"drawer_joint": 0.2}
+        fallback = layout.joint_sweep_check(spec, layout.resolve_nodes(spec, self.records), self.records)
+        self.assertFalse(fallback["ok"])  # the root box crosses the table edge at y=-0.4
+
+        records = deepcopy(self.records)
+        drawer_joint = records["object.cabinet_a"]["joints"][0]
+        drawer_joint["child"] = "part_01_mesh_00"
+        drawer_joint["child_body"] = DRAWER_BODY
+        records["object.cabinet_a"]["parts"] = [
+            part("body_01_obj_00", CABINET_BODY, [-0.3, -0.3, 0.0], [0.3, 0.3, 0.6]),
+            part("part_01_obj_00", DRAWER_BODY, [-0.28, -0.28, 0.10], [-0.10, 0.28, 0.30]),
+        ]
+        sweep = layout.joint_sweep_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertTrue(sweep["ok"], sweep["problems"])
+        self.assertEqual(sweep["checked"],
+                         [{"node": "object.cabinet", "joint": "drawer_joint", "method": "parts", "travel_m": 0.2}])
+        self.assertEqual(sweep["skipped"], [])
+
+        # A drawer front that really leaves the cabinet still hits: the parts path is not a blanket pass.
+        records["object.cabinet_a"]["parts"][1] = part("part_01_obj_00", DRAWER_BODY,
+                                                       [0.12, -0.28, 0.10], [0.28, 0.28, 0.30])
+        spec["nodes"][2]["joint_state"] = {"drawer_joint": 0.4}
+        sweep = layout.joint_sweep_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertFalse(sweep["ok"])
+        self.assertEqual(sweep["problems"], ["object.cabinet drawer_joint at 0.4 m moves into object.table"])
+        self.assertEqual(sweep["checked"][0]["method"], "parts")
+
+        # The link is `child_body`, not the leaf name of the joint child prim: without it the joint falls back.
+        records["object.cabinet_a"]["joints"][0].pop("child_body")
+        sweep = layout.joint_sweep_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertNotIn("method", sweep["checked"][0])
+        self.assertFalse(sweep["ok"])
+        # ... and a `child_body` that names no part also falls back instead of guessing.
+        records["object.cabinet_a"]["joints"][0]["child_body"] = "RootNode/Geometry/missing_obj_00"
+        sweep = layout.joint_sweep_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertNotIn("method", sweep["checked"][0])
+
+    def test_joint_sweep_without_parts_keeps_the_conservative_output(self):
+        # Captured from the pre-`parts[]` implementation: fallback results must stay byte-identical.
+        spec = deepcopy(SPEC)
+        spec["nodes"][2]["xy_m"] = [0.0, -0.75]
+        spec["nodes"][2]["yaw_deg"] = 90
+        spec["nodes"][2]["joint_state"] = {"drawer_joint": 0.2}
+        self.assertEqual(layout.joint_sweep_check(spec, layout.resolve_nodes(spec, self.records), self.records), {
+            "ok": False,
+            "problems": ["object.cabinet drawer_joint at 0.2 m moves into object.table"],
+            "checked": [{"node": "object.cabinet", "joint": "drawer_joint", "travel_m": 0.2}],
+            "skipped": [],
+        })
+
+        records = deepcopy(self.records)
+        records["object.cabinet_a"]["joints"].append(
+            {"name": "lid_joint", "type": "revolute", "axis": [0.0, 1.0, 0.0],
+             "limits": {"lower": 0.0, "upper": 1.5}, "parent": "body", "child": "lid"})
+        revolute = deepcopy(SPEC)
+        revolute["nodes"][2]["joint_state"] = {"lid_joint": 0.7, "drawer_joint": 0.2}
+        self.assertEqual(layout.joint_sweep_check(revolute, layout.resolve_nodes(revolute, records), records), {
+            "ok": True,
+            "problems": [],
+            "checked": [{"node": "object.cabinet", "joint": "drawer_joint", "travel_m": 0.2}],
+            "skipped": ["object.cabinet lid_joint: revolute joint has no pivot in the AssetRecord, "
+                        "an AABB translation cannot bound a rotation"],
+        })
+
+    def test_joint_sweep_parts_revolute_uses_the_anchor_and_finds_a_collision(self):
+        def cabinet_with_revolute(parts: list[dict], joint: dict) -> dict:
+            records = deepcopy(self.records)
+            records["object.cabinet_a"]["joints"].append(joint)
+            records["object.cabinet_a"]["parts"] = parts
+            return records
+
+        body = part("body_01_obj_00", CABINET_BODY, [-0.3, -0.3, 0.0], [0.3, 0.3, 0.6])
+        lid_joint = {"name": "lid_joint", "type": "revolute", "axis": [0.0, 1.0, 0.0],
+                     "limits": {"lower": 0.0, "upper": 1.5}, "parent": "body_01_mesh_00",
+                     "child": "part_02_mesh_00", "child_body": "RootNode/Geometry/part_02_obj_00",
+                     "anchor_m": [0.3, 0.0, 0.6]}
+        lid = part("part_02_obj_00", "RootNode/Geometry/part_02_obj_00", [-0.3, -0.3, 0.6], [0.3, 0.3, 0.65])
+        spec = deepcopy(SPEC)
+        spec["nodes"][2]["yaw_deg"] = 0
+        spec["nodes"][2]["joint_state"] = {"lid_joint": 1.2}
+        records = cabinet_with_revolute([body, lid], lid_joint)
+        sweep = layout.joint_sweep_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertTrue(sweep["ok"], sweep["problems"])  # lifts up and inward, away from the table
+        self.assertEqual(sweep["checked"],
+                         [{"node": "object.cabinet", "joint": "lid_joint", "method": "parts", "travel_rad": 1.2}])
+        self.assertEqual(sweep["skipped"], [])  # the old code only reported this joint as skipped
+
+        door_joint = {"name": "door_joint", "type": "revolute", "axis": [0.0, 0.0, 1.0],
+                      "limits": {"lower": 0.0, "upper": 1.5}, "parent": "body_01_mesh_00",
+                      "child": "part_03_mesh_00", "child_body": "RootNode/Geometry/part_03_obj_00",
+                      "anchor_m": [0.27, -0.3, 0.0]}
+        door = part("part_03_obj_00", "RootNode/Geometry/part_03_obj_00", [0.24, -0.30, 0.0], [0.30, 0.30, 0.6])
+        spec["nodes"][2]["joint_state"] = {"door_joint": 1.5}
+        records = cabinet_with_revolute([body, door], door_joint)
+        sweep = layout.joint_sweep_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertFalse(sweep["ok"])
+        self.assertEqual(sweep["problems"], ["object.cabinet door_joint at 1.5 rad moves into object.table"])
+        self.assertEqual(sweep["checked"][0]["method"], "parts")
+
+        # No anchor means no pivot: the revolute joint keeps the old skipped entry, parts or not.
+        records["object.cabinet_a"]["joints"][-1].pop("anchor_m")
+        sweep = layout.joint_sweep_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertTrue(sweep["ok"])
+        self.assertEqual(sweep["checked"], [])
+        self.assertEqual(sweep["skipped"], ["object.cabinet door_joint: revolute joint has no pivot in the "
+                                            "AssetRecord, an AABB translation cannot bound a rotation"])
 
     def test_reachability_uses_model_tcp_and_reports_unreachable_targets(self):
         nodes = layout.resolve_nodes(SPEC, self.records)

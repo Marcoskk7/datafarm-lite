@@ -2,11 +2,18 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping
 from typing import Any
 
 from datafarm.kernel.io import is_finite_number
-from datafarm.kernel.schema import IDENTIFIER_PATTERN, SchemaError, canonical_json_bytes, validate_ref
+from datafarm.kernel.schema import (IDENTIFIER_PATTERN, SchemaError, canonical_json_bytes,
+                                    is_absolute_filesystem_path, validate_ref)
+
+PRIM_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+PRIM_PATH_EXAMPLE = "RootNode/Geometry/body_01_obj_00"
+PRIM_PATH_RULE = (f"must be a prim path relative to the asset root, like {PRIM_PATH_EXAMPLE!r}: "
+                  "no leading '/', no '.', '..' or empty segments")
 
 
 class IRError(SchemaError):
@@ -26,6 +33,17 @@ def require(document: Mapping[str, Any], keys: tuple[str, ...], label: str) -> N
 def identifier(value: Any, label: str) -> str:
     check(isinstance(value, str) and bool(IDENTIFIER_PATTERN.fullmatch(value)),
           f"{label} must match {IDENTIFIER_PATTERN.pattern}")
+    return value
+
+
+def is_prim_path(value: Any) -> bool:
+    """`prim_ref` 形式的 prim 路径（USD prim 路径去掉前导 `/`，见 `adapters.sim.usd_assets.prim_ref`）。"""
+    return (isinstance(value, str) and bool(value) and not is_absolute_filesystem_path(value)
+            and all(PRIM_NAME_PATTERN.fullmatch(segment) for segment in value.split("/")))
+
+
+def prim_path(value: Any, label: str) -> str:
+    check(is_prim_path(value), f"{label} {PRIM_PATH_RULE}")
     return value
 
 
