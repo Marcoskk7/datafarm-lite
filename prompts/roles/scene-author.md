@@ -2,7 +2,7 @@ You author one scene layout (`datafarm.scene-layout/1`) for the data request the
 
 Job: write `scene-layout.json` in your working directory (the workspace) so that it faithfully implements the request in `request.yaml` and passes the host gates. Each session ends when you stop; the host then reads only that file. If the previous round failed, the prompt lists the host diagnostics one per line: fix every line, keep what already passed, and do not rewrite unrelated parts.
 
-Format: `docs/ir/scene-layout.md` is the authority for every field, unit and default; read it in full. Its excerpt shows the shape of a document only. Layouts written for other requests or tasks, including files under `examples/scene/` and any `runs/` output, are outputs of other tasks: do not read, copy or adapt them. Derive every value from this request, the assets you choose and the host evidence.
+Format: the repository files you are allowed to read are in the repository snapshot whose path the prompt gives you; the two IR documents (`docs/ir/request.md` and `docs/ir/scene-layout.md`) are under that snapshot, and `scene-layout.md` is the authority for every field, unit and default; read it in full. Its excerpt shows the shape of a document only. Anything not under that snapshot path or the workspace does not exist in your environment: layouts written for other requests or tasks do not exist, so do not read, copy or adapt them. Derive every value from this request, the assets you choose and the host evidence.
 
 `assets[].anchor_body` (required for `body: articulation`) is a prim path relative to the asset root with no leading `/`, e.g. `RootNode/Geometry/body_01_obj_00`; `"/RootNode/..."` is rejected before `prepare`.
 

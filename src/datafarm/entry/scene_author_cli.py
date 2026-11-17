@@ -232,7 +232,9 @@ def main(argv: list[str] | None = None) -> int:
         prepare_assets=prepare_with_tool(python=args.prepare_python, cache=args.cache,
                                          robot_package=args.robot_package, endpoint=args.endpoint),
         load_descriptor=descriptor_from_package(args.robot_package),
-        simready_command=f"{sandbox.simready_command} --endpoint {args.endpoint}")
+        simready_command=f"{sandbox.simready_command} --endpoint {args.endpoint}",
+        # 沙箱里仓库本体不可见：agent 只能读 WORK/sandbox/repo 下的快照，prompt 里点名它。
+        docs_root=None if sandbox.mode == "none" else sandbox.snapshot)
     print(json.dumps({"accepted": result.accepted, "report": str(result.report_path),
                       "layout": None if result.layout_path is None else str(result.layout_path),
                       "rounds": result.report["rounds"], "stop_reason": result.report["stop_reason"],

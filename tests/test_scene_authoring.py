@@ -96,10 +96,10 @@ class ScriptedAgent:
         return AgentTurn(status="ok", call_ids=(f"call-r{round_index}",))
 
 
-def run(tmp_path, agent, prepare=None, max_rounds=3):
+def run(tmp_path, agent, prepare=None, max_rounds=3, docs_root=None):
     return author_layout(request_path=REQUEST, work=tmp_path / "work", rules=RULES, instructions="ROLE TEXT",
                          max_rounds=max_rounds, run_agent=agent, prepare_assets=prepare or FakePrepare(),
-                         load_descriptor=lambda layout, records: DESCRIPTOR)
+                         load_descriptor=lambda layout, records: DESCRIPTOR, docs_root=docs_root)
 
 
 def attempts(tmp_path):
@@ -111,6 +111,21 @@ def without_randomization():
     layout = deepcopy(GOOD)
     del layout["nodes"][1]["randomization"]
     return layout
+
+
+def test_round_prompt_names_the_sandboxed_repository_snapshot(tmp_path):
+    snapshot = tmp_path / "work" / "sandbox" / "repo"
+    agent = ScriptedAgent([GOOD])
+    run(tmp_path, agent, docs_root=snapshot)
+    line = ("The repository itself is not present; the repository files you may read are a read-only snapshot at "
+            f"{snapshot}; the IR documents are under it.")
+    assert line in agent.prompts[0]
+
+    plain = tmp_path / "plain"
+    plain_agent = ScriptedAgent([GOOD])
+    run(plain, plain_agent)  # sandbox opted out: the repo root is readable, so no snapshot line
+    assert "repository itself is not present" not in plain_agent.prompts[0]
+    assert "read-only snapshot" not in plain_agent.prompts[0]
 
 
 def test_conformance_failure_feeds_round_two_and_fixed_layout_is_accepted(tmp_path):

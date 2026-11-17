@@ -107,8 +107,12 @@ def _read_layout(path: Path) -> tuple[bytes | None, dict[str, Any] | None, list[
 
 
 def round_prompt(*, instructions: str, request_text: str, round_index: int, max_rounds: int,
-                 workspace: Path, simready_command: str, previous: Mapping[str, Any] | None) -> str:
-    """一轮的完整 prompt。上一轮的诊断原样逐行附上；第一轮没有诊断。"""
+                 workspace: Path, simready_command: str, previous: Mapping[str, Any] | None,
+                 docs_root: Path | None = None) -> str:
+    """一轮的完整 prompt。上一轮的诊断原样逐行附上；第一轮没有诊断。
+
+    `docs_root` 非空时（agent 在 OS 沙箱里跑）点名仓库文件的只读快照：仓库本体在 guest 里不存在。
+    """
     if previous is None:
         feedback = "This is the first round: there are no host diagnostics yet."
     else:
@@ -116,10 +120,14 @@ def round_prompt(*, instructions: str, request_text: str, round_index: int, max_
         feedback = (f"Round {previous['round']} was NOT accepted. Host diagnostics, one per line:\n"
                     + "\n".join(f"- {line}" for line in lines)
                     + f"\nYour previous file is still at {LAYOUT_FILE}; edit it to fix every line above.")
+    docs = "" if docs_root is None else (
+        f"The repository itself is not present; the repository files you may read are a read-only snapshot at "
+        f"{docs_root}; the IR documents are under it.\n")
     return (
         f"{instructions}\n\n"
         f"--- SCENE AUTHORING ROUND {round_index} of {max_rounds} ---\n"
         f"Workspace (your working directory): {workspace}\n"
+        f"{docs}"
         f"Write the layout to {workspace / LAYOUT_FILE}. The host reads only that file after you stop.\n"
         f"Search and probe SimReady assets with: {simready_command} search ... / probe ...\n"
         f"Host-written files you may read (never edit): {HOST_DIR}/asset-records.json (AssetRecords of the "
@@ -151,13 +159,14 @@ def _write_host_files(host: Path, *, records: Mapping[str, Any] | None, plan: Ma
 
 def author_layout(*, request_path: str | Path, work: str | Path, rules: Mapping[str, Any], instructions: str,
                   max_rounds: int, run_agent: RunAgent, prepare_assets: PrepareAssets,
-                  load_descriptor: LoadDescriptor, simready_command: str = "python tools/simready.py"
-                  ) -> AuthoringResult:
+                  load_descriptor: LoadDescriptor, simready_command: str = "python tools/simready.py",
+                  docs_root: Path | None = None) -> AuthoringResult:
     """跑到接受或 `max_rounds` 轮为止；已有 `attempts.jsonl` 时从下一轮续跑，已接受则直接返回。
 
     `run_agent(round, prompt, workspace)` 运行一次 agent 会话；`prepare_assets(layout_path, prep_dir)`
     为布局的资产集合产出 AssetRecord（按 asset_id，含机器人），失败抛 `PrepareError`；
     `load_descriptor(layout, records)` 返回机器人描述符（robot-descriptor/2）。
+    `docs_root` 是 agent 可读的仓库快照路径（沙箱里才有）；`None` 表示仓库根就是可读的。
     """
     if max_rounds < 1:
         raise ValueError("max_rounds must be >= 1")
@@ -184,7 +193,7 @@ def author_layout(*, request_path: str | Path, work: str | Path, rules: Mapping[
             attempt, fatal = _run_round(
                 round_index=round_index, max_rounds=max_rounds, request=request,
                 request_text=request_bytes.decode("utf-8"), work=work, workspace=workspace, rules=rules,
-                instructions=instructions, simready_command=simready_command,
+                instructions=instructions, simready_command=simready_command, docs_root=docs_root,
                 previous=attempts[-1] if attempts else None, prepared=prepared, run_agent=run_agent,
                 prepare_assets=prepare_assets, load_descriptor=load_descriptor)
             attempt["request_sha256"] = request_sha256
@@ -212,14 +221,15 @@ def author_layout(*, request_path: str | Path, work: str | Path, rules: Mapping[
 
 def _run_round(*, round_index: int, max_rounds: int, request: Any, request_text: str, work: Path,
                workspace: Path, rules: Mapping[str, Any], instructions: str, simready_command: str,
-               previous: Mapping[str, Any] | None, prepared: dict[str, Mapping[str, Mapping[str, Any]]],
+               docs_root: Path | None, previous: Mapping[str, Any] | None,
+               prepared: dict[str, Mapping[str, Mapping[str, Any]]],
                run_agent: RunAgent, prepare_assets: PrepareAssets, load_descriptor: LoadDescriptor
                ) -> tuple[dict[str, Any], str | None]:
     attempt_dir = work / "attempts" / f"{round_index:03d}"
     attempt_dir.mkdir(parents=True, exist_ok=True)
     prompt = round_prompt(instructions=instructions, request_text=request_text, round_index=round_index,
                           max_rounds=max_rounds, workspace=workspace, simready_command=simready_command,
-                          previous=previous)
+                          previous=previous, docs_root=docs_root)
     atomic_write_bytes(attempt_dir / "prompt.txt", prompt.encode("utf-8"))
     started_at = utc_now()
     turn = run_agent(round_index, prompt, workspace)
