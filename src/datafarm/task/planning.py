@@ -9,7 +9,7 @@ from datafarm.ir import asset_record, scene_graph
 from datafarm.kernel.artifacts import ArtifactDocument, ArtifactRef, IRKind
 from datafarm.kernel.identifiers import storage_key
 from datafarm.kernel.io import sha256_json
-from datafarm.kernel.schema import canonical_json_bytes
+from datafarm.kernel.schema import IDENTIFIER_PATTERN, canonical_json_bytes
 from datafarm.kernel.store import ArtifactStore
 from datafarm.task.request_profile import (
     logical_id, object_fields, reference, string_list, text, validate_request, validate_task_payload,
@@ -132,8 +132,14 @@ def proposal_schema(context: Mapping[str, Any]) -> dict[str, Any]:
         ("goals", "constraints", "forbidden_shortcuts", "variation") for i in context["request"].get(name, [])]
     text_schema = {"type": "string"}
     ids = {"type": "array", "items": {"type": "string", "enum": requirement_ids}}
-    role = {"type": "object", "additionalProperties": False, "properties":
-            {k: text_schema for k in ("role", "node_id", "frame_id")}, "required": ["role", "node_id", "frame_id"]}
+    # validate_proposal 要求 role/node_id/frame_id 都是 logical ID；schema 不说，模型就会写自然语言角色名。
+    identifier = {"type": "string", "pattern": IDENTIFIER_PATTERN.pattern}
+    node_ids = sorted({n["node_id"] for m in context["members"] for n in m["nodes"]})
+    frame_ids = sorted({f for m in context["members"] for f in m["frame_ids"]})
+    role = {"type": "object", "additionalProperties": False,
+            "properties": {"role": identifier, "node_id": {"type": "string", "enum": node_ids},
+                           "frame_id": {"type": "string", "enum": frame_ids}},
+            "required": ["role", "node_id", "frame_id"]}
     props = {"name": text_schema, "scene_id": {"type": "string", "enum": [m["scene_id"] for m in context["members"]]},
              "requirement_ids": ids, "roles": {"type": "array", "items": role},
              "needed_apis": {"type": "array", "items": text_schema},
