@@ -441,7 +441,7 @@ class TaskAdapter:
         for pattern in (self.section("workspace").get("readable", [])
                         + self.section("workspace").get("protected", [])):
             value = self.x(pattern, keep_env=True)
-            if not (value.startswith("/") or value.startswith("~") or value.startswith("${")):
+            if not (os.path.isabs(value) or value.startswith("/") or value.startswith("~") or value.startswith("${")):
                 raise ConfigError(f"workspace path {pattern!r} must be absolute")
         for fact in self.raw.get("runtime_facts", []):
             if not fact.get("id") or not fact.get("text") or not isinstance(fact.get("must_mention", []), list):
