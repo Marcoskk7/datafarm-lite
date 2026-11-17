@@ -17,3 +17,11 @@ def test_role_fields_are_constrained_to_logical_ids_and_scene_bindings():
     assert not pattern.fullmatch("already-open drawer container")
     assert role["properties"]["node_id"]["enum"] == ["object.plate", "robot.airbot"]
     assert role["properties"]["frame_id"]["enum"] == ["object.plate", "robot.airbot", "tcp.left", "world"]
+
+
+def test_text_and_list_bounds_match_the_validator():
+    """lab30 实跑第二次：模型给了 >256 字符的 task name，schema 没写上限，validator 拒收。"""
+    task = proposal_schema(_context())["properties"]["tasks"]["items"]["properties"]
+    assert task["name"]["maxLength"] == 256 and task["name"]["minLength"] == 1
+    assert task["roles"]["minItems"] == 1 and task["requirement_ids"]["minItems"] == 1
+    assert task["needed_observations"]["items"]["pattern"]
