@@ -22,15 +22,18 @@ Methods: get,items,keys,values,append,extend,copy,count,index. Math attributes o
 numeric functions (sqrt/sin/cos/acos/atan2/hypot/isfinite/isclose/pi etc).
 Use task_contract['thresholds'][threshold_id]['value']; never duplicate threshold
 numbers in source. scene_metadata contains only supplied model/scene data.
-episode is judge-episode/2: units={length:m,angle:rad,time:s}, frame_id=world,
-positive control_dt_s, node_ids, state_trace (N+1 Episode IR state entries with
-contiguous control_step from 0), N actions (control_step, requested_joint_targets,
-applied_joint_targets), events, termination{status,reason_code,trace_complete}.
-Each state_trace entry: control_step, time_s, units, frame_id;
-entities{node_id:{availability,asset_id,position_m,quaternion_xyzw (xyzw),
+episode is judge-episode/2: schema_version='judge-episode/2', units={length:m,angle:rad,time:s},
+frame_id=world, positive control_dt_s, node_ids (every SceneGraph node), state_trace (N+1 Episode IR
+state entries, control_step exactly 0..N, time_s = control_step*control_dt_s), exactly N actions with
+control_step exactly 0..N-1 (requested_joint_targets, applied_joint_targets), events,
+termination{status: completed|failed|aborted|error|timeout, reason_code, trace_complete}. N >= 1.
+Each state_trace entry has exactly: control_step, time_s, units, frame_id='world';
+entities{node_id:{availability='available',asset_id,position_m,quaternion_xyzw (xyzw, unit),
 linear_velocity_m_s,angular_velocity_rad_s,joints[{name,type,unit,q,dq}],
-links{name:{position_m,quaternion_xyzw}}}}; robot{joint_names,q,dq,tcp?,gripper?{width_m,...}};
-contacts{availability,rows,coverage,...} (rows=null means unavailable, never zero contact).
+links{name:{position_m,quaternion_xyzw}}}} for every node_id; robot{joint_names,q,dq,tcp?,gripper?{width_m,...}};
+contacts{control_step (= the state's), sampling='cycle_end_snapshot', availability, rows, coverage
+(unknown|complete|truncated)} (rows=null means unavailable, never zero contact).
+Any independent test episode must satisfy all of these exactly or the host rejects it before judging.
 Never score requested targets
 as achieved. The host validates missing evidence, finite data and frame coverage.
 Return result({condition_id: bool_or_None,...}, metrics_dict, reason_code_string).
