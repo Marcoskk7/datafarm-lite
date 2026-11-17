@@ -1,0 +1,201 @@
+{
+ "date": "2026-11-17",
+ "engine": {
+  "isaac_lab": "28.0.0",
+  "isaac_sim": "6.2.0.0",
+  "name": "isaac_rtx"
+ },
+ "episode": "synthetic (tools/synthetic_episode.py --steps 240 --drawer 0.25); judge_result.outcome=aborted",
+ "fps": 10,
+ "frames": {
+  "error": 0,
+  "missing": 0,
+  "ok": 252
+ },
+ "machine": "lab30 (RTX 4090)",
+ "not_verified": [
+  "real episode state_trace",
+  "wrist extrinsics visually",
+  "camera.right_wrist",
+  "admission and HDF5 export"
+ ],
+ "render_manifest_sha256": "b9366271184d2b9068390f9acc0cf6da1c5452968829e1af485106c48b6ff187",
+ "render_spec": {
+  "kind": "ir.render-spec",
+  "media_type": "application/json",
+  "sha256": "1948a413945a55b91949010da882b01f1efb83cb22a2d4cc09392439f5e14a72"
+ },
+ "resolution": [
+  640,
+  360
+ ],
+ "state_playback": {
+  "max_joint_error": 5.651894108282818e-08,
+  "max_position_error_m": 2.5332678069131007e-08,
+  "notes": "readback after write, no physics step; joint tolerance 0.001; max camera placement error 0.000001 m",
+  "status": "verified",
+  "tolerance_m": 0.01
+ },
+ "variants": [
+  {
+   "camera_id": "camera.head",
+   "frames": 21,
+   "light_set": [
+    "dome.neutral",
+    "key.neutral"
+   ],
+   "material_set": [],
+   "variant_id": "head.m0.l0",
+   "view": "head"
+  },
+  {
+   "camera_id": "camera.head",
+   "frames": 21,
+   "light_set": [
+    "dome.warm",
+    "lamp.warm"
+   ],
+   "material_set": [],
+   "variant_id": "head.m0.l1",
+   "view": "head"
+  },
+  {
+   "camera_id": "camera.head",
+   "frames": 21,
+   "light_set": [
+    "dome.neutral",
+    "key.neutral"
+   ],
+   "material_set": [
+    "plate.glazed_white",
+    "table.oak",
+    "drawer.matte_grey"
+   ],
+   "variant_id": "head.m1.l0",
+   "view": "head"
+  },
+  {
+   "camera_id": "camera.head",
+   "frames": 21,
+   "light_set": [
+    "dome.warm",
+    "lamp.warm"
+   ],
+   "material_set": [
+    "plate.glazed_white",
+    "table.oak",
+    "drawer.matte_grey"
+   ],
+   "variant_id": "head.m1.l1",
+   "view": "head"
+  },
+  {
+   "camera_id": "camera.left_wrist",
+   "frames": 21,
+   "light_set": [
+    "dome.neutral",
+    "key.neutral"
+   ],
+   "material_set": [],
+   "variant_id": "left_wrist.m0.l0",
+   "view": "left_wrist"
+  },
+  {
+   "camera_id": "camera.left_wrist",
+   "frames": 21,
+   "light_set": [
+    "dome.warm",
+    "lamp.warm"
+   ],
+   "material_set": [],
+   "variant_id": "left_wrist.m0.l1",
+   "view": "left_wrist"
+  },
+  {
+   "camera_id": "camera.left_wrist",
+   "frames": 21,
+   "light_set": [
+    "dome.neutral",
+    "key.neutral"
+   ],
+   "material_set": [
+    "plate.glazed_white",
+    "table.oak",
+    "drawer.matte_grey"
+   ],
+   "variant_id": "left_wrist.m1.l0",
+   "view": "left_wrist"
+  },
+  {
+   "camera_id": "camera.left_wrist",
+   "frames": 21,
+   "light_set": [
+    "dome.warm",
+    "lamp.warm"
+   ],
+   "material_set": [
+    "plate.glazed_white",
+    "table.oak",
+    "drawer.matte_grey"
+   ],
+   "variant_id": "left_wrist.m1.l1",
+   "view": "left_wrist"
+  },
+  {
+   "camera_id": "view.third_person",
+   "frames": 21,
+   "light_set": [
+    "dome.neutral",
+    "key.neutral"
+   ],
+   "material_set": [],
+   "variant_id": "third_person.m0.l0",
+   "view": "third_person"
+  },
+  {
+   "camera_id": "view.third_person",
+   "frames": 21,
+   "light_set": [
+    "dome.warm",
+    "lamp.warm"
+   ],
+   "material_set": [],
+   "variant_id": "third_person.m0.l1",
+   "view": "third_person"
+  },
+  {
+   "camera_id": "view.third_person",
+   "frames": 21,
+   "light_set": [
+    "dome.neutral",
+    "key.neutral"
+   ],
+   "material_set": [
+    "plate.glazed_white",
+    "table.oak",
+    "drawer.matte_grey"
+   ],
+   "variant_id": "third_person.m1.l0",
+   "view": "third_person"
+  },
+  {
+   "camera_id": "view.third_person",
+   "frames": 21,
+   "light_set": [
+    "dome.warm",
+    "lamp.warm"
+   ],
+   "material_set": [
+    "plate.glazed_white",
+    "table.oak",
+    "drawer.matte_grey"
+   ],
+   "variant_id": "third_person.m1.l1",
+   "view": "third_person"
+  }
+ ],
+ "wall_time_s": {
+  "kit_startup": 14,
+  "total": 29
+ }
+}
