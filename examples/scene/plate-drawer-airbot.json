@@ -29,6 +29,22 @@
     "tool_approach_axis": "x",
     "limit_margin_rad": 0.05
   },
+  "cameras": [
+    {"camera_id": "camera.head", "kind": "physical", "mount": "robot.airbot",
+     "offset": {"frame_id": "robot.airbot", "position_m": [-0.1, -0.2785, 0.6951],
+                "quaternion_xyzw": [-0.65524, 0.65524, -0.265821, 0.265821]},
+     "intrinsics": {"fx": 260.77164, "fy": 260.77164, "cx": 326.01288, "cy": 179.18658, "width": 640, "height": 360},
+     "optical_frame": {"convention": "opencv"},
+     "distortion": {"model": "none", "coefficients": []},
+     "fps": 10},
+    {"camera_id": "camera.left_wrist", "kind": "physical", "mount": "robot.airbot", "link": "left_end_link",
+     "offset": {"frame_id": "left_end_link", "position_m": [-0.135822, 0.033154, 0.09359],
+                "quaternion_xyzw": [-0.58811, 0.583655, -0.396417, 0.395381]},
+     "intrinsics": {"fx": 607.06732, "fy": 606.77435, "cx": 322.66602, "cy": 253.66576, "width": 640, "height": 480},
+     "optical_frame": {"convention": "opencv"},
+     "distortion": {"model": "none", "coefficients": []},
+     "fps": 10}
+  ],
   "reach_targets": [
     {"name": "plate_center_above", "node": "object.plate", "local_m": [0.0, 0.0, 0.10]},
     {"name": "plate_rim_near", "node": "object.plate", "local_m": [0.0, -0.075, 0.02]},
