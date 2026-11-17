@@ -3,8 +3,10 @@
     python tools/render_episode.py spec   --work W --episode EP.json [--render JSON] --out spec.json
     python tools/render_episode.py render --work W --spec spec.json --out manifest.json [--headless]
 
-`W` 是 `tools/scene_assemble.py` 的工作目录（store/、prepared.json、plan.json、check.json）。`EP.json` 是
-`{"episode": ArtifactRef}`。`spec` 纯 CPU；`render` 需要 Isaac Lab 3.0 的 Python，加载同一场景但不步进物理。
+`W` 是 `tools/scene_assemble.py` 的工作目录：`store/`、`prepared.json`（主机路径索引）、`check.json`（只取其中的
+SceneGraph 引用）。`render` 经共享的 `scene_runtime.load_scene` 按 SceneGraph 加载场景，与 B 录制 episode 时是同一份，
+不读 `plan.json`。`EP.json` 是 `{"episode": ArtifactRef}`。`spec` 纯 CPU；`render` 需要 Isaac Lab 3.0 的 Python，
+加载同一场景但不步进物理。
 产物（RenderSpec、mp4、内外参、RenderManifest）都进 `W/store`，`--out` 只写引用。
 """
 from __future__ import annotations
@@ -57,21 +59,24 @@ def render(args) -> int:
     from datafarm.render import plan
     from datafarm.ir.episode_state import validate_state
     from scene_assemble import robot_descriptor
+    from datafarm.adapters.sim import scene_runtime
 
     work = args.work
     store = ArtifactStore(work / 'store')
     spec_ref = load_json(args.spec)['render_spec']
     spec_doc = store.load(ArtifactRef.from_dict(spec_ref))
-    graph = store.load(ArtifactRef.from_dict(spec_doc['scene_graph']))
+    prepared = load_json(work / 'prepared.json')
+    resolved = scene_runtime.load_scene(store, spec_doc['scene_graph'], prepared,
+                                        asset_roots=scene_runtime.asset_roots(prepared))
+    graph = resolved['graph']
     render_spec.validate(spec_doc, graph)
     episode = store.load(ArtifactRef.from_dict(spec_doc['episode']))['payload']
     node_ids = [n['node_id'] for n in graph['nodes']]
     trace = [validate_state(s, node_ids=node_ids, step=i, dt=episode['setup']['control_dt_s'])
              for i, s in enumerate(episode['state_trace'])]
-    prepared, planned = load_json(work / 'prepared.json'), load_json(work / 'plan.json')
-    robot_asset = graph['robot']['asset_id']
-    package = Path(prepared['assets'][robot_asset]['package'])
-    profile = store.load(ArtifactRef.from_dict(graph['runtime_profile']))['robot_profile']
+    package = Path(prepared['assets'][graph['robot']['asset_id']]['package'])
+    runtime = store.load(ArtifactRef.from_dict(graph['runtime_profile']))
+    profile = runtime['robot_profile']
     descriptor = robot_descriptor(package, profile)[0]
     sys.path.insert(0, str(package))
     steps_by_view = {v['view_id']: render_spec.frame_steps([s['control_step'] for s in trace], v['fps'])
@@ -87,8 +92,7 @@ def render(args) -> int:
     launcher_args.physics = None
     launcher_args.require_kit = True
     launcher_args.enable_cameras = True
-    by_asset = {k: v for k, v in prepared['assets'].items() if v['body'] != 'robot'}
-    robot_node = next(n for n in graph['nodes'] if n['semantic_tag'] == 'robot')
+    drawer_damping = runtime['articulated_fixture_drive']['damping']
     out_dir = work / 'render' / spec_ref['sha256'][:12]
     out_dir.mkdir(parents=True, exist_ok=True)
     with launch_simulation(None, launcher_args):
@@ -97,15 +101,10 @@ def render(args) -> int:
         from robot_profiles import make_robot_cfg, make_simulation_cfg
         from datafarm.adapters.render.isaac.playback import Playback
         from datafarm.adapters.render.isaac.video import Encoder
-        from datafarm.adapters.sim import isaac_scene
-        from datafarm.scene import asset_records
 
         sim = sim_utils.SimulationContext(make_simulation_cfg(profile, 'newton_mjwarp'))
-        cfg_cls = isaac_scene.build_scene_cfg(
-            nodes=planned['nodes'], assets=by_asset, wrappers={k: v['wrapper'] for k, v in by_asset.items()},
-            robot_cfg=make_robot_cfg(profile, 'newton_mjwarp'),
-            robot_node={'node_id': robot_node['node_id'], 'pose': robot_node['pose']},
-            drawer_damping=asset_records.PRISMATIC_DAMPING)
+        cfg_cls = scene_runtime.scene_config(resolved, make_robot_cfg(profile, 'newton_mjwarp'),
+                                             drawer_damping=drawer_damping)
         scene = InteractiveScene(cfg_cls(num_envs=1, env_spacing=4.0))
         player = Playback(sim, scene, scene_graph=graph, spec=spec_doc, descriptor=descriptor)
         player.add_cameras()
