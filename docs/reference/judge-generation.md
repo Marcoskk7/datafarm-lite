@@ -27,8 +27,12 @@ does not freeze. At most three candidate versions are tried; each version's fail
 
 The source entry point is `evaluate(episode, task_contract, scene_metadata)`. It works on read-only input data and
 returns its verdict through `result({condition_id: bool or None}, metrics, reason_code)`. The full trajectory uses
-judge-episode/1: explicit SI units, the world frame, `control_dt_s`, contiguous `control_step`, N actions and N+1
-measured states. Control targets must not stand in for readings.
+judge-episode/2, a field-preserving projection of the recorded Episode (`judge.protocol.project_episode`): explicit SI
+units, the world frame, `control_dt_s`, `node_ids`, the recorder's `state_trace` entries unchanged (N+1, contiguous
+`control_step`, each validated by `datafarm.ir.episode_state`), N `actions` (`control_step`,
+`requested_joint_targets`, `applied_joint_targets`), `events` and `termination{status, reason_code, trace_complete}`.
+`judge_cli evaluate --episode` takes the recorded Episode document or payload. Control targets must not stand in for
+readings.
 
 `result` is injected by the host and the model may not redefine it; success, error and termination metadata are
 wrapped uniformly by the host according to the protocol, while the model is responsible for the physical conditions
@@ -63,7 +67,8 @@ python -m datafarm.entry.judge_cli attach --bundle <frozen-dir> --freeze-sha256 
 
 `task.json` may be an existing instruction/demand, a Task IR payload, or a task dict containing requirements;
 `provided_thresholds` (or `thresholds`) maps id → {value, unit}. The scene is metadata supplied by the A line. The
-observation spec contains at least `capabilities` and `available_fields`, for example `states.q`. These are internal
+observation spec contains at least `capabilities` and `available_fields`, for example `state_trace.robot.q` or
+`state_trace.entities`. Evidence paths follow the Episode IR state field names. These are internal
 B-line build adapters and add no new A-line handoff fields.
 
 The provider config accepts the same keys as the CaP Codex config (`work_root`, `executable`, `model`,

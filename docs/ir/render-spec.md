@@ -110,7 +110,7 @@
 ## 约定
 
 - **三路物理视角也由 A 渲染**。B 在 headless `newton_mjwarp` 下只产出状态流，不产出图像。`camera.head`、`camera.left_wrist`、`camera.right_wrist` 的每一帧都由 A 从 `state_trace` 回放渲染；腕部相机挂在机器人 link 上（SceneGraph `cameras[].link`），外参随每帧关节状态由 Isaac 的 link 位姿得出。
-- 回放只写状态、不步进物理：每帧写入机器人关节 q（含夹爪 mimic）、`entities` 位姿和 `articulations` 关节，然后只做渲染更新。只渲染 `control_step` 为 120/fps 整数倍的状态，不插值。
+- 回放只写状态、不步进物理：每帧写入 `state_trace[k].robot` 的关节 q（含夹爪 mimic）、其余 `entities` 的根位姿与 `entities[node].joints`（抽屉等），然后只做渲染更新。只渲染 `control_step` 为 120/fps 整数倍的状态，不插值。
 - 一条物理 episode 派生的多个材质/光照变体仍只算一条物理轨迹；变体不改变几何、碰撞、动作或接触。
 - 无效帧记 `missing` / `error`，不复制上一帧冒充同步。
 - 这是物理渲染，不是照片级重建：不得称为"真实图像"或 real-ready 数据。

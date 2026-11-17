@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from copy import deepcopy
 import xml.etree.ElementTree as ET
 
+from datafarm.ir.episode_state import validate_robot
 from datafarm.simulation.robot_binding import BindingError, bind_robot, discover_urdf, gripper_target, validate_targets, verify_binding
 from datafarm.simulation.robot_semantics import file_mesh_resolver, rotate
 from datafarm.simulation.isaac_robot import IsaacRobotAPI
@@ -76,7 +77,9 @@ class ModelSemanticsTests(unittest.TestCase):
                                  joint_vel=FakeTensor([[0, 0, 0, 0]]),
                                  joint_pos_limits=FakeTensor([[j['limits']['position'] for j in moving]])))
         api = IsaacRobotAPI(robot, d)
-        state = api.observe()['gripper']
+        observed = api.observe()
+        validate_robot(observed)
+        state = observed['gripper']
         self.assertAlmostEqual(state['width_m'], .054)
         self.assertEqual(state['state_source'], 'measured_finger_joints')
         self.assertFalse(api.capabilities()['set_gripper'])

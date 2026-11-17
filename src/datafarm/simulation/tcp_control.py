@@ -216,7 +216,7 @@ class TCPMotionService:
         try:
             for x in value["q"] + value["dq"]:
                 finite(x)
-            p = pose(value["tcp_pose"])
+            p = pose(value["tcp"])
         except (KeyError, TypeError, ValueError):
             raise ControlFault("NONFINITE_STATE") from None
         if p["frame_id"] != "world":
@@ -295,7 +295,7 @@ class TCPMotionService:
             if not isinstance(previous, dict) or set(previous) != set(self.joint_names):
                 raise ControlFault("TARGET_READ_ERROR")
             self._targets(previous, before, previous, r["joint_speed_limits"])
-            reference = deepcopy(before["tcp_pose"])
+            reference = deepcopy(before["tcp"])
             self.host.emit(dict(kind="motion_start", call_id=call_id, control_step=start,
                                 requested=r, resolved_target=resolved, before=before,
                                 control_binding_sha256=self.backend.manifest["sha256"]))
@@ -325,11 +325,11 @@ class TCPMotionService:
                                                     reference=reference, rate_limited_joints=limited, before=state))
                 previous = applied
                 self._state(after, r["joint_speed_limits"])
-                dp, dr = pose_error(state["tcp_pose"], after["tcp_pose"])
+                dp, dr = pose_error(state["tcp"], after["tcp"])
                 if (dp/self.profile.dt_s > r["linear_speed_m_s"]+1e-6
                         or dr/self.profile.dt_s > r["angular_speed_rad_s"]+1e-6):
                     raise ControlFault("SPEED_LIMIT")
-                dp, dr = pose_error(after["tcp_pose"], resolved)
+                dp, dr = pose_error(after["tcp"], resolved)
                 reached = dp <= r["position_tolerance_m"] and (r["mode"] == "position" or dr <= r["orientation_tolerance_rad"])
                 stable = stable+1 if reached else 0
                 if self.host.cancelled():

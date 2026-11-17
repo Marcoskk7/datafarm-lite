@@ -203,7 +203,7 @@ def link_mount(descriptor: Mapping[str, Any], link: str, bodies: Sequence[str]) 
 
 def full_joint_positions(record_joints: Sequence[Mapping[str, Any]], joint_names: Sequence[str],
                          q: Sequence[float], *, simulated: Sequence[str]) -> dict[str, float]:
-    """`state_trace.q`（按 `joint_names`）换成仿真关节 `simulated` 的值，缺的从 mimic 主关节补全。
+    """`state_trace[k].robot.q`（按 `robot.joint_names`）换成仿真关节 `simulated` 的值，缺的从 mimic 主关节补全。
 
     URDF 里的虚拟主关节（如 `left_g2_joint`）常不在 USD 里，但 episode 按它记录夹爪；从动关节由它推出。
     仿真关节既没记录、也不是已记录关节的 mimic 时报错，不默认为 0。
@@ -232,9 +232,8 @@ def appearance_groups(spec: Mapping[str, Any]) -> list[dict[str, Any]]:
     return list(groups.values())
 
 
-def frame_status(state: Mapping[str, Any], rgb_ok: bool, reason: str = "") -> tuple[str, str]:
-    if not state.get("valid", True):
-        return "missing", "state_trace marks this step invalid"
+def frame_status(rgb_ok: bool, reason: str = "") -> tuple[str, str]:
+    """state_trace 只含已校验的实测状态（无效读数由录制器另存），所以帧状态只取决于出图结果。"""
     if not rgb_ok:
         return "error", reason or "renderer returned no image"
     return "ok", ""

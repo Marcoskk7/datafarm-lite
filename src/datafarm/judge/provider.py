@@ -22,9 +22,16 @@ Methods: get,items,keys,values,append,extend,copy,count,index. Math attributes o
 numeric functions (sqrt/sin/cos/acos/atan2/hypot/isfinite/isclose/pi etc).
 Use task_contract['thresholds'][threshold_id]['value']; never duplicate threshold
 numbers in source. scene_metadata contains only supplied model/scene data.
-episode is judge-episode/1: units={length:m,angle:rad,time:s}, frame_id=world,
-positive control_dt_s, measured states with contiguous control_step starting
-at 0, N actions (each with its control_step) and N+1 states, events, termination. Never score requested targets
+episode is judge-episode/2: units={length:m,angle:rad,time:s}, frame_id=world,
+positive control_dt_s, node_ids, state_trace (N+1 Episode IR state entries with
+contiguous control_step from 0), N actions (control_step, requested_joint_targets,
+applied_joint_targets), events, termination{status,reason_code,trace_complete}.
+Each state_trace entry: control_step, time_s, units, frame_id;
+entities{node_id:{availability,asset_id,position_m,quaternion_xyzw (xyzw),
+linear_velocity_m_s,angular_velocity_rad_s,joints[{name,type,unit,q,dq}],
+links{name:{position_m,quaternion_xyzw}}}}; robot{joint_names,q,dq,tcp?,gripper?{width_m,...}};
+contacts{availability,rows,coverage,...} (rows=null means unavailable, never zero contact).
+Never score requested targets
 as achieved. The host validates missing evidence, finite data and frame coverage.
 Return result({condition_id: bool_or_None,...}, metrics_dict, reason_code_string).
 IMPORTANT: result is ALREADY PROVIDED by the host. Do NOT define, assign or
@@ -77,7 +84,7 @@ when full containment is required, fake target-state evidence and lost stages.
 Independent negative cases must actually violate their labeled conditions.
 Create at least one independently labeled success and one failure case; across
 all host and independent failure cases, every condition needs a violated case.
-Cases are JSON strings encoding judge-episode/1 physical state histories; never
+Cases are JSON strings encoding judge-episode/2 physical state histories; never
 include hidden seeds, expert programs or success labels in episode input.
 Do not attest pass when required intent or evidence is absent. Return pass,
 revise or needs_input and one explicit check for EVERY current condition.

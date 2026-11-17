@@ -77,7 +77,10 @@ class IsaacRobotAPI:
         return result
 
     def observe(self):
-        """读取当前实测状态，不推进物理；缺失接触接口时明确标记 unavailable。"""
+        """读取机器人实测状态（Episode IR `state_trace[k].robot`），不推进物理。
+
+        接触属于整场景测量（`state_trace[k].contacts`），不在机器人段里重复给出。
+        """
         verify_binding(self.binding)
         q = tensor(self.robot.data.joint_pos).detach().cpu().tolist()[0]
         dq = tensor(self.robot.data.joint_vel).detach().cpu().tolist()[0]
@@ -85,8 +88,7 @@ class IsaacRobotAPI:
             raise BindingError('Runtime joint state dimensions changed')
         if not all(math.isfinite(x) for x in q + dq):
             raise BindingError('NONFINITE_STATE')
-        result = {'joint_names': self.binding['joint_names'][:], 'q': q, 'dq': dq,
-                  'contacts': {'availability': 'unavailable'}}
+        result = {'joint_names': self.binding['joint_names'][:], 'q': q, 'dq': dq}
         gripper = self.binding['semantics'].get('gripper')
         if gripper is not None:
             actual = q[self.binding['joint_index'][gripper['master_joint']]]
@@ -116,8 +118,7 @@ class IsaacRobotAPI:
             p, q_tcp = combine_frame_transforms(pos, quat, offset, rotation)
             if not torch.isfinite(p).all() or not torch.isfinite(q_tcp).all():
                 raise BindingError('NONFINITE_STATE: TCP')
-            result['tcp_pose'] = dict(frame_id='world', position_m=p[0].tolist(),
-                                      quaternion_xyzw=q_tcp[0].tolist())
+            result['tcp'] = dict(frame_id='world', position_m=p[0].tolist(), quaternion_xyzw=q_tcp[0].tolist())
         return result
 
     def set_joint_targets(self, targets):

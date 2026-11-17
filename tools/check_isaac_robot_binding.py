@@ -96,7 +96,7 @@ with launch_simulation(cfg, args):
                     else:
                         motion[:3, :3] = Rotation.from_rotvec(axis*q).as_matrix()
                     transform = transform @ motion
-            actual = state['tcp_pose']
+            actual = state['tcp']
             position_error = float(np.linalg.norm(transform[:3, 3] - actual['position_m']))
             angle_error = float((Rotation.from_matrix(transform[:3, :3]).inv() *
                                  Rotation.from_quat(actual['quaternion_xyzw'])).magnitude())

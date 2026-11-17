@@ -3,6 +3,7 @@ from copy import deepcopy
 from types import SimpleNamespace
 import unittest
 
+from datafarm.ir.episode_state import validate_robot
 from datafarm.simulation.robot_binding import (
     BindingError, bind_robot, discover_urdf, gripper_target, validate_targets,
 )
@@ -127,7 +128,9 @@ class LiveBoundaryTests(unittest.TestCase):
 
     def test_observe_actual_order_and_missing_capabilities(self):
         api = IsaacRobotAPI(self.robot(), discover_urdf(SOURCE))
-        self.assertEqual(api.observe()['q'], [.01,.02,.3])
+        state = api.observe()
+        self.assertEqual(state['q'], [.01,.02,.3])
+        validate_robot(state)  # Episode IR state_trace[k].robot; contacts live in the scene snapshot
         self.assertEqual(api.binding['joint_index']['arm_joint'], 2)
         with self.assertRaises(BindingError): api.set_gripper(.01)
         with self.assertRaises(BindingError): api.move_tcp(None)

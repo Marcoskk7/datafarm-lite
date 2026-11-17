@@ -122,7 +122,7 @@ class RobotRuntime:
 
 The default control mode is fixed to `position`: B sends joint position targets, and the stiffness/damping/effort of the underlying position drives come from the runtime profile and are saved. The default position mode does not authorize B to guess gains; without an effective position drive the corresponding action capability is disabled. velocity/effort modes are currently rejected explicitly.
 
-`Observation` must include the step number, named joint q/dq, TCP Pose, task object Pose/velocity, articulation state, gripper opening and validity flags. Torque fields distinguish drive targets, actual simulated values and estimates; when actual values are unavailable they are marked unavailable.
+`Observation` is the robot segment of one Episode IR state (`state_trace[k].robot`, [docs/ir/episode.md](../ir/episode.md#state_trace)): `joint_names`, measured `q`/`dq`, optional world-frame `tcp` Pose and optional `gripper{width_m, width_range_m, state_source, verification, within_defined_range}`. Task entity pose/velocity, articulated-fixture joints and contacts come from the full-scene snapshot in the same state (`entities`, `contacts`). Non-finite readings fail the read; they are never written as a validity flag. Torque fields distinguish drive targets, actual simulated values and estimates; when actual values are unavailable they are marked unavailable.
 
 ### 4.2 Expert interface: restricted, synchronous, bounded steps
 
@@ -293,7 +293,7 @@ The task-completion flag, content-binding digests and write integrity are produc
 
 Low-level actions record `requested_target` and `applied_target` together with the controller's interpolation/clipping result; storing only the `move_tcp` parameters is not enough. If torque control is used later, a new control mode must be added that records that mode's actual input.
 
-State fields include named joint q/dq, gripper master/follower state, TCP, rigid-body position/quaternion/linear and angular velocity, and the state of joints such as the drawer. Position units depend on joint type, revolute=rad and prismatic=m; a mixed joint array must not be labelled entirely as rad.
+State fields are defined once in [docs/ir/episode.md](../ir/episode.md#state_trace) and validated by `datafarm.ir.episode_state`: robot `joint_names`/`q`/`dq`, `tcp`, `gripper`; per-node root `position_m`/`quaternion_xyzw`/`linear_velocity_m_s`/`angular_velocity_rad_s`, typed `joints` (drawer etc.) and `links`; and the cycle-end `contacts` sample. Position units depend on joint type, revolute=rad and prismatic=m; a mixed joint array must not be labelled entirely as rad.
 
 Contact fields distinguish `available`, `unavailable` and `not_requested`. An empty contact record means "zero contacts detected" only when sensing/querying is valid. When Newton internal substeps cannot be read, it is stated explicitly whether this is an end-of-period snapshot or a backend-provided per-period aggregate; contact completeness per substep is not claimed.
 

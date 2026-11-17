@@ -55,6 +55,7 @@ def render(args) -> int:
     import numpy as np
     from datafarm.ir import render_spec
     from datafarm.render import plan
+    from datafarm.ir.episode_state import validate_state
     from scene_assemble import robot_descriptor
 
     work = args.work
@@ -64,8 +65,9 @@ def render(args) -> int:
     graph = store.load(ArtifactRef.from_dict(spec_doc['scene_graph']))
     render_spec.validate(spec_doc, graph)
     episode = store.load(ArtifactRef.from_dict(spec_doc['episode']))['payload']
-    trace = episode['state_trace']
-    joint_names = episode['setup']['joint_names']
+    node_ids = [n['node_id'] for n in graph['nodes']]
+    trace = [validate_state(s, node_ids=node_ids, step=i, dt=episode['setup']['control_dt_s'])
+             for i, s in enumerate(episode['state_trace'])]
     prepared, planned = load_json(work / 'prepared.json'), load_json(work / 'plan.json')
     robot_asset = graph['robot']['asset_id']
     package = Path(prepared['assets'][robot_asset]['package'])
@@ -128,26 +130,24 @@ def render(args) -> int:
             wanted = sorted({s for v in variants for s in steps_by_view[v['view']]})
             for index, step in enumerate(wanted):
                 state = trace[step]
-                if state.get('valid', True):
-                    player.write_state(state, joint_names)
-                    position_error, joint_error = player.readback_error()
-                    worst['position_m'] = max(worst['position_m'], position_error)
-                    worst['joint'] = max(worst['joint'], joint_error)
-                    targets = player.place_cameras()
-                    player.render(args.warmup if index == 0 else args.passes)
+                player.write_state(state)
+                position_error, joint_error = player.readback_error()
+                worst['position_m'] = max(worst['position_m'], position_error)
+                worst['joint'] = max(worst['joint'], joint_error)
+                targets = player.place_cameras()
+                player.render(args.warmup if index == 0 else args.passes)
                 for variant in variants:
                     if step not in steps_by_view[variant['view']]:
                         continue
                     k = plan.view_intrinsics(spec_doc, graph, variant['view'])
                     blank = np.zeros((int(k['height']), int(k['width']), 3), np.uint8)
-                    image, actual, reason = None, None, ''
-                    if state.get('valid', True):
-                        image, actual = player.capture(variant['view'])
-                        camera_error = float(np.linalg.norm(actual[:3, 3] - targets[variant['view']][:3, 3]))
-                        worst['camera_m'] = max(worst['camera_m'], camera_error)
-                        if camera_error > args.camera_tol:
-                            image, reason = None, f'camera placed {camera_error:.4f} m from its target'
-                    status, reason = plan.frame_status(state, image is not None, reason)
+                    image, actual = player.capture(variant['view'])
+                    reason = ''
+                    camera_error = float(np.linalg.norm(actual[:3, 3] - targets[variant['view']][:3, 3]))
+                    worst['camera_m'] = max(worst['camera_m'], camera_error)
+                    if camera_error > args.camera_tol:
+                        image, reason = None, f'camera placed {camera_error:.4f} m from its target'
+                    status, reason = plan.frame_status(image is not None, reason)
                     # 坏帧写黑图占位，保持帧号与控制步对齐；状态由 frame_map 标出，不复制上一帧。
                     encoders[variant['variant_id']].write(image if image is not None else blank)
                     entry = {'frame_index': len(frames[variant['variant_id']]), 'control_step': step,
@@ -155,7 +155,7 @@ def render(args) -> int:
                     frames[variant['variant_id']].append(entry)
                     poses[variant['variant_id']].append(
                         {'frame_index': entry['frame_index'], 'control_step': step,
-                         'T_world_camera': plan.matrix_pose(actual) if actual is not None else None})
+                         'T_world_camera': plan.matrix_pose(actual)})
             for variant in variants:
                 variant_id = variant['variant_id']
                 video = store.put_bytes('render.video', encoders[variant_id].close(), media_type='video/mp4')
