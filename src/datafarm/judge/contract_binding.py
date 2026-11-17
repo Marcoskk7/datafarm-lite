@@ -19,8 +19,12 @@ def source_binding(store, task_ref, scene_ref):
     task = store.document(ArtifactRef.from_dict(task_ref))
     payload = validate_task_payload(task.payload)
     graph = store.load(ArtifactRef.from_dict(scene_ref))
+    from datafarm.ir.scene_graph import validate
+    validate(graph)
     if scene_ref not in [v.to_dict() for v in task.evidence] or payload['scene_id'] != graph['scene_id'] or task.artifact_id != payload['task_revision']:
         raise ValueError('task revision/scene binding differs')
+    if len(task.predecessors) != 1 or task.predecessors[0].kind != 'task-request':
+        raise ValueError('one normalized request predecessor required')
     request_ref = task.predecessors[0].to_dict()
     from datafarm.task.request_profile import validate_request
     request = validate_request(store.load(task.predecessors[0]))
@@ -133,6 +137,7 @@ def verify_contract(store, reference, *, task_ref=None, scene_ref=None, bundle=N
 
 
 def evaluate_episode(store, episode_ref, contract_ref, bundle, anchor, *, allow_fixture=False):
+    validate_ref(episode_ref, 'episode_ref')
     reference = ArtifactRef.from_dict(episode_ref)
     if reference.kind != 'episode-ir':
         raise ValueError('Episode IR reference required')
@@ -140,11 +145,17 @@ def evaluate_episode(store, episode_ref, contract_ref, bundle, anchor, *, allow_
     payload = document.payload
     setup = payload['setup']
     authority = verify_contract(store, contract_ref, task_ref=setup['task_ref'], scene_ref=setup['scene_ref'], bundle=bundle, anchor=anchor, allow_fixture=allow_fixture)
-    if setup.get('task_contract_ref') != contract_ref or setup['expert_ref'] not in [r.to_dict() for r in document.evidence]:
+    evidence = [r.to_dict() for r in document.evidence]
+    if setup.get('task_contract_ref') != contract_ref or contract_ref not in evidence or any(setup[k] not in evidence for k in ('task_ref','scene_ref','request_ref','original_request_ref','expert_ref','runtime_ref')):
         raise ValueError('Episode has no exact contract/expert evidence binding')
     binding = {k:authority[k] for k in ('node_ids','task_id','task_revision','task_ref','scene_ref','request_ref','original_request_ref')}
     if any(setup[k] != v for k,v in binding.items()):
         raise ValueError('Episode binding differs from contract')
+    graph = store.load(ArtifactRef.from_dict(setup['scene_ref']))
+    runtime = store.load(ArtifactRef.from_dict(setup['runtime_ref']))
+    if runtime != store.load(ArtifactRef.from_dict(graph['runtime_profile'])) or runtime.get('physics_dt_s') != setup['control_dt_s']:
+        raise ValueError('Episode clock/runtime differs from source scene')
+    store.load_bytes(ArtifactRef.from_dict(setup['expert_ref']))
     result = evaluate_bundle(bundle, project_episode(payload), anchor, allow_fixture=allow_fixture)
     receipt = {'schema':'datafarm.judge-episode-receipt/1', 'episode_ref':reference.to_dict(),
                'contract_ref':deepcopy(contract_ref), 'freeze_sha256':anchor, 'expert_ref':deepcopy(setup['expert_ref']),

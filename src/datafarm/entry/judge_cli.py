@@ -2,7 +2,7 @@
 
 用法：``python -m datafarm.entry.judge_cli {build,verify,evaluate,attach} ...``。
 本入口是组合根：把 adapters 层的 Codex ``structured_call`` 注入 Judge 作者/审查者角色。
-CLI 不提供任何网关开关；需要回环网关时由部署或本地工具调用 Python API 注入。
+provider-config 可通过环境变量名显式绑定 FYP；私人凭证不写入任务或命令行。
 """
 from __future__ import annotations
 
@@ -16,12 +16,21 @@ from datafarm.judge.compiler import JudgeCompiler, evaluate_bundle, verify_bundl
 from datafarm.judge.integration import attach_adapter
 from datafarm.judge.protocol import build_input, file_sha
 from datafarm.judge.provider import JudgeCodexProvider
+from datafarm.entry.codex_gateway import bind_gateway
+from datafarm.kernel.io import sha256_json
 
 
 def build_provider(config, *, gateway=None) -> JudgeCodexProvider:
     """绑定 Codex 结构化调用；传输源码摘要进入构建身份。"""
-    return JudgeCodexProvider(structured.validate_config(config), structured.structured_call,
-                              transport_fingerprint=file_sha(Path(structured.__file__)), gateway=gateway)
+    config, gateway = bind_gateway(config, gateway)
+    gateway_identity = getattr(gateway, 'fingerprint', None)
+    if gateway is not None and gateway_identity is None:
+        gateway_identity = sha256_json({'base': gateway.base,
+            'class': type(gateway).__module__ + '.' + type(gateway).__qualname__})
+    transport = sha256_json({'structured': file_sha(Path(structured.__file__)),
+                            'gateway': gateway_identity})
+    return JudgeCodexProvider(config, structured.structured_call,
+                              transport_fingerprint=transport, gateway=gateway)
 
 
 def main(argv=None) -> int:

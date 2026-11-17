@@ -72,8 +72,11 @@ Older /1 layouts are not silently converted. Keeping the name /1 does not
 preserve old frozen source hashes; build/review/freeze again with a new identity.
 
 The provider config accepts the same keys as the CaP Codex config (`work_root`, `executable`, `model`,
-`reasoning_effort`, `timeout_s`); unknown keys are rejected. The CLI has no gateway option: a loopback gateway can only
-be injected programmatically through `datafarm.entry.judge_cli.build_provider(config, gateway=...)`.
+`reasoning_effort`, `timeout_s`); the composition root additionally accepts an explicit `gateway` environment-name
+binding as documented in [FYP gateway](fyp-gateway.md). Unknown keys and embedded credentials are rejected. Existing
+programmatic injection through `datafarm.entry.judge_cli.build_provider(config, gateway=...)` remains available.
+Each configured author/reviewer uses a separate transport scope and CLI session; transport/source/model/config
+fingerprints enter the build identity, while private keys and endpoint strings do not enter task artifacts.
 
 Development case format: `{id, episode, expected_outcome, violates: [condition_id...]}`. Host cases must come from the
 development partition or be explicitly labelled synthetic counterexamples; hidden seeds and hidden trajectories must
@@ -87,7 +90,8 @@ The frozen directory holds `judge.py`, conditions, thresholds, the TaskContract,
 reports and both model execution receipts. The source SHA-256 is in `TaskContract.judge_ref`; other artifacts are
 linked through ArtifactRef. `freeze.json` reuses the existing `build_manifest` / `diff_manifests` to protect the
 content and the judge's code dependencies, including `kernel/`, `cap/io.py`, the Codex structured-call adapter,
-`expert/manifest.py` and its imports, and `entry/judge_cli.py`. Production use requires an external SHA-256 anchor;
+`expert/manifest.py` and its imports, `entry/judge_cli.py`, `entry/codex_gateway.py` and the FYP adapter. These
+additional dependencies apply to newly built bundles only; preserve old records and build a new version. Production use requires an external SHA-256 anchor;
 changing only the digest reported inside the bundle does not pass this check. Because the dependency set follows the
 current package layout, bundles frozen before this layout are not migrated; build them again in a new work directory.
 

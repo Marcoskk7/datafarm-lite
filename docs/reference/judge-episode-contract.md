@@ -39,3 +39,24 @@ Local build fixtures remain ready_for_cap=false. The explicit Python API
 allow_fixture switch is for software checks only, is not exposed by the CLI, and
 marks receipts software_fixture. It never certifies real model independence,
 physical task success or production data acceptance.
+
+## Recording and broker handoff
+
+Evaluation requires exact task, scene, normalized/original request, runtime,
+expert and contract refs in Episode evidence. The source SceneGraph is validated
+with A's validator; exactly one normalized request predecessor is required.
+The runtime payload must equal the source scene runtime and its physics step
+must equal the recording clock. Missing expert bytes or changed source evidence
+is an error, never an ordinary task failure.
+
+The available-observation list excludes unavailable channels and contact rows
+whose coverage is unknown. A contact snapshot is not a complete contact history;
+its presence does not authorize force, normal or exhaustive-contact predicates.
+Threshold value, unit, basis and requirement bindings remain frozen together.
+
+`evaluate-recorded` accepts an Episode ref or the scene-job result wrapper and
+writes the top-level judge-result/1 with separate immutable receipt and Episode
+refs. Use a fresh output path. The broker keeps legacy bool producers separately;
+current error/abort values retain success=null and do not pass through bool(None).
+See [scene expert harness](scene-harness.md) for source-pinned simulator commands
+and [FYP gateway](fyp-gateway.md) for optional role transport composition.

@@ -25,6 +25,9 @@ def path_exists(value, encoded):
             return obj is not None
         if isinstance(obj, list):
             return bool(obj) and all(visit(v, segments) for v in obj)
+        if isinstance(obj, dict) and (obj.get("availability") == "unavailable" or
+                segments[0] == "rows" and obj.get("coverage") != "complete"):
+            return False
         return isinstance(obj, dict) and segments[0] in obj and visit(obj[segments[0]], segments[1:])
     return visit(value, parts)
 
