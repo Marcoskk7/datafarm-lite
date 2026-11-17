@@ -82,6 +82,9 @@ class SearchRunner:
 
     def ask(self, request, root):
         request = {**request, 'observation_mode': self.config.observation_mode}
+        if isinstance(request.get('task'), dict) and 'profile' in request['task']:
+            from .codex_provider import public_request
+            request = public_request(request)
         if self.calls >= self.config.max_model_calls:
             raise BudgetExhausted('Provider decision budget exhausted')
         self.calls += 1
@@ -134,6 +137,11 @@ class SearchRunner:
         return result
 
     def run(self, task, directory, initial_program=None):
+        if isinstance(task, dict) and 'profile' in task:
+            from .public_task import validate_public_task
+            task = validate_public_task(task)
+            if self.config.observation_mode != 'privileged_state':
+                raise ValueError('Versioned public task requires privileged_state mode')
         if (not isinstance(task,dict) or not isinstance(task.get('name'),str) or not task['name']
                 or not isinstance(task.get('instruction'),str) or not task['instruction']
                 or not isinstance(task.get('api'),dict) or not task['api']
@@ -178,6 +186,9 @@ class SearchRunner:
                 'validation_success_rate':winner['validation']['success_rate'],'skill_admission':skill,
                 'heldout_evaluation':'owned by existing expert-harness; not requested by CaP',
                 'ready_for_harness_submission':winner['debug']['success_rate']==winner['validation']['success_rate']==1}
+        if 'profile' in task:
+            report.update(task_id=task['task_id'], task_revision=task['task_revision'],
+                          request_id=task['request_id'], request_sha256=task['request_sha256'])
         write_json(root/'report.json',report)
         return report
 
