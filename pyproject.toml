@@ -26,7 +26,7 @@ dependencies = ["Pillow>=10,<13"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pytest-subtests>=0.14,<1", "import-linter>=2.1,<3"]
-workflow = ["requests>=2.31,<3", "numpy>=1.26,<3", "opencv-python-headless>=4.8,<5", "h5py>=3.10,<4", "pyarrow>=17,<22", "scipy>=1.11,<2", "av>=12,<17"]
+workflow = ["PyYAML>=6,<7", "requests>=2.31,<3", "numpy>=1.26,<3", "opencv-python-headless>=4.8,<5", "h5py>=3.10,<4", "pyarrow>=17,<22", "scipy>=1.11,<2", "av>=12,<17"]
 
 [project.scripts]
 datafarm = "datafarm.entry.cli:main"

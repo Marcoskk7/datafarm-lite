@@ -64,6 +64,10 @@ def public_request(request):
     if not isinstance(request, dict) or set(request)-allowed:
         raise ValueError('Unexpected or private provider request fields')
     value = deepcopy(request)
+    task = value.get('task')
+    if isinstance(task, dict) and 'profile' in task:
+        from .public_task import validate_public_task
+        value['task'] = validate_public_task(task)
     if value.get('role') not in ('actor','distiller','verifier'):
         raise ValueError('Unknown CaP role')
     if value.get('observation_mode') != 'privileged_state':
