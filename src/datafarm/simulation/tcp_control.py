@@ -137,6 +137,21 @@ class ControlProfile:
             raise BindingError("Invalid control profile fields") from None
 
 
+def finger_width_rate_limit(binding):
+    """源模型允许的最大开度变化率：各手指关节速度上限 × 其开度系数之和；缺信息时返回 None。
+
+    手指是被动 mimic 从动关节，原生约束让实测开度在参考斜坡附近瞬时过冲（lab30 实测：参考 0.01 m/s 时
+    单步开度速率可达 0.06 m/s，0.03 m/s 时 0.18 m/s）。参考斜坡仍按请求速度推进；实测开度只按这个物理上限检查。
+    """
+    gripper = binding["semantics"].get("gripper") or {}
+    coefficients = (gripper.get("width_observation") or {}).get("joint_coefficients") or {}
+    joints = {j["name"]: j for j in binding["descriptor"]["joints"]}
+    fingers = gripper.get("finger_joints") or []
+    rates = [abs(coefficients[f]) * joints[f]["limits"]["velocity"] for f in fingers
+             if f in coefficients and f in joints and (joints[f].get("limits") or {}).get("velocity")]
+    return sum(rates) if fingers and len(rates) == len(fingers) else None
+
+
 class TCPMotionService:
     """串行有界运动服务；IK 只建议目标，只有注入的宿主可以推进物理。"""
 
@@ -395,6 +410,7 @@ class TCPMotionService:
             raise ControlFault("CAPABILITY_UNAVAILABLE")
         descriptor = next(j for j in self.binding["descriptor"]["joints"] if j["name"] == name)
         max_joint_speed = min(descriptor["limits"]["velocity"], self.host.joint_speed_limit(name), cfg.joint_speed_limits.get(name, descriptor["limits"]["velocity"]))
+        width_rate_limit = finger_width_rate_limit(self.binding) or speed
         if not self.host.acquire():
             raise ControlFault("CONTROL_BUSY")
         self.calls += 1
@@ -424,7 +440,7 @@ class TCPMotionService:
                     validate_targets(self.binding, {name: current["q"][i]})
                     if abs(current["dq"][i]) > max_joint_speed+1e-6:
                         raise ControlFault("SPEED_LIMIT")
-                    if abs(current["gripper"]["width_m"]-previous["gripper"]["width_m"]) > speed*cfg.dt_s+1e-6:
+                    if abs(current["gripper"]["width_m"]-previous["gripper"]["width_m"]) > width_rate_limit*cfg.dt_s+1e-6:
                         raise ControlFault("SPEED_LIMIT")
                     stable = stable+1 if abs(current["gripper"]["width_m"]-request["width_m"]) <= tolerance else 0
                     previous = current
