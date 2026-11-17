@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from datafarm.expert.adapter import ADAPTER_SCHEMA_V2, TaskAdapter
+from datafarm.expert.adapter import ADAPTER_SCHEMA, TaskAdapter
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.state import RoundState
 from datafarm.expert.util import (HarnessError, atomic_write_bytes, atomic_write_json)
@@ -219,5 +219,5 @@ def add_from_round(library: ExpertLibrary, paths: RoundPaths, adapter: TaskAdapt
                                else state.active_wall_s(now)),
                        counted_rollouts=state.counters.get("counted"), round_id=state.data["round_id"],
                        added_at=utc_now(now), tags=[adapter.task_id],
-                       schema=ENTRY_SCHEMA_V2 if adapter.raw["schema"] == ADAPTER_SCHEMA_V2 else ENTRY_SCHEMA)
+                       schema=ENTRY_SCHEMA_V2 if adapter.raw["schema"] == ADAPTER_SCHEMA else ENTRY_SCHEMA)
 

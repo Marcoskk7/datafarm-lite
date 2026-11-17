@@ -24,7 +24,7 @@ import statistics
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from datafarm.expert.adapter import ADAPTER_SCHEMA_V2, TaskAdapter
+from datafarm.expert.adapter import ADAPTER_SCHEMA, TaskAdapter
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.state import RoundState
 from datafarm.expert.util import (Clock, ConfigError, HarnessError, atomic_write_json, atomic_write_text)
@@ -198,8 +198,8 @@ def plan_suite(suite: Mapping[str, Any], out_dir: str | Path, *, now: float,
             continue
         adapter_path = (Path(suite["_dir"]) / task["adapter"]).resolve()
         adapter = TaskAdapter.load(adapter_path)
-        if (adapter.raw["schema"] == ADAPTER_SCHEMA_V2) != versioned or (versioned and adapter.task_id != task_id):
-            raise ConfigError("suite and adapter versions must match, with identical /2 task IDs")
+        if not versioned or adapter.raw["schema"] != ADAPTER_SCHEMA or adapter.task_id != task_id:
+            raise ConfigError("new adapter/1 requires suite/2 with an identical task ID")
         if not adapter.available:
             cells.append({"cell_id": f"{task_id}__unavailable", "task_id": task_id, "status": "unavailable",
                           "missing_interfaces": adapter.raw.get("missing_interfaces"),
@@ -410,7 +410,7 @@ def run_suite(suite_path: str | Path, out_dir: str | Path, *, clock: Clock,
             if fake:
                 adapter, holdout_file = fake(adapter, cell, out, isolation)
             if plan["schema"] == PLAN_SCHEMA_V2 and (
-                    adapter.raw["schema"] != ADAPTER_SCHEMA_V2 or adapter.task_id != cell["task_id"]):
+                    adapter.raw["schema"] != ADAPTER_SCHEMA or adapter.task_id != cell["task_id"]):
                 raise HarnessError("runtime adapter changed the planned logical identity")
             paths = RoundPaths(Path(cell["round_dir"]))
             prepare_round(adapter, paths.root, clock=runtime, holdout_seeds_path=holdout_file,

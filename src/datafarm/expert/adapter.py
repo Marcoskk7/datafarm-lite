@@ -23,7 +23,6 @@ from datafarm.kernel.identifiers import logical_id, require_identity_profile
 from datafarm.expert.task_ir import PROFILE as STAGE_GRAPH_PROFILE, validate_stage_graph
 
 ADAPTER_SCHEMA = "datafarm.expert-harness.adapter/1"
-ADAPTER_SCHEMA_V2 = "datafarm.expert-harness.adapter/2"
 HOLDOUT_SCHEMA = "datafarm.expert-harness.holdout-seeds/1"
 
 AGENT_BACKENDS = ("claude", "codex", "codex-metered", "fake")
@@ -366,17 +365,13 @@ class TaskAdapter:
 
     def validate(self) -> None:
         raw = self.raw
-        if raw.get("schema") == ADAPTER_SCHEMA_V2:
-            try:
-                require_identity_profile(raw)
-                logical_id(raw.get("task_id"), label="task_id")
-            except ValueError as exc:
-                raise ConfigError(str(exc)) from exc
-        elif raw.get("schema") == ADAPTER_SCHEMA:
-            if not isinstance(raw.get("task_id"), str) or not _SLUG.match(raw["task_id"]):
-                raise ConfigError("task_id must be a lowercase slug")
-        else:
-            raise ConfigError("unsupported adapter schema")
+        if raw.get("schema") != ADAPTER_SCHEMA:
+            raise ConfigError("unsupported adapter schema; new contract requires adapter/1")
+        try:
+            require_identity_profile(raw)
+            logical_id(raw.get("task_id"), label="task_id")
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from exc
         if raw.get("status", "available") not in ("available", "unavailable"):
             raise ConfigError("status must be 'available' or 'unavailable'")
         if not self.available:

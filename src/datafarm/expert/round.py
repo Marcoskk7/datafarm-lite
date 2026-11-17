@@ -31,7 +31,7 @@ from typing import Any, Iterator, Mapping
 
 from datafarm.adapters.agent_harness.call_log import AgentCallRecord, append_call, new_call_id, read_calls, summarize
 
-from datafarm.expert.adapter import ADAPTER_SCHEMA, ADAPTER_SCHEMA_V2, TaskAdapter, load_holdout_seeds, validate_holdout_against_dev, write_holdout_seeds
+from datafarm.expert.adapter import ADAPTER_SCHEMA, TaskAdapter, load_holdout_seeds, validate_holdout_against_dev, write_holdout_seeds
 from datafarm.expert.audit import audit_expert_source
 from datafarm.expert.brief import lint_brief, render_brief
 from datafarm.expert.handoff import assert_no_seed_leak, handoff_markdown, load_bundle
@@ -64,8 +64,8 @@ def validate_round_identity(record: Mapping[str, Any], adapter: TaskAdapter | No
         raise HarnessError("round record must be a JSON object")
     schema = record.get("schema")
     if schema == ROUND_SCHEMA:
-        if adapter is not None and adapter.raw["schema"] != ADAPTER_SCHEMA:
-            raise HarnessError("legacy round requires its original adapter/1")
+        if adapter is not None:
+            raise HarnessError("legacy round cannot consume the new adapter/1 contract")
         return
     if schema != ROUND_SCHEMA_V2:
         raise HarnessError("unsupported round schema")
@@ -80,7 +80,7 @@ def validate_round_identity(record: Mapping[str, Any], adapter: TaskAdapter | No
         if not is_sha256(expected["adapter_sha256"]):
             raise ValueError("round adapter digest is invalid")
         verify_storage_key(record.get("round_id"), "round", identity, expected)
-        if adapter is not None and (adapter.raw["schema"] != ADAPTER_SCHEMA_V2
+        if adapter is not None and (adapter.raw["schema"] != ADAPTER_SCHEMA
                                     or adapter.task_id != expected["task_id"]
                                     or adapter.sha256 != expected["adapter_sha256"]):
             raise ValueError("round and adapter identities differ")
@@ -142,7 +142,7 @@ def prepare_round(adapter: TaskAdapter, round_dir: str | Path, *, clock: Clock, 
             raise HarnessError(f"the round directory lies inside the protected path {protected}")
     now = clock.now()
     identity = None
-    if adapter.raw["schema"] == ADAPTER_SCHEMA_V2:
+    if adapter.raw["schema"] == ADAPTER_SCHEMA:
         try:
             identity = {"task_id": adapter.task_id, "adapter_sha256": adapter.sha256,
                         "nonce": logical_id(round_id if round_id is not None else uuid.uuid4().hex,

@@ -18,31 +18,23 @@ This change implements harness/storage adoption only. Judge version adoption,
 request planning, full Episode recording and action replay are subsequent features;
 this branch does not claim that those flows are already implemented.
 
-## Explicit opt-in
+## Adapter/1 directly adopts the new contract
 
-Existing `/1` adapters keep their lowercase-slug validation and existing record
-versions. Existing constants and callers default to `/1`; nothing automatically
-rewrites an adapter, round, suite or library record to `/2`.
-
-A new adapter opts in with:
+Only `datafarm.expert-harness.adapter/1` is accepted, with mandatory
+`identity_profile=datafarm.logical-identity/1` and a canonical logical task ID.
+Adapter/2 and old adapter files without that profile are rejected. There is no
+compatibility conversion; previously stored records are never rewritten.
 
 ```json
-{
-  "schema": "datafarm.expert-harness.adapter/2",
-  "identity_profile": "datafarm.logical-identity/1",
-  "task_id": "task.pick:variant-1"
-}
+{"schema":"datafarm.expert-harness.adapter/1",
+ "identity_profile":"datafarm.logical-identity/1", "task_id":"task.pick:variant-1"}
 ```
 
-This is an identity fragment, not a runnable adapter. All existing required brief,
+This is an identity fragment, not a runnable adapter. All required brief,
 verifier, seeds, budgets, expert, runtime and isolation sections still apply.
-The identity profile describes storage identity; it does not waive a frozen
-verifier, change a budget or grant access to a protected file.
-
-A `/2` suite likewise uses `datafarm.expert-harness.suite/2` and the explicit
-identity profile. Its task IDs must be unique and must exactly match `/2` adapters.
-Backend/model pairs must be unique; model strings retain their vendor spelling.
-A `/1` suite cannot silently consume a `/2` adapter. Unknown versions fail closed.
+The profile grants no file access or budget exemption. Suite/2 binds the exact
+new adapter/1 task and source digest; legacy suite/1 cannot consume it.
+Round/suite/library record versions remain independent of the adapter label.
 
 ## Logical IDs are not filenames
 
@@ -62,7 +54,7 @@ key is recomputed on lookup. Changed identity, unknown schema, mismatched filena
 unsafe lookup path or differing immutable receipt is rejected, not overwritten.
 The expert source object keeps its existing complete content-addressed digest.
 
-`prepare_round` with an adapter/2 writes `round/2`. Its optional `round_id` argument
+`prepare_round` with an adapter/1 writes `round/2`. Its optional `round_id` argument
 is an explicit canonical **attempt nonce** for this version; the returned round ID
 is the computed storage key. Omitting the nonce creates a new UUID nonce. The
 operator's `round_dir` is an explicit runtime locator, not a task identity and
@@ -83,13 +75,13 @@ prepared adapter identity. State/round IDs must agree. Original adapter and harn
 source pins are not bypassed: old records may need their original source snapshot
 or a new round after runtime code changes.
 
-Library admission from adapter/2 writes `library-entry/2`. Direct `ExpertLibrary.add`
+Library admission from adapter/1 writes `library-entry/2`. Direct `ExpertLibrary.add`
 opts in through its explicit `schema` argument. A repeat add can reuse a receipt
 only if the complete receipt is identical. Changed measurements/cost/time under the
 same identity are rejected; a genuinely new attempt needs a new round identity.
 New receipts are published without replacing existing bytes, including concurrent
 writers. Filesystems without the required hard-link publication support fail closed.
-There is no overwrite fallback. Legacy records are read with their own version;
+There is no overwrite fallback. Legacy library records are read with their own version;
 source digest and filename checks also apply to library lookups.
 
 ## Limits
@@ -104,3 +96,14 @@ source digest and filename checks also apply to library lookups.
   to remain valid. A new Judge runtime requires new, explicitly versioned freezing.
 - No stage-graph executor, simulator result, model success or physical task quality
   follows from the identifier/storage tests.
+
+## Current adapter contract (intentional breaking change)
+
+The only accepted adapter schema is `datafarm.expert-harness.adapter/1`. It
+requires `identity_profile=datafarm.logical-identity/1` and the canonical logical
+task ID. Adapter/2 is rejected; there is no old/new adapter compatibility dispatch.
+Old files are not automatically upgraded. New adapter/1 prepares round/2 and
+admits library-entry/2; suite/2 must bind its exact task and adapter digest.
+Legacy round/1 cannot be resumed with this new adapter contract. Independent
+record versions and source pins are not renamed or bypassed.
+This decision supersedes older compatibility promises in this document.
