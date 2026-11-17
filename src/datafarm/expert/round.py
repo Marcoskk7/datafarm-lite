@@ -31,7 +31,7 @@ from typing import Any, Iterator, Mapping
 
 from datafarm.adapters.agent_harness.call_log import AgentCallRecord, append_call, new_call_id, read_calls, summarize
 
-from datafarm.expert.adapter import TaskAdapter, load_holdout_seeds, validate_holdout_against_dev, write_holdout_seeds
+from datafarm.expert.adapter import ADAPTER_SCHEMA, TaskAdapter, load_holdout_seeds, validate_holdout_against_dev, write_holdout_seeds
 from datafarm.expert.audit import audit_expert_source
 from datafarm.expert.brief import lint_brief, render_brief
 from datafarm.expert.handoff import assert_no_seed_leak, handoff_markdown, load_bundle
@@ -48,10 +48,45 @@ from datafarm.expert.util import (Clock, ConfigError, HarnessError, UnsafePathEr
                    atomic_write_json, atomic_write_text, human_duration,
                    read_regular_nofollow, tree_digest)
 from datafarm.instructions import build_context, repository_root
-from datafarm.kernel.io import read_json, sha256_file, sha256_text, utc_now
+from datafarm.kernel.io import is_sha256, read_json, sha256_file, sha256_text, utc_now
+from datafarm.kernel.identifiers import (
+    IDENTITY_PROFILE, logical_id, require_identity_profile, storage_key, verify_storage_key,
+)
 
 ROUND_SCHEMA = "datafarm.expert-harness.round/1"
+ROUND_SCHEMA_V2 = "datafarm.expert-harness.round/2"
 EXIT_PAUSED = 75
+
+
+def validate_round_identity(record: Mapping[str, Any], adapter: TaskAdapter | None = None) -> None:
+    """Explicit version dispatch, including the task and prepared adapter binding."""
+    if not isinstance(record, Mapping):
+        raise HarnessError("round record must be a JSON object")
+    schema = record.get("schema")
+    if schema == ROUND_SCHEMA:
+        if adapter is not None:
+            raise HarnessError("legacy round cannot consume the new adapter/1 contract")
+        return
+    if schema != ROUND_SCHEMA_V2:
+        raise HarnessError("unsupported round schema")
+    try:
+        require_identity_profile(record)
+        identity = record.get("identity")
+        if not isinstance(identity, Mapping):
+            raise ValueError("round identity is missing")
+        expected = {"task_id": logical_id(record.get("task_id"), label="task_id"),
+                    "adapter_sha256": record["adapter"]["sha256"],
+                    "nonce": logical_id(identity.get("nonce"), label="round nonce")}
+        if not is_sha256(expected["adapter_sha256"]):
+            raise ValueError("round adapter digest is invalid")
+        verify_storage_key(record.get("round_id"), "round", identity, expected)
+        if adapter is not None and (adapter.raw["schema"] != ADAPTER_SCHEMA
+                                    or adapter.task_id != expected["task_id"]
+                                    or adapter.sha256 != expected["adapter_sha256"]):
+            raise ValueError("round and adapter identities differ")
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HarnessError(f"invalid round identity: {exc}") from exc
+
 
 FIRST_PROMPT = (repository_root() / "prompts/sessions/expert-first.txt").read_text()
 
@@ -83,11 +118,13 @@ def load_round_adapter(paths: RoundPaths, adapter_path: str | None = None) -> Ta
     """准备该 round 时所用的 adapter（记录的路径 + 记录的 overrides），按摘要校验。"""
 
     round_json = read_json(paths.round_json)
+    validate_round_identity(round_json)
     recorded = round_json["adapter"]
     adapter = TaskAdapter.load(adapter_path or recorded["path"], overrides=recorded.get("overrides") or None)
     if adapter.sha256 != recorded["sha256"]:
         raise HarnessError("the adapter differs from the one this round was prepared with "
                            f"({adapter.sha256[:12]} != {recorded['sha256'][:12]})")
+    validate_round_identity(round_json, adapter)
     return adapter
 
 
@@ -104,7 +141,17 @@ def prepare_round(adapter: TaskAdapter, round_dir: str | Path, *, clock: Clock, 
         if str(paths.root) == protected or str(paths.root).startswith(protected.rstrip("/") + "/"):
             raise HarnessError(f"the round directory lies inside the protected path {protected}")
     now = clock.now()
-    round_id = round_id or make_round_id(adapter.task_id, now)
+    identity = None
+    if adapter.raw["schema"] == ADAPTER_SCHEMA:
+        try:
+            identity = {"task_id": adapter.task_id, "adapter_sha256": adapter.sha256,
+                        "nonce": logical_id(round_id if round_id is not None else uuid.uuid4().hex,
+                                            label="round nonce")}
+            round_id = storage_key("round", identity)
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from exc
+    else:
+        round_id = round_id or make_round_id(adapter.task_id, now)
     agent_cfg = adapter.agent
     source = holdout_seeds_path or adapter.holdout.get("seeds_file")
     if not source:
@@ -174,6 +221,9 @@ def prepare_round(adapter: TaskAdapter, round_dir: str | Path, *, clock: Clock, 
                       "rollout": adapter.isolation("rollout").get("mode")},
         "brief_lint": {"ok": report.ok, "warnings": report.warnings},
     }
+    if identity is not None:
+        round_json.update(schema=ROUND_SCHEMA_V2, identity_profile=IDENTITY_PROFILE, identity=identity)
+    validate_round_identity(round_json, adapter)
     atomic_write_json(paths.round_json, round_json, mode=0o444)
     state = RoundState.create(paths.state, round_id=round_id, created_at=utc_now(now))
     events = EventLog(paths, round_id, clock.now)
@@ -325,11 +375,14 @@ class RoundRunner:
     def _run_locked(self) -> dict[str, Any]:
         paths, adapter = self.paths, self.adapter
         round_json = read_json(paths.round_json)
+        validate_round_identity(round_json, adapter)
         if round_json["adapter"]["sha256"] != adapter.sha256:
             raise HarnessError("the adapter changed since this round was prepared; run with the "
                                "original adapter or prepare a new round")
         self.state = RoundState.load(paths.state)
         state = self.state
+        if state.data["round_id"] != round_json["round_id"]:
+            raise HarnessError("round state identity differs from its prepared record")
         self.events = EventLog(paths, state.data["round_id"], self.clock.now)
         if state.status in TERMINAL:
             return self.summary()

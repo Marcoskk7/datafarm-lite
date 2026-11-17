@@ -135,6 +135,12 @@ def classify_run_dir(run_dir: Path, rollout_cfg: Mapping[str, Any], *, status: s
         return out("init_invalid", None, {}, "the initial-state generator reported an invalid start")
     verdict_cfg = rollout_cfg.get("verdict", {})
     verdict = _read_json_quiet(run_dir / verdict_cfg.get("file", "verdict.json"))
+    if verdict_cfg.get("schema") == "judge-result/1" and isinstance(verdict, dict):
+        # 生成 Judge 的 error/aborted 保持 success=None，不经旧协议的 bool() 转换成任务失败。
+        from datafarm.judge.integration import classify_result
+        cls, success, detail = classify_result(verdict)
+        return out(cls, success, {name: get_dotted(verdict, path)
+                   for name, path in verdict_cfg.get("fields", {}).items()}, detail)
     if isinstance(verdict, dict) and get_dotted(verdict, verdict_cfg["success"]) is not None:
         fields = {name: get_dotted(verdict, path) for name, path in verdict_cfg.get("fields", {}).items()}
         success = bool(get_dotted(verdict, verdict_cfg["success"]))

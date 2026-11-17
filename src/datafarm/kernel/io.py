@@ -1,11 +1,11 @@
 """共享的仅依赖标准库的辅助函数：digests、canonical JSON、JSON 读取、原子写入、UTC 时间戳、JSONL 追加。
 
-保持本模块不依赖第三方库与 datafarm 导入，以便包内任何部分都能使用它。
+保持本模块不依赖第三方库，且只导入 kernel 内的标准库模块（file_lock），以便包内任何部分都能使用它。
 """
 from __future__ import annotations
 
+from contextlib import nullcontext
 import datetime as dt
-import fcntl
 import hashlib
 import json
 import math
@@ -15,6 +15,8 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable, Mapping
+
+from datafarm.kernel.file_lock import exclusive_lock
 
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -124,18 +126,13 @@ def atomic_write_json(path: str | Path, value: Any, *, indent: int = 2, sort_key
 
 def append_jsonl(path: str | Path, value: Mapping[str, Any], *, lock: bool = True, fsync: bool = True,
                  allow_nan: bool = False, default: Callable[[Any], Any] | None = None) -> None:
-    """追加一条按键排序的记录；lock 为真时在写入期间持有独占 flock。"""
+    """追加一条按键排序的记录；lock 为真时在写入期间持有跨平台独占锁。"""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=allow_nan, default=default) + "\n"
     with open(target, "a", encoding="utf-8") as handle:
-        if lock:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        try:
+        with exclusive_lock(handle) if lock else nullcontext():
             handle.write(line)
             handle.flush()
             if fsync:
                 os.fsync(handle.fileno())
-        finally:
-            if lock:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

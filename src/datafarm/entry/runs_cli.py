@@ -97,7 +97,8 @@ def cmd_launch(args: argparse.Namespace) -> int:
             [sys.executable, "-m", "datafarm.adapters.process.ledger_exec", str(ledger.directory),
              worker_id, str(args.heartbeat_seconds), "--", *command],
             stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT,
-            cwd=args.cwd or os.getcwd(), start_new_session=True,
+            cwd=args.cwd or os.getcwd(), start_new_session=os.name != "nt",
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW) if os.name == "nt" else 0,
             env={**os.environ, "PYTHONPATH": os.pathsep.join(
                 [str(Path(__file__).resolve().parents[2]), os.environ.get("PYTHONPATH", "")])},
         )

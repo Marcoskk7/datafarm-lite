@@ -5,6 +5,7 @@
 """
 from copy import deepcopy
 import math
+import threading
 
 from .robot_binding import BindingError, bind_robot, digest, gripper_target, validate_targets, verify_binding
 
@@ -20,6 +21,9 @@ class IsaacRobotAPI:
     def __init__(self, articulation, descriptor, profile=None):
         """核对实际名称/限位并读取驱动参数，不靠模型声明猜测有效执行器。"""
         self.robot = articulation
+        self._tcp_motion_service = None
+        self._motion_lock = threading.Lock()
+        self._command_owner = None
         self.binding = bind_robot(descriptor, profile, list(articulation.joint_names),
                                   list(articulation.body_names))
         q = tensor(articulation.data.joint_pos)
@@ -66,7 +70,11 @@ class IsaacRobotAPI:
     def capabilities(self):
         """返回能力快照，调用方修改返回值不会改变已绑定的控制权限。"""
         verify_binding(self.binding)
-        return deepcopy(self.binding['capabilities'])
+        result = deepcopy(self.binding['capabilities'])
+        if self._tcp_motion_service is not None:
+            control = self._tcp_motion_service.capabilities()
+            result.update(move_tcp=control['move_tcp'], collision_checked_motion=False, tcp_control=control)
+        return result
 
     def observe(self):
         """读取当前实测状态，不推进物理；缺失接触接口时明确标记 unavailable。"""
@@ -113,6 +121,15 @@ class IsaacRobotAPI:
         return result
 
     def set_joint_targets(self, targets):
+        """运动期间拒绝其他调用者插入目标；不把并发请求排队成隐式新动作。"""
+        if not self._motion_lock.acquire(blocking=False):
+            raise BindingError('CONTROL_BUSY')
+        try:
+            return self._stage_joint_targets(targets)
+        finally:
+            self._motion_lock.release()
+
+    def _stage_joint_targets(self, targets):
         """校验并按运行时索引暂存位置目标；插值、限速与步进由宿主执行。"""
         targets = validate_targets(self.binding, targets)
         if not set(targets).issubset(self.binding['position_driven_joints']):
@@ -132,6 +149,31 @@ class IsaacRobotAPI:
             raise BindingError('CAPABILITY_UNAVAILABLE: gripper definition or active position drive required')
         return self.set_joint_targets(gripper_target(self.binding, width_m))
 
-    def move_tcp(self, *args, **kwargs):
-        """IK/规划器尚未绑定时明确拒绝，不能把可观测 TCP 当作可控制 TCP。"""
-        raise BindingError('CAPABILITY_UNAVAILABLE: IK/motion planner not bound')
+    def bind_tcp_controller(self, controller):
+        """宿主专用注入端口；静态 robot-binding/2 不因此伪称已验证运动能力。"""
+        if not self._motion_lock.acquire(blocking=False):
+            raise BindingError('CONTROL_BUSY')
+        try:
+            verify_binding(self.binding)
+            if self._tcp_motion_service is not None:
+                raise BindingError('TCP controller is already bound')
+            if (getattr(controller, 'binding_sha256', None) != self.binding['binding_sha256']
+                    or not callable(getattr(controller, 'move_tcp', None))
+                    or not callable(getattr(controller, 'capabilities', None))):
+                raise BindingError('TCP controller binding mismatch')
+            controller.capabilities()
+            self._tcp_motion_service = controller
+        finally:
+            self._motion_lock.release()
+
+    def move_tcp(self, request):
+        """委托给有界宿主闭环；未绑定时仍明确拒绝，不把目标暂存当作到达。"""
+        if self._tcp_motion_service is None:
+            raise BindingError('CAPABILITY_UNAVAILABLE: IK/motion planner not bound')
+        return self._tcp_motion_service.move_tcp(request)
+
+    def move_gripper(self, request):
+        """Bounded measured gripper motion through the same owned physics clock."""
+        if self._tcp_motion_service is None:
+            raise BindingError('CAPABILITY_UNAVAILABLE: motion host not bound')
+        return self._tcp_motion_service.move_gripper(request)

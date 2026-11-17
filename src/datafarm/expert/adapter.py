@@ -19,6 +19,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from datafarm.expert.util import ConfigError, deep_merge, expand, expand_all, human_duration
 from datafarm.kernel.io import sha256_file, sha256_json
+from datafarm.kernel.identifiers import logical_id, require_identity_profile
 from datafarm.expert.task_ir import PROFILE as STAGE_GRAPH_PROFILE, validate_stage_graph
 
 ADAPTER_SCHEMA = "datafarm.expert-harness.adapter/1"
@@ -320,7 +321,13 @@ class TaskAdapter:
         return self._paths(self.section("workspace").get("readable", []))
 
     def protected_paths(self) -> list[str]:
-        return self._paths(self.section("workspace").get("protected", []))
+        paths = self._paths(self.section("workspace").get("protected", []))
+        if "judge_bundle" in self.verifier:
+            # 生成并冻结的 Judge：整个冻结目录对 expert 不可读写。
+            from datafarm.judge.integration import adapter_bundle
+            bundle, _ = adapter_bundle(self)
+            paths.append(str(bundle))
+        return paths
 
     def _paths(self, patterns: Iterable[str], *, expand_globs: bool = True) -> list[str]:
         out: list[str] = []
@@ -355,7 +362,14 @@ class TaskAdapter:
     def manifest_paths(self) -> list[str]:
         files = list(self.verifier.get("files", []))
         files += list(self.section("manifest").get("files", []))
-        return self._paths(files)
+        paths = self._paths(files)
+        if "judge_bundle" in self.verifier:
+            # 冻结目录与其 manifest 中的全部依赖都纳入既有 ManifestGuard 检查范围。
+            from datafarm.judge.integration import adapter_bundle
+            bundle, _ = adapter_bundle(self)
+            frozen = json.loads((bundle / "freeze.json").read_text(encoding="utf-8"))
+            paths += [str(bundle), *frozen["manifest"]["entries"]]
+        return paths
 
     def brief_template_sha256(self) -> str:
         return sha256_file(self.brief_template_path)
@@ -365,9 +379,12 @@ class TaskAdapter:
     def validate(self) -> None:
         raw = self.raw
         if raw.get("schema") != ADAPTER_SCHEMA:
-            raise ConfigError(f"adapter schema must be {ADAPTER_SCHEMA!r}")
-        if not isinstance(raw.get("task_id"), str) or not _SLUG.match(raw["task_id"]):
-            raise ConfigError("task_id must be a lowercase slug")
+            raise ConfigError("unsupported adapter schema; new contract requires adapter/1")
+        try:
+            require_identity_profile(raw)
+            logical_id(raw.get("task_id"), label="task_id")
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from exc
         if raw.get("status", "available") not in ("available", "unavailable"):
             raise ConfigError("status must be 'available' or 'unavailable'")
         if not self.available:
@@ -391,6 +408,13 @@ class TaskAdapter:
             raise ConfigError(f"verifier.judge_points must be a non-empty subset of {JUDGE_POINTS}")
         if not verifier.get("criteria"):
             raise ConfigError("verifier.criteria must state the exact pass criteria")
+        if "judge_bundle" in verifier:
+            # 冻结 Judge 预检：内容锚点、task_id、条件 IDs、版本与 judge-result/1 协议须一致。
+            from datafarm.judge.integration import adapter_bundle
+            try:
+                adapter_bundle(self)
+            except (ValueError, OSError, KeyError) as exc:
+                raise ConfigError("Frozen judge preflight failed: " + str(exc)) from exc
         task_ir = raw.get("task_ir")
         if isinstance(task_ir, Mapping) and task_ir.get("profile") == STAGE_GRAPH_PROFILE:
             # 有类型标注的 task contract 必须在准备任何轮次之前结构正确，并映射到冻结的 judge 上；
@@ -437,7 +461,7 @@ class TaskAdapter:
         for pattern in (self.section("workspace").get("readable", [])
                         + self.section("workspace").get("protected", [])):
             value = self.x(pattern, keep_env=True)
-            if not (value.startswith("/") or value.startswith("~") or value.startswith("${")):
+            if not (os.path.isabs(value) or value.startswith("/") or value.startswith("~") or value.startswith("${")):
                 raise ConfigError(f"workspace path {pattern!r} must be absolute")
         for fact in self.raw.get("runtime_facts", []):
             if not fact.get("id") or not fact.get("text") or not isinstance(fact.get("must_mention", []), list):
