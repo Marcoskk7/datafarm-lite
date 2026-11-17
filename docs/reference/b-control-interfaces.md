@@ -337,6 +337,15 @@ One logical group per episode; it may span several files, but the manifest lists
 
 J is the number of observed joints and U the number of actual control channels; joint_names, joint_types and control_names are stored separately, and usually J≠U. Raw streams and dtypes are kept; resampled results never replace raw evidence. Failure and recovery phases can still be archived, but training export selects them through an explicit phase mask without changing the time semantics of actions.
 
+> **临时补丁（tmp(B)），待 B 线同学确认。** The fork currently ships one concrete realisation of the layout above:
+> schema `datafarm.episode-hdf5/1`, one episode per file, written by `src/datafarm/expert/hdf5_export.py`
+> and `tools/export_episode_hdf5.py`. It adds only what §8 already permits — `joints/<joint>/q,dq`,
+> linear/angular velocity, optional tcp/gripper arrays, per-frame ArtifactRef columns — and keeps N/N+1
+> semantics, `control_names` ordering, `contacts.rows` null-vs-[] and bit-exact float64 copies. The exact tree,
+> the `unknown` joint-type fallback and the known limits (single control mode, no multi-file manifest) are in
+> [hdf5-export.md](hdf5-export.md). It is a stopgap so the integration chain is no longer blocked at HDF5,
+> not a replacement for a B-owned dataset package with schema versioning; the B line should confirm or replace it.
+
 ## 9. A complete small Episode example
 
 Below is a **hand-written protocol example** of a two-step stationary hold. It fully expresses the N=2, 3-state relation; it is not a robot measurement or a pick-and-place success, and it is not an ArtifactDocument that can be submitted directly to the existing IR validator. Actual persistence must store each stream in the ArtifactStore and then assemble references and real digests. The example omits a real asset bundle and only aligns fields and time.
