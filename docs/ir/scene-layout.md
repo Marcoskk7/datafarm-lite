@@ -34,7 +34,17 @@
 | `role` | 是 | `robot` / `task_object` / `receptacle` / `background` / `camera_rig`，写进 AssetRecord；`receptacle` 必须有 prismatic/revolute 关节 |
 | `simready` | 是 | `--cache` 下的目录名，如 `dishware_plastic_bigPlate_a01`；目录里必须有 `simready-fetch.json`。机器人不写进 `assets[]`，由 `robot.package_asset` 单独处理 |
 | `body` | 是 | `kinematic` / `rigid` / `articulation`，决定 Isaac Lab 用 `RigidObjectCfg`（kinematic 时 `kinematic_enabled=true`）还是 `ArticulationCfg` |
-| `anchor_body` | `body=articulation` 时是 | 基座刚体在包装层里的 prim 路径（`prim_ref` 形式）；`prepare` 给它加固定关节锚到资产根 Xform |
+| `anchor_body` | `body=articulation` 时是 | 基座刚体在包装层里的 prim 路径，必须是相对资产根的 `prim_ref` 形式：无前导 `/`，每段只用字母、数字、下划线，如 `RootNode/Geometry/body_01_obj_00`；`prepare` 给它加固定关节锚到资产根 Xform |
+
+`anchor_body` 的格式：`prim_ref` 就是 USD prim 路径去掉前导 `/`（见 `adapters/sim/usd_assets.prim_ref`），
+所以 `RootNode/Geometry/body_01_obj_00` 是合法值，`/RootNode/Geometry/body_01_obj_00` 不是。
+拒绝的情况：前导 `/`（kernel 的可移植性检查会把它当成宿主绝对路径）、`//`、结尾 `/`、空白、
+`.` 或 `..` 段、以及 prim 名之外的字符（如 `-`、`:`、非 ASCII 字母）。前导 `/` 在 `prepare` 里表现为
+`SchemaError: ... absolute filesystem path`；现在 `plan` 开头的 `layout.resolve_nodes` 会先逐项校验
+`assets[]`（helper `layout.validate_assets`），凡请求 `assets[i]` 的 `anchor_body` 不合法就抛
+`IRError: assets[i] (<asset_id>).anchor_body '<值>' must be a prim path relative to the asset root, like
+'RootNode/Geometry/body_01_obj_00': no leading '/', no '.', '..' or empty segments`。
+`anchor_body` 只在 `body=articulation` 时被 `prepare` 使用；其他 body 写了仍会校验格式，但被忽略，不报错。
 
 `assets[]` 里不写 USD 路径、俯仰/翻滚角或物理参数：姿态只有偏航，高度由布局解出，
 质量/摩擦/阻尼写在 AssetRecord 的 `physical_quantities` 里。

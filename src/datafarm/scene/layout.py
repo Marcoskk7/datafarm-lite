@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -16,10 +17,50 @@ import numpy as np
 
 from datafarm.ir import scene_graph
 from datafarm.ir.common import IRError, check, identifier
+from datafarm.kernel.schema import is_absolute_filesystem_path
 from datafarm.scene import kinematics
 
 LAYOUT_SCHEMA = "datafarm.scene-layout/1"
 SUPPORT_CLEARANCE_M = 0.001
+
+PRIM_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+ANCHOR_BODY_EXAMPLE = "RootNode/Geometry/body_01_obj_00"
+ANCHOR_BODY_RULE = (
+    f"must be a prim path relative to the asset root, like {ANCHOR_BODY_EXAMPLE!r}: "
+    "no leading '/', no '.', '..' or empty segments"
+)
+
+
+def _check_anchor_body(asset: Mapping[str, Any], index: int) -> None:
+    """`anchor_body` 是 `prim_ref` 形式（USD prim 路径去掉前导 `/`，见 `adapters.sim.usd_assets.prim_ref`）。
+
+    `prepare` 之前就拒绝宿主绝对路径和所有非 prim 名的段，避免 kernel 的可移植性检查在更晚处才报错。
+    """
+    label = f"assets[{index}] ({asset.get('asset_id')}).anchor_body"
+    value = asset.get("anchor_body")
+    if value is None:
+        if asset.get("body") == "articulation":
+            raise IRError(f"{label} is required when body='articulation' and {ANCHOR_BODY_RULE}")
+        return
+    invalid = (
+        not isinstance(value, str)
+        or not value
+        or is_absolute_filesystem_path(value)
+        or any(not PRIM_NAME_PATTERN.fullmatch(segment) for segment in value.split("/"))
+    )
+    if invalid:
+        raise IRError(f"{label} {value!r} {ANCHOR_BODY_RULE}")
+
+
+def validate_assets(spec: Mapping[str, Any]) -> None:
+    """校验 `assets[]` 里每个声明了 `anchor_body` 的资产；非铰接体写了也校验，但 `prepare` 仍忽略。"""
+    assets = spec.get("assets")
+    if assets is None:
+        return
+    check(isinstance(assets, list), "layout 'assets' must be an array")
+    for index, asset in enumerate(assets):
+        check(isinstance(asset, Mapping), f"assets[{index}] must be an object")
+        _check_anchor_body(asset, index)
 
 
 def yaw_quaternion(yaw_deg: float) -> list[float]:
@@ -46,6 +87,7 @@ def _joint(record: Mapping[str, Any], name: str) -> Mapping[str, Any]:
 def resolve_nodes(spec: Mapping[str, Any], records: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
     """按 `on` 依赖顺序解出每个节点的世界位姿；返回 SceneGraph 的 `nodes`。"""
     check(spec.get("schema") == LAYOUT_SCHEMA, f"layout schema must be {LAYOUT_SCHEMA}")
+    validate_assets(spec)
     entries = {identifier(n["node_id"], "layout node_id"): n for n in spec["nodes"]}
     resolved: dict[str, dict[str, Any]] = {}
     top: dict[str, float] = {}

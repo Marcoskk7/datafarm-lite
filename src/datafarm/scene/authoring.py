@@ -80,9 +80,8 @@ def asset_set_key(layout: Mapping[str, Any]) -> str:
         missing = [key for key in ("asset_id", "role", "simready", "body") if not isinstance(asset.get(key), str)]
         if missing:
             raise ValueError(f"assets[{index}] is missing string fields {missing}")
-        if asset["body"] == "articulation" and not isinstance(asset.get("anchor_body"), str):
-            raise ValueError(f"assets[{index}] ({asset['asset_id']}): body 'articulation' needs anchor_body")
         entries.append({key: asset.get(key) for key in ("asset_id", "role", "simready", "body", "anchor_body")})
+    scene_layout.validate_assets(layout)
     for key in ("asset_id", "package_asset"):
         if not isinstance(robot.get(key), str):
             raise ValueError(f"layout robot.{key} must be a string")

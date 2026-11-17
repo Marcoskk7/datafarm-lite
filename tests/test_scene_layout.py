@@ -1,5 +1,7 @@
 """A-line scene assembly without a simulator: records, layout heights, drawer-shifted reach and SceneGraph IR."""
 from copy import deepcopy
+import json
+from pathlib import Path
 import unittest
 
 import numpy as np
@@ -243,6 +245,94 @@ class LayoutTests(unittest.TestCase):
                 asset_id="object.cabinet_b", role="receptacle", fetch=fetch("cabinet_b"),
                 inspection=inspection([0, 0, 0], [1, 1, 1]), usd_ref=ref("asset.usd", "1"),
                 inspection_ref=ref("asset.usd-inspection", "2"), collision_ref=None)
+
+
+class AnchorBodyTests(unittest.TestCase):
+    """`assets[].anchor_body` must be `prim_ref` form; rejected at `plan` start, not deep inside `prepare`."""
+
+    VERIFICATION = Path(__file__).resolve().parents[1] / "verification/request-authoring-1b-20261117"
+
+    def setUp(self):
+        self.records = records()
+
+    def spec(self, *assets):
+        spec = deepcopy(SPEC)
+        spec["assets"] = list(assets)
+        return spec
+
+    def asset(self, anchor_body=None, *, body="articulation", asset_id="object.cabinet_a"):
+        entry = {"asset_id": asset_id, "role": "receptacle", "simready": "cabinet_a", "body": body}
+        if anchor_body is not None:
+            entry["anchor_body"] = anchor_body
+        return entry
+
+    def test_accepted_prim_ref_forms_resolve(self):
+        for value in ("body", "Root/body", "RootNode/Geometry/body_01_obj_00", "_Root/a1", "a/b/c"):
+            with self.subTest(value=value):
+                layout.resolve_nodes(self.spec(self.asset(value)), self.records)
+
+    def test_rejected_forms_raise_one_clear_error(self):
+        rejected = {
+            "": "must be a prim path relative to the asset root",
+            "/RootNode/Geometry/body_01_obj_00": "must be a prim path relative to the asset root",
+            "a//b": "no leading '/', no '.', '..' or empty segments",
+            "a/b/": "no leading '/', no '.', '..' or empty segments",
+            " a/b": "must be a prim path relative to the asset root",
+            "a/b ": "must be a prim path relative to the asset root",
+            "a/ b": "must be a prim path relative to the asset root",
+            "a/./b": "no leading '/', no '.', '..' or empty segments",
+            "a/../b": "no leading '/', no '.', '..' or empty segments",
+            ".": "no leading '/', no '.', '..' or empty segments",
+            "..": "no leading '/', no '.', '..' or empty segments",
+            "a/b-c": "must be a prim path relative to the asset root",
+            "a/b:c": "must be a prim path relative to the asset root",
+            "a/b/c d": "must be a prim path relative to the asset root",
+        }
+        for value, pattern in rejected.items():
+            with self.subTest(value=value), self.assertRaisesRegex(IRError, pattern) as raised:
+                layout.resolve_nodes(self.spec(self.asset(value)), self.records)
+            self.assertIn("assets[0] (object.cabinet_a).anchor_body", str(raised.exception))
+
+    def test_articulation_needs_anchor_body_and_others_may_omit_it(self):
+        with self.assertRaisesRegex(IRError, "assets\\[0\\] \\(object.cabinet_a\\)\\.anchor_body is required "
+                                             "when body='articulation'"):
+            layout.resolve_nodes(self.spec(self.asset(body="articulation")), self.records)
+        layout.resolve_nodes(self.spec(self.asset(body="rigid", asset_id="object.plate_a")), self.records)
+
+    def test_anchor_body_is_validated_even_when_the_body_would_ignore_it(self):
+        spec = self.spec(self.asset("/Root/body", body="rigid", asset_id="object.plate_a"))
+        with self.assertRaisesRegex(IRError, "assets\\[0\\] \\(object.plate_a\\)\\.anchor_body"):
+            layout.resolve_nodes(spec, self.records)
+
+    def test_real_round_one_layout_is_rejected_before_prepare(self):
+        path = self.VERIFICATION / "attempts/001/scene-layout.json"
+        bad = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(bad["assets"][1]["anchor_body"], "/RootNode/Geometry/body_01_obj_00")
+        with self.assertRaisesRegex(
+                IRError,
+                r"assets\[1\] \(object\.drawer_cabinet\)\.anchor_body '/RootNode/Geometry/body_01_obj_00' "
+                r"must be a prim path relative to the asset root, like 'RootNode/Geometry/body_01_obj_00': "
+                r"no leading '/', no '.', '\.\.' or empty segments"):
+            layout.resolve_nodes(bad, {})
+
+    def test_real_round_two_layout_still_resolves(self):
+        path = self.VERIFICATION / "attempts/002/scene-layout.json"
+        good = json.loads(path.read_text(encoding="utf-8"))
+        joints = [{"name": name, "type": "prismatic", "limits": {"lower": 0.0, "upper": 0.5}}
+                  for name in ("joint_part_01_joint_00", "joint_part_02_joint_00")]
+
+        def stub(asset_id, bbox, asset_joints=()):
+            return {"asset_id": asset_id, "bbox_m": bbox, "collision": {}, "frames": {}, "joints": list(asset_joints)}
+
+        stubs = {
+            "object.table_stainless": stub("object.table_stainless", [1.2, 0.8, 0.05]),
+            "object.drawer_cabinet": stub("object.drawer_cabinet", [0.8, 0.5, 0.9], joints),
+            "object.plate": stub("object.plate", [0.2, 0.2, 0.02]),
+        }
+        nodes = layout.resolve_nodes(good, stubs)
+        self.assertEqual([node["node_id"] for node in nodes], ["object.table", "object.cabinet", "object.plate"])
+        # plate bottom sits on the table top (bbox z 0.05) plus one clearance for each of the two layers.
+        self.assertAlmostEqual(nodes[-1]["pose"]["position_m"][2], 0.05 + 2 * layout.SUPPORT_CLEARANCE_M, places=6)
 
 
 if __name__ == "__main__":

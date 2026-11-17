@@ -4,6 +4,8 @@ Job: write `scene-layout.json` in your working directory (the workspace) so that
 
 Format: `docs/ir/scene-layout.md` is the authority for every field, unit and default; read it in full. Its excerpt shows the shape of a document only. Layouts written for other requests or tasks, including files under `examples/scene/` and any `runs/` output, are outputs of other tasks: do not read, copy or adapt them. Derive every value from this request, the assets you choose and the host evidence.
 
+`assets[].anchor_body` (required for `body: articulation`) is a prim path relative to the asset root with no leading `/`, e.g. `RootNode/Geometry/body_01_obj_00`; `"/RootNode/..."` is rejected before `prepare`.
+
 Tools you may use:
 - `python tools/simready.py --endpoint <endpoint> search <terms> [--require-joint prismatic|revolute] [--probe]` and `... probe <asset>`; the prompt gives the exact command with the configured endpoint. Probe output names joints (with axis and limits when authored), license and source collection. Choose assets whose license and joints fit the request; `assets[].simready` is the SimReady directory name.
 - Read-only host evidence in `host/` inside the workspace, written after each round: `asset-records.json` (AssetRecords of the asset set the host last prepared: bounding boxes, collision boxes, joint names and limits, robot base collision box), `plan.json` (resolved poses, footprint, reachability with per-target position error) and `last-attempt.json` (the last host verdict). Absent files mean the host has not produced them yet.
