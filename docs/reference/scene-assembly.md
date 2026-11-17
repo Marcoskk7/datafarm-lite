@@ -71,11 +71,17 @@ python tools/scene_author.py --request request.yaml --work WORK \
 5. 跑符合性检查（`check_conformance`，有 AssetRecord 所以是完整检查）和 `run_plan`（占地 + 运动学可达）。`plan.json` 写在对应的 prepared 目录里。
 6. 追加一行到只追加的 `WORK/attempts.jsonl`：轮次、布局 sha256、prepare 结果、符合性报告、plan 是否通过及诊断、agent 调用 id、时间戳、request sha256。
 
-接受条件：符合性 `ok` 且 `complete`，并且 plan `ok`。接受后布局复制到 `WORK/scene-layout.json`；到 `--max-rounds` 仍未接受就停，报告写明。报告是 `WORK/scene-authoring-report.json`（`datafarm.scene-authoring-report/1`）。同一个 `WORK` 再跑会从下一轮续跑（已接受则不再起会话）；换了 request 会被拒绝。退出码：0 接受，1 未接受，2 配置错误。
+接受条件：符合性 `ok` 且 `complete`，并且 plan `ok`。接受后布局复制到 `WORK/scene-layout.json`；到 `--max-rounds` 仍未接受就停，报告写明。报告是 `WORK/scene-authoring-report.json`（`datafarm.scene-authoring-report/1`）。同一个 `WORK` 再跑会从下一轮续跑（已接受则不再起会话）；换了 request 会被拒绝。退出码：0 接受，1 未接受，2 配置错误、没有可用沙箱，或可见性探针发现泄漏（agent 未启动）。
 
 **接受不等于场景可用。** 循环不跑 `check`（Isaac Lab，需 GPU）：静置、穿透和抽屉探针都没验证。报告的 `next_step` 给出要在 GPU 主机上跑的 `tools/scene_assemble.py check` 命令（`--work` 指向被接受布局的 prepared 目录）。可达性只是运动学 IK，不做避碰规划，也不判断抓取是否可行。
 
-角色指令禁止 agent 读 `examples/scene/` 下手写的布局：那是另一个任务的产物，照抄会让它绕开从 request 推导的过程，测出来的只是复制能力。格式以 `docs/ir/scene-layout.md` 为准，它自带的片段足以说明文档形状。这条只是指令，没有沙箱强制：会话在本机以 `WORK/workspace/` 为工作目录直接运行（调用记录里 `isolation: none`），能读仓库其他文件；要强制就得接 expert harness 的沙箱。
+**隔离。** 每一轮 agent 会话都跑在 OS 沙箱里（`datafarm.entry.scene_author_sandbox`，语义同 expert harness 的 allowlist）：guest 从空根开始，只出现系统目录、`/dev`、`/proc`、后端私有 `/tmp`；`WORK/workspace/` 与本轮私有 HOME（`WORK/sandbox/rounds/<n>/home/`）可写；角色允许的仓库文件快照（`WORK/sandbox/repo/`：两份 IR 文档、`configs/scene-roles.json`、`tools/simready.py`、`src/datafarm/kernel` 及其 import 闭包）、跑 `simready.py` 的解释器前缀、agent CLI 程序、`--cache`（SimReady 缓存）与 `--robot-package` 只读可见——角色指令让 agent 跑 `tools/simready.py search/probe` 并信 `host/asset-records.json`，所以这两处必须看得见。其余都不存在：仓库本体（`examples/`、`runs/`、`verification/`、`.git`、`prompts/`、`src/`、`tools/`、`configs/`）、`WORK` 下的 `sessions/`、`attempts/`、`prepared/`、往轮 HOME、真实 HOME 里的 agent 配置与凭据目录。缓存/机器人包只有在**不**传给构造器（因而留在 `hidden` 里）时才进遮蔽清单：绑定与“断言不存在”互斥。
+
+每轮启动 agent 之前，在同一个沙箱里跑探针（`datafarm.adapters.sandbox.run_probe`）：每个遮蔽路径都必须不可见（先试 `umount` 再读），工作区必须可写。任何泄漏或工作区不可写都失败关闭——本轮不启动 agent，工具以 2 退出，探针 JSON 落在 `WORK/sandbox/rounds/<n>/isolation-probe.json`（spec 在 `sandbox-spec.json`）。调用记录 `extra.isolation` 带同一份摘要（`mode`、`base`、`guest_root`、`ok`、`degraded`、`ro_soft`、`readonly_enforced`、`leaks`、`writable_readonly`、spec/probe 相对路径；`mode: none` 时是显式退出字符串）。
+
+默认 `sandbox.mode = bwrap`，回退 `proot`（`unshare` 会把 allowlist 退化成整个仓库可见的 denylist，所以不接受）；都不可用就失败关闭，除非在 agent 配置里写 `{"sandbox": {"mode": "none"}}` 显式退出（调用记录写 `isolation: none` 与 opt-out 说明）。**proot 没有只读 bind**：未切换用户时（`ro_soft`）只读目录实际可写，摘要如实写 `ro_soft: true` 且 `readonly_enforced: false`，只做遮蔽与可写性判定，绝不声称只读强制；bwrap 下为真实只读 bind。
+
+角色指令禁止 agent 读 `examples/scene/` 下手写的布局：那是另一个任务的产物，照抄会让它绕开从 request 推导的过程，测出来的只是复制能力。格式以 `docs/ir/scene-layout.md` 为准，它自带的片段足以说明文档形状。现在这条有沙箱兜底：仓库本体不在 guest 里，而不只是“叫它别读”。
 
 ## 限制
 

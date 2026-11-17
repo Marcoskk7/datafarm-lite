@@ -4,7 +4,8 @@
     "Copy for a run and pass with tools/scene_author.py --agent-config. No secrets here: credentials reach the agent only through the variables named in env_passthrough.",
     "agent is the agent-harness backend config (same keys as the expert-harness adapter 'agent' section): backend claude | codex | codex-metered | fake.",
     "price_table is resolved relative to this file; it only prices sessions that report no cost.",
-    "wall_s_per_round caps one agent session; max_budget_usd_per_round is passed to backends that support a session budget (null = none)."
+    "wall_s_per_round caps one agent session; max_budget_usd_per_round is passed to backends that support a session budget (null = none).",
+    "sandbox: every agent session runs inside an OS sandbox (default mode bwrap, falling back to proot; unshare is refused because it turns the allowlist into a denylist). mode none is an explicit opt-out and is recorded in the call ledger. proot selects the binary (null = DATAFARM_PROOT_BIN or PATH); python selects the interpreter prefix the guest must see to run tools/simready.py (null = this interpreter's base prefix); extra_ro adds read-only host paths."
   ],
   "agent": {
     "backend": "claude",
@@ -17,6 +18,13 @@
     "codex": {"cli": "codex", "extra_args": []}
   },
   "price_table": "expert-harness/prices.json",
+  "sandbox": {
+    "mode": "bwrap",
+    "fallback": ["proot"],
+    "proot": null,
+    "python": null,
+    "extra_ro": []
+  },
   "wall_s_per_round": 1800,
   "max_budget_usd_per_round": null,
   "env_passthrough": [

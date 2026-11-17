@@ -229,6 +229,7 @@ def test_entry_session_runs_agent_backend_and_logs_one_call_per_round(tmp_path):
     from datafarm.adapters.agent_harness.backends import make_agent_backend
     from datafarm.adapters.agent_harness.call_log import read_calls
     from datafarm.entry.scene_author_cli import AgentSessions
+    from datafarm.entry.scene_author_sandbox import AuthoringSandbox, sandbox_config
 
     plan = tmp_path / "fake-plan.json"
     plan.write_text(json.dumps({"sessions": [[{"op": "write", "path": LAYOUT_FILE,
@@ -239,9 +240,11 @@ def test_entry_session_runs_agent_backend_and_logs_one_call_per_round(tmp_path):
                                   "python": sys.executable}, {})
     home = tmp_path / "home"
     home.mkdir()
+    # This test covers the session/call-ledger wiring, not isolation: opt out explicitly.
+    sandbox = AuthoringSandbox(sandbox_config({"mode": "none"}), repo=ROOT, work=tmp_path / "work")
     sessions = AgentSessions(backend=backend, config={"wall_s_per_round": 60}, work=tmp_path / "work",
                              call_log=tmp_path / "work" / "agent-calls.jsonl", run_id="t",
-                             env={"HOME": str(home), "PATH": "/usr/bin:/bin"})
+                             env={"HOME": str(home), "PATH": "/usr/bin:/bin"}, sandbox=sandbox)
     result = run(tmp_path, sessions)
 
     assert result.accepted
