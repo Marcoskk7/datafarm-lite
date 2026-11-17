@@ -72,7 +72,7 @@ def prepare(args) -> int:
         record_ref = store.put_json('ir.asset-record', record)
         prepared['assets'][asset['asset_id']] = {
             'record': record_ref.to_dict(), 'body': asset['body'], 'wrapper': str(wrapper.resolve()),
-            'fetch_bom_sha256': fetch['bom_sha256'], 'revision': fetch['revision']}
+            'source_root': str(root.resolve()), 'fetch_bom_sha256': fetch['bom_sha256'], 'revision': fetch['revision']}
         prepared['bundle_files'] += [
             {'asset_id': asset['asset_id'], 'role': 'wrapper', 'sha256': wrapper_ref.sha256},
             *({'asset_id': asset['asset_id'], 'role': 'simready', 'member': f['relative_path'],
