@@ -478,6 +478,20 @@ def test_added_contacts_reports_only_new_pairs_with_depth():
     assert added["object.cabinet | object.plate"]["depth_m"] == 0.004
 
 
+def test_penetration_summary_is_portable_with_usd_body_labels():
+    """MJWarp 的 body label 是 USD prim 路径；check 证据要能进 ArtifactStore（首次 GPU 实跑在这里崩过）。"""
+    from datafarm.adapters.sim.isaac_scene import added_contacts, penetration_summary
+    from datafarm.kernel.schema import canonical_json_bytes
+    initial = penetration_summary([], 0.003)
+    final = penetration_summary([{"a": None, "b": "object.cabinet", "body_a": "world",
+                                  "body_b": "/World/envs/env_0/object_cabinet/body_01_obj_00", "dist_m": -0.0002}],
+                                0.003)
+    entry = final["pairs"]["None | object.cabinet"]
+    assert entry["body_b"] == "usd:/World/envs/env_0/object_cabinet/body_01_obj_00"
+    assert entry["bodies"] == ["body_01_obj_00", "world"]
+    canonical_json_bytes({"settle": {"new_contacts": added_contacts(initial, final)}, "penetration": final})
+
+
 def test_check_config_defaults_and_unknown_keys():
     from datafarm.entry.scene_author_cli import CHECK_DEFAULTS, check_config
     assert check_config(None) == CHECK_DEFAULTS

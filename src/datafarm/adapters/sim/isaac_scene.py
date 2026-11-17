@@ -112,6 +112,11 @@ def contacts(node_ids: Sequence[str]) -> list[dict[str, Any]]:
     return rows
 
 
+def _portable_label(label: Any) -> Any:
+    """USD prim 路径以 `/` 开头，会被 kernel 的可移植校验当成主机路径拒绝；与录制器一致加 `usd:` 前缀。"""
+    return f"usd:{label}" if isinstance(label, str) and label.startswith("/") else label
+
+
 def penetration_summary(rows: Sequence[Mapping[str, Any]], tolerance_m: float) -> dict[str, Any]:
     """按节点对取最大穿透深度，并记下最深那条接触的两个节点与刚体名，便于定位与机器判定。"""
     pairs: dict[str, float] = {}
@@ -120,7 +125,8 @@ def penetration_summary(rows: Sequence[Mapping[str, Any]], tolerance_m: float) -
         key = " | ".join(sorted(str(x) for x in (row["a"], row["b"])))
         if -row["dist_m"] > pairs.get(key, -math.inf):
             pairs[key] = -row["dist_m"]
-            deepest[key] = {"a": row["a"], "b": row["b"], "body_a": row["body_a"], "body_b": row["body_b"]}
+            deepest[key] = {"a": row["a"], "b": row["b"], "body_a": _portable_label(row["body_a"]),
+                            "body_b": _portable_label(row["body_b"])}
     worst = max(pairs.values(), default=0.0)
     ordered = sorted(pairs, key=lambda k: -pairs[k])
     return {"ran": True, "max_depth_m": round(max(worst, 0.0), 6), "ok": worst <= tolerance_m,
