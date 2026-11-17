@@ -11,9 +11,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from datafarm.adapters.sandbox.isolation import (IsolationUnavailable, SandboxSpec, bwrap_argv, job_wrapper_bash,
-                                            make_empty_file, parse_probe, plan_mounts, probe_available,
-                                            resolve_spec, run_probe, sandbox_env, unshare_argv, wrap)
+from datafarm.adapters.sandbox import (IsolationUnavailable, SandboxSpec, bwrap_argv, job_wrapper_bash,
+                                      make_empty_file, parse_probe, plan_mounts, probe_available,
+                                      resolve_spec, run_probe, sandbox_env, unshare_argv, wrap)
 from datafarm.expert.util import HarnessError
 from xh_helpers import is_root
 

@@ -70,8 +70,8 @@ ignore_imports = [
     "datafarm.expert.round -> datafarm.adapters.agent_harness.backends",
     "datafarm.expert.round -> datafarm.adapters.agent_harness.session",
     "datafarm.expert.round -> datafarm.adapters.agent_harness.call_log",
-    "datafarm.expert.round -> datafarm.adapters.sandbox.isolation",
-    "datafarm.expert.rollout -> datafarm.adapters.sandbox.isolation",
+    "datafarm.expert.round -> datafarm.adapters.sandbox",
+    "datafarm.expert.rollout -> datafarm.adapters.sandbox",
 ]
 
 [[tool.importlinter.contracts]]
