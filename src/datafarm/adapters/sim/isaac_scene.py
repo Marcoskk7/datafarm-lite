@@ -113,19 +113,31 @@ def contacts(node_ids: Sequence[str]) -> list[dict[str, Any]]:
 
 
 def penetration_summary(rows: Sequence[Mapping[str, Any]], tolerance_m: float) -> dict[str, Any]:
-    """按节点对取最大穿透深度，并记下最深那条接触的两个刚体名，便于定位。"""
+    """按节点对取最大穿透深度，并记下最深那条接触的两个节点与刚体名，便于定位与机器判定。"""
     pairs: dict[str, float] = {}
-    deepest: dict[str, list[str]] = {}
+    deepest: dict[str, dict[str, Any]] = {}
     for row in rows:
         key = " | ".join(sorted(str(x) for x in (row["a"], row["b"])))
         if -row["dist_m"] > pairs.get(key, -math.inf):
             pairs[key] = -row["dist_m"]
-            deepest[key] = sorted(row[end].rsplit("/", 1)[-1] for end in ("body_a", "body_b"))
+            deepest[key] = {"a": row["a"], "b": row["b"], "body_a": row["body_a"], "body_b": row["body_b"]}
     worst = max(pairs.values(), default=0.0)
     ordered = sorted(pairs, key=lambda k: -pairs[k])
     return {"ran": True, "max_depth_m": round(max(worst, 0.0), 6), "ok": worst <= tolerance_m,
             "tolerance_m": tolerance_m, "contact_count": len(rows),
-            "pairs": {k: {"depth_m": round(pairs[k], 6), "bodies": deepest[k]} for k in ordered}}
+            "pairs": {k: {"depth_m": round(pairs[k], 6),
+                          "bodies": sorted(deepest[k][end].rsplit("/", 1)[-1] for end in ("body_a", "body_b")),
+                          **{f: deepest[k][f] for f in ("a", "b", "body_a", "body_b")}}
+                      for k in ordered}}
+
+
+def added_contacts(initial: Mapping[str, Any], final: Mapping[str, Any]) -> dict[str, Any]:
+    """`final` 里出现而 `initial` 里没有的接触对，按节点对键给最终深度（可能为负，即尚未接触）。
+
+    `initial` / `final` 都是 `penetration_summary` 的结果。用于机器判定"静置期间是否新增了接触对"。
+    """
+    seen = initial.get("pairs") or {}
+    return {key: dict(entry) for key, entry in (final.get("pairs") or {}).items() if key not in seen}
 
 
 def _step(sim, scene, steps: int) -> None:
@@ -174,8 +186,17 @@ def apply_initial_state(sim, scene, *, nodes: Sequence[Mapping[str, Any]],
 
 def settle(sim, scene, *, nodes: Sequence[Mapping[str, Any]], assets: Mapping[str, Mapping[str, Any]],
            robot_node_id: str, seconds: float, drift_tolerance_m: float, speed_tolerance_mps: float,
-           joint_tolerance: float, penetration_tolerance_m: float) -> tuple[dict[str, Any], dict[str, Any]]:
-    """返回 (settle, penetration)；两者都是 SceneGraph `checks` 的超集（多出的字段是证据）。"""
+           joint_tolerance_active: float, joint_tolerance_passive: float, penetration_tolerance_m: float,
+           joint_limits: Mapping[str, Mapping[str, Sequence[float]]] | None = None,
+           active_joints: Mapping[str, Sequence[str]] | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+    """返回 (settle, penetration)；两者都是 SceneGraph `checks` 的超集（多出的字段是证据）。
+
+    关节分两类。**主动关节**（`active_joints` 里列出的、以及机器人自身的关节）由驱动程序保持，
+    漂移必须不超过 `joint_tolerance_active`。**被动关节**（其余关节，家具的抽屉/门）可以动：
+    只要求 (a) 该节点静置期间没有新增接触对，(b) 测量值仍在关节限位内，(c) 测量值被记录
+    （`settle["measured_joint_state"]`）。`joint_tolerance_passive` 只是"是否报告为动了"的阈值，
+    不是接受边界。布局里的 `joint_state` 是意图，静置后的测量值才是下游的初始状态。
+    """
     import numpy as np
     steps = int(round(seconds / sim.get_physics_dt()))
     node_ids = [n["node_id"] for n in nodes] + [robot_node_id]
@@ -191,7 +212,8 @@ def settle(sim, scene, *, nodes: Sequence[Mapping[str, Any]], assets: Mapping[st
     robot_start = _row(robot.data.joint_pos.torch)
     robot.set_joint_position_target_index(target=robot.data.joint_pos.torch.clone())
     _step(sim, scene, steps)
-    per_node, worst_drift, worst_speed, worst_joint = {}, 0.0, 0.0, 0.0
+    per_node, worst_drift, worst_speed = {}, 0.0, 0.0
+    measured: dict[str, dict[str, float]] = {}
     for node in nodes:
         handle = entity(scene, node["node_id"])
         pos = _row(handle.data.root_pos_w.torch)
@@ -199,10 +221,8 @@ def settle(sim, scene, *, nodes: Sequence[Mapping[str, Any]], assets: Mapping[st
         entry: dict[str, Any] = {"start_m": start[node["node_id"]][0], "end_m": pos, "drift_m": round(drift, 6)}
         if assets[node["asset_id"]]["body"] == "articulation":
             q = _row(handle.data.joint_pos.torch)
-            dq = max(abs(a - b) for a, b in zip(q, start[node["node_id"]][1]))
-            entry.update(joint_names=list(handle.joint_names), joint_start=start[node["node_id"]][1], joint_end=q,
-                         joint_drift=round(dq, 6))
-            worst_joint = max(worst_joint, dq)
+            entry.update(joint_names=list(handle.joint_names), joint_start=start[node["node_id"]][1], joint_end=q)
+            measured[node["node_id"]] = dict(zip(handle.joint_names, q))
         elif assets[node["asset_id"]]["body"] == "rigid":
             speed = float(np.linalg.norm(handle.data.root_lin_vel_w.torch[0].tolist()))
             entry["end_speed_mps"] = round(speed, 6)
@@ -210,20 +230,67 @@ def settle(sim, scene, *, nodes: Sequence[Mapping[str, Any]], assets: Mapping[st
         worst_drift = max(worst_drift, drift)
         per_node[node["node_id"]] = entry
     robot_end = _row(robot.data.joint_pos.torch)
-    robot_drift = max(abs(a - b) for a, b in zip(robot_end, robot_start))
     per_node[robot_node_id] = {"joint_names": list(robot.joint_names), "joint_start": robot_start,
-                               "joint_end": robot_end, "joint_drift": round(robot_drift, 6)}
+                               "joint_end": robot_end, "joint_drift": 0.0}
+    measured[robot_node_id] = dict(zip(robot.joint_names, robot_end))
+
+    final_contacts = penetration_summary(contacts(node_ids), penetration_tolerance_m)
+    new_contacts = added_contacts(initial_contacts, final_contacts)
+    held = {node_id: set(names) for node_id, names in (active_joints or {}).items()}
+    held.setdefault(robot_node_id, set(robot.joint_names))
+
+    worst_active = worst_passive = 0.0
+    active_ok = passive_ok = True
+    for node in list(nodes) + [{"node_id": robot_node_id, "asset_id": None, "joint_state": {}}]:
+        node_id = node["node_id"]
+        entry = per_node.get(node_id)
+        if entry is None or not entry.get("joint_names"):
+            continue
+        names = list(entry["joint_names"])
+        started = entry.get("joint_start") or [0.0] * len(names)
+        ends = entry.get("joint_end") or [0.0] * len(names)
+        held_here = held.get(node_id, set())
+        node_added = {key: value for key, value in new_contacts.items()
+                      if node_id in (value.get("a"), value.get("b"))}
+        checks = []
+        for index, name in enumerate(names):
+            drift = abs(ends[index] - started[index])
+            declared = (node.get("joint_state") or {}).get(name)
+            row: dict[str, Any] = {"name": name, "actuated": name in held_here, "declared": declared,
+                                   "start": round(started[index], 6), "measured": round(ends[index], 6),
+                                   "drift_m": round(drift, 6)}
+            if name in held_here:
+                worst_active = max(worst_active, drift)
+                row.update(tolerance_m=joint_tolerance_active, ok=drift <= joint_tolerance_active)
+                active_ok = active_ok and row["ok"]
+            else:
+                limits = (joint_limits or {}).get(node_id, {}).get(name)
+                lower, upper = (float(limits[0]), float(limits[1])) if limits is not None else (None, None)
+                within = (lower is not None and upper is not None
+                          and lower - 1e-9 <= ends[index] <= upper + 1e-9)
+                moved = drift > joint_tolerance_passive
+                worst_passive = max(worst_passive, drift)
+                ok = within and (not moved or not node_added)
+                row.update(limits=[lower, upper], within_limits=within, moved=moved,
+                           new_contacts=node_added, ok=ok)
+                passive_ok = passive_ok and ok
+            checks.append(row)
+        entry["joint_checks"] = checks
+        entry["new_contacts"] = node_added
+        entry["joint_drift"] = round(max((c["drift_m"] for c in checks), default=0.0), 6)
+
     stable = (worst_drift <= drift_tolerance_m and worst_speed <= speed_tolerance_mps
-              and worst_joint <= joint_tolerance)
+              and active_ok and passive_ok)
     settle_report = {"ran": True, "steps": steps, "max_drift_m": round(worst_drift, 6), "stable": stable,
                      "seconds": seconds, "physics_dt_s": sim.get_physics_dt(),
                      "tolerances": {"drift_m": drift_tolerance_m, "speed_mps": speed_tolerance_mps,
-                                    "joint": joint_tolerance},
-                     "max_end_speed_mps": round(worst_speed, 6), "max_joint_drift": round(worst_joint, 6),
-                     "robot_joint_drift_rad": round(robot_drift, 6), "nodes": per_node}
-    final = penetration_summary(contacts(node_ids), penetration_tolerance_m)
-    penetration = {**final, "ok": final["ok"] and initial_contacts["ok"],
-                   "max_depth_m": max(final["max_depth_m"], initial_contacts["max_depth_m"]),
+                                    "joint_active": joint_tolerance_active,
+                                    "joint_passive": joint_tolerance_passive},
+                     "max_end_speed_mps": round(worst_speed, 6), "max_joint_drift": round(worst_active, 6),
+                     "max_passive_joint_drift": round(worst_passive, 6), "nodes": per_node,
+                     "measured_joint_state": measured, "new_contacts": new_contacts}
+    penetration = {**final_contacts, "ok": final_contacts["ok"] and initial_contacts["ok"],
+                   "max_depth_m": max(final_contacts["max_depth_m"], initial_contacts["max_depth_m"]),
                    "initial": initial_contacts}
     return settle_report, penetration
 

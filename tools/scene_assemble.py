@@ -162,11 +162,17 @@ def check(args) -> int:
         scene.reset()
         print(f'scene loaded in {time.time() - started:.1f}s', flush=True)
         initial_joints = isaac_scene.apply_initial_state(sim, scene, nodes=nodes, assets=by_asset)
-        print(f'initial joint state {initial_joints}', flush=True)
+        print(f'initial joint state (declared intent) {initial_joints}', flush=True)
+        joint_limits = {}
+        for node in nodes:
+            record = records.get(node['asset_id']) or {}
+            joint_limits[node['node_id']] = {j['name']: (j['limits']['lower'], j['limits']['upper'])
+                                             for j in record.get('joints', [])}
         settle, penetration = isaac_scene.settle(
             sim, scene, nodes=nodes, assets=by_asset, robot_node_id=robot_spec['node_id'], seconds=args.settle_s,
-            drift_tolerance_m=args.drift_tol, speed_tolerance_mps=args.speed_tol, joint_tolerance=args.joint_tol,
-            penetration_tolerance_m=args.penetration_tol)
+            drift_tolerance_m=args.drift_tol, speed_tolerance_mps=args.speed_tol,
+            joint_tolerance_active=args.joint_tol_active, joint_tolerance_passive=args.joint_tol_passive,
+            penetration_tolerance_m=args.penetration_tol, joint_limits=joint_limits)
         all_nodes = [n['node_id'] for n in nodes] + [robot_spec['node_id']]
         probes = []
         by_id = {n['node_id']: n for n in nodes}
@@ -210,6 +216,8 @@ def check(args) -> int:
     ok = (settle['stable'] and penetration['ok'] and probes_ok and planned['reachability']['ok']
           and planned['footprint']['ok'])
     print(json.dumps({'settle': settle_check, 'penetration': penetration_check, 'probes_ok': probes_ok,
+                      'new_contacts': sorted(settle['new_contacts']),
+                      'measured_joint_state': settle['measured_joint_state'],
                       'reachability_ok': planned['reachability']['ok'], 'footprint_ok': planned['footprint']['ok'],
                       'scene_graph': graph_ref.sha256}, indent=1))
     return 0 if ok else 1
@@ -231,7 +239,12 @@ def main() -> int:
             p.add_argument('--probe-s', type=float, default=2.0)
             p.add_argument('--drift-tol', type=float, default=0.005)
             p.add_argument('--speed-tol', type=float, default=0.01)
-            p.add_argument('--joint-tol', type=float, default=0.005)
+            # One source of truth: --joint-tol is an alias for --joint-tol-active (strict, held/actuated joints).
+            p.add_argument('--joint-tol-active', '--joint-tol', dest='joint_tol_active', type=float, default=0.005,
+                           help='max drift of actuated/held joints (alias: --joint-tol)')
+            p.add_argument('--joint-tol-passive', type=float, default=0.005,
+                           help='drift above which a passive joint is reported as moved (not an acceptance bound; '
+                                'passive joints are gated by limits and new contacts)')
             p.add_argument('--penetration-tol', type=float, default=0.003)
             p.add_argument('--nconmax', type=int, default=4096)
             p.add_argument('--njmax', type=int, default=8192)
