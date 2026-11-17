@@ -31,7 +31,7 @@
 | `asset_id` | 是 | 对应 `assets` 的 asset_id |
 | `parent` | 否 | 挂到另一个 node（如抽屉里的盘子）；null 表示直接挂 world |
 | `pose` | 是 | Pose，相对 parent |
-| `joint_state` | 否 | `{关节名: 值}`，铰接资产初值；预先拉开的抽屉写 `{"joint.drawer.slide": 0.42}` |
+| `joint_state` | 否 | `{关节名: 值}`，铰接资产的**声明意图**（预先拉开的抽屉写 `{"joint.drawer.slide": 0.42}`）；不是物理事实。静置后的测量值在 `check.json` 的 `settle.measured_joint_state`，并成为 episode 的 `setup.initial_state` / `setup.articulations` |
 | `semantic_tag` | 是 | `table` / `drawer` / `plate` / `background` / `robot`；判定器和渲染按此查找，不按名字前缀 |
 | `randomization` | 否 | `{position_jitter_m, yaw_range_deg}`；yaw 用度，`[-180, 180]` |
 

@@ -119,6 +119,7 @@ def base_raw(root: Path) -> dict[str, Any]:
     (root / "readable" / "doc.md").write_text("toy doc\n")
     return {
         "schema": "datafarm.expert-harness.adapter/1",
+        "identity_profile": "datafarm.logical-identity/1",
         "task_id": "toy-task",
         "title": "Toy task",
         "vars": {"root": str(root)},

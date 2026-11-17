@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -16,10 +17,50 @@ import numpy as np
 
 from datafarm.ir import scene_graph
 from datafarm.ir.common import IRError, check, identifier
+from datafarm.kernel.schema import is_absolute_filesystem_path
 from datafarm.scene import kinematics
 
 LAYOUT_SCHEMA = "datafarm.scene-layout/1"
 SUPPORT_CLEARANCE_M = 0.001
+
+PRIM_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+ANCHOR_BODY_EXAMPLE = "RootNode/Geometry/body_01_obj_00"
+ANCHOR_BODY_RULE = (
+    f"must be a prim path relative to the asset root, like {ANCHOR_BODY_EXAMPLE!r}: "
+    "no leading '/', no '.', '..' or empty segments"
+)
+
+
+def _check_anchor_body(asset: Mapping[str, Any], index: int) -> None:
+    """`anchor_body` 是 `prim_ref` 形式（USD prim 路径去掉前导 `/`，见 `adapters.sim.usd_assets.prim_ref`）。
+
+    `prepare` 之前就拒绝宿主绝对路径和所有非 prim 名的段，避免 kernel 的可移植性检查在更晚处才报错。
+    """
+    label = f"assets[{index}] ({asset.get('asset_id')}).anchor_body"
+    value = asset.get("anchor_body")
+    if value is None:
+        if asset.get("body") == "articulation":
+            raise IRError(f"{label} is required when body='articulation' and {ANCHOR_BODY_RULE}")
+        return
+    invalid = (
+        not isinstance(value, str)
+        or not value
+        or is_absolute_filesystem_path(value)
+        or any(not PRIM_NAME_PATTERN.fullmatch(segment) for segment in value.split("/"))
+    )
+    if invalid:
+        raise IRError(f"{label} {value!r} {ANCHOR_BODY_RULE}")
+
+
+def validate_assets(spec: Mapping[str, Any]) -> None:
+    """校验 `assets[]` 里每个声明了 `anchor_body` 的资产；非铰接体写了也校验，但 `prepare` 仍忽略。"""
+    assets = spec.get("assets")
+    if assets is None:
+        return
+    check(isinstance(assets, list), "layout 'assets' must be an array")
+    for index, asset in enumerate(assets):
+        check(isinstance(asset, Mapping), f"assets[{index}] must be an object")
+        _check_anchor_body(asset, index)
 
 
 def yaw_quaternion(yaw_deg: float) -> list[float]:
@@ -46,6 +87,7 @@ def _joint(record: Mapping[str, Any], name: str) -> Mapping[str, Any]:
 def resolve_nodes(spec: Mapping[str, Any], records: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
     """按 `on` 依赖顺序解出每个节点的世界位姿；返回 SceneGraph 的 `nodes`。"""
     check(spec.get("schema") == LAYOUT_SCHEMA, f"layout schema must be {LAYOUT_SCHEMA}")
+    validate_assets(spec)
     entries = {identifier(n["node_id"], "layout node_id"): n for n in spec["nodes"]}
     resolved: dict[str, dict[str, Any]] = {}
     top: dict[str, float] = {}
@@ -112,6 +154,59 @@ def _overlap(a: np.ndarray, b: np.ndarray) -> bool:
     return True
 
 
+JOINT_SWEEP_EPS_M = 1e-6
+
+
+def joint_sweep_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
+                      records: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """非零 `joint_state` 的关节初值把占地矩形沿关节轴平移到哪儿，是否撞上别的物体。
+
+    只做可判定的部分：`prismatic` 的移动件保守地当作整个根系包围盒沿 `R_z(yaw)·axis·v` 平移，
+    再和同一支撑面（`on` 相同）上的其它节点、以及自己的支撑节点做 SAT 相交测试（边贴边不算）。
+    旋转关节没有枢轴信息（AssetRecord 只有 `joints[]`，没有 `parts[]` 几何），AABB 平移无法界定转动，
+    因此记为 `skipped` 而不是静默放行。这是 GPU 之前的运动学前置闸门：z 盲、整盒平移、不加余量。
+    """
+    entries = {n["node_id"]: n for n in spec["nodes"]}
+    corners: dict[str, np.ndarray] = {}
+    supports: dict[str, str] = {}
+    for node in nodes:
+        lo, hi = _record_bbox(records[node["asset_id"]])
+        corners[node["node_id"]] = _xy_corners(lo, hi, node["pose"])
+        supports[node["node_id"]] = entries[node["node_id"]].get("on", "floor")
+    problems: list[str] = []
+    checked: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    for node in nodes:
+        node_id = node["node_id"]
+        state = entries[node_id].get("joint_state") or {}
+        if not state:
+            continue
+        record = records[node["asset_id"]]
+        rotation = kinematics.pose_matrix(node["pose"])[:2, :2]
+        for name, raw in state.items():
+            value = float(raw)
+            if abs(value) <= JOINT_SWEEP_EPS_M:
+                continue
+            joint = _joint(record, name)
+            kind = joint["type"]
+            if kind == "revolute":
+                skipped.append(f"{node_id} {name}: revolute joint has no pivot in the AssetRecord, "
+                               "an AABB translation cannot bound a rotation")
+                continue
+            if kind != "prismatic":
+                skipped.append(f"{node_id} {name}: {kind} joints cannot be swept")
+                continue
+            moved = corners[node_id] + rotation @ (np.asarray(joint["axis"], float)[:2] * value)
+            checked.append({"node": node_id, "joint": name, "travel_m": round(abs(value), 6)})
+            support = supports[node_id]
+            others = [other for other, other_support in supports.items()
+                      if other != node_id and (other_support == support or other == support)]
+            for other in others:
+                if _overlap(moved, corners[other]):
+                    problems.append(f"{node_id} {name} at {value:g} m moves into {other}")
+    return {"ok": not problems, "problems": problems, "checked": checked, "skipped": skipped}
+
+
 def footprint_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
                     records: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
     """放在支撑面上的东西（含机器人基座）占地要落在支撑顶面内，同一支撑面上的东西互不重叠。
@@ -147,8 +242,12 @@ def footprint_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
         for b in placed[i + 1:]:
             if supports[a] == supports[b] and _overlap(corners[a], corners[b]):
                 problems.append(f"{a} overlaps {b} on {supports[a]}")
-    return {"ok": not problems, "problems": problems,
-            "xy_corners_m": {k: np.round(v, 4).tolist() for k, v in corners.items()}}
+    sweep = joint_sweep_check(spec, nodes, records)
+    problems = problems + sweep["problems"]
+    return {"ok": not problems,
+            "problems": problems,
+            "xy_corners_m": {k: np.round(v, 4).tolist() for k, v in corners.items()},
+            "joint_sweep": {"ok": sweep["ok"], "checked": sweep["checked"], "skipped": sweep["skipped"]}}
 
 
 def target_world(target: Mapping[str, Any], nodes: Mapping[str, Mapping[str, Any]],

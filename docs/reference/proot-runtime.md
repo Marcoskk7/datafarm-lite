@@ -8,7 +8,10 @@ freeze formats or admission rules.
 
 Implementation:
 - `datafarm.adapters.sandbox.proot`: explicit rootfs/binds, runtime preflight,
-  environment allowlisting, deadline and captured-output limits.
+  environment allowlisting, deadline and captured-output limits. The same module
+  is the `SandboxSpec` proot backend used by scene authoring; both share one
+  `-r/-b/-w` argv layout, and that backend's availability probe uses this
+  runner's bounded, environment-scrubbed version and launch checks.
 - `datafarm.entry.proot_cli`: a separate `python -m` composition entry point.
   It is not wired into the default `datafarm` CLI or `SandboxSpec`.
 

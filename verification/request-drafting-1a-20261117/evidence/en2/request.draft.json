@@ -1,0 +1,28 @@
+{
+  "schema": "datafarm.request-draft/1",
+  "sentence": "put the plate with a raised rim into the open drawer",
+  "sentence_sha256": "0ff002faac24d178d207b9b5e1b18878678dc31608e47fddb70092073f7865eb",
+  "prompt_file_sha256": "93f8bb5a228144d53f87b8bcb35aedeebf70b570b2826ccaf7cd32db6e071206",
+  "prompt_sha256": "3a620ae4cd1df825cd8806a204c8812412b222fd2120db084fc728e2b3a415ba",
+  "request_sha256": "9916689b0d9d11d70645a158d0c8b39ba4c4589828ca06fc5069d88be1e8fb72",
+  "model": "fyp-opus",
+  "response_id": "chatcmpl-msg_011Ch76dsQYJom61g91q2vwE",
+  "input_tokens": 3388,
+  "output_tokens": 180,
+  "provenance": {
+    "cameras": "default",
+    "dataset.format": "default",
+    "episodes": "default",
+    "render.engine": "default",
+    "render.lights": "default",
+    "render.materials": "default",
+    "render.views": "default",
+    "request_id": "default",
+    "robot": "default",
+    "scene": "sentence",
+    "schema": "default",
+    "seeds.dev": "default",
+    "seeds.holdout": "default",
+    "task": "sentence"
+  }
+}

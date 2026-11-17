@@ -35,7 +35,7 @@ from datafarm.expert.adapter import ADAPTER_SCHEMA, TaskAdapter, load_holdout_se
 from datafarm.expert.audit import audit_expert_source
 from datafarm.expert.brief import lint_brief, render_brief
 from datafarm.expert.handoff import assert_no_seed_leak, handoff_markdown, load_bundle
-from datafarm.adapters.sandbox.isolation import SandboxSpec, chown_tree, make_empty_file, resolve_spec, run_probe, sandbox_env, wrap
+from datafarm.adapters.sandbox import SandboxSpec, chown_tree, make_empty_file, resolve_spec, run_probe, sandbox_env, wrap
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.library import ExpertLibrary
 from datafarm.expert.manifest import ManifestGuard

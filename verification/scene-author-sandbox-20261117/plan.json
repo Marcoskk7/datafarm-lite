@@ -1,0 +1,218 @@
+{
+  "footprint": {
+    "ok": true,
+    "problems": [],
+    "xy_corners_m": {
+      "object.cabinet": [
+        [
+          0.3861,
+          -1.1944
+        ],
+        [
+          0.3861,
+          -0.507
+        ],
+        [
+          -0.3861,
+          -0.507
+        ],
+        [
+          -0.3861,
+          -1.1944
+        ]
+      ],
+      "object.plate": [
+        [
+          0.063,
+          -0.0395
+        ],
+        [
+          0.237,
+          -0.0395
+        ],
+        [
+          0.237,
+          0.1395
+        ],
+        [
+          0.063,
+          0.1395
+        ]
+      ],
+      "object.table": [
+        [
+          -0.9104,
+          -0.3602
+        ],
+        [
+          0.9093,
+          -0.3602
+        ],
+        [
+          0.9093,
+          0.3582
+        ],
+        [
+          -0.9104,
+          0.3582
+        ]
+      ],
+      "robot.airbot": [
+        [
+          -0.3832,
+          -0.1885
+        ],
+        [
+          -0.1938,
+          -0.1885
+        ],
+        [
+          -0.1938,
+          0.0885
+        ],
+        [
+          -0.3832,
+          0.0885
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "asset_id": "object.table",
+      "node_id": "object.table",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.0,
+          0.0,
+          0.80421
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "semantic_tag": "table"
+    },
+    {
+      "asset_id": "object.cabinet",
+      "joint_state": {
+        "joint_part_01_joint_00": 0.35
+      },
+      "node_id": "object.cabinet",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.0,
+          -0.85,
+          0.00537
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.707106781,
+          0.707106781
+        ]
+      },
+      "semantic_tag": "drawer"
+    },
+    {
+      "asset_id": "object.plate",
+      "node_id": "object.plate",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.15,
+          0.05,
+          0.87095
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "randomization": {
+        "position_jitter_m": 0.03,
+        "yaw_range_deg": [
+          -180,
+          180
+        ]
+      },
+      "semantic_tag": "plate"
+    }
+  ],
+  "ok": true,
+  "reachability": {
+    "checked": true,
+    "notes": "2/2 targets solved by multi-start damped least-squares IK on the left_end_link model TCP, approach from above, joint-limit margin 0.05 rad; no collision-aware planning",
+    "ok": true,
+    "targets": [
+      {
+        "iterations": 17,
+        "name": "plate_center_above",
+        "ok": true,
+        "position_error_m": 0.000225,
+        "q": [
+          0.245017,
+          -1.73397,
+          1.367976,
+          -1.570793,
+          1.20473,
+          -1.325775
+        ],
+        "rotation_error_rad": 7.1e-05,
+        "seed_index": 0,
+        "world_m": [
+          0.15,
+          0.05,
+          0.97095
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 23,
+        "name": "drawer_center_release",
+        "ok": true,
+        "position_error_m": 0.000215,
+        "q": [
+          -1.063692,
+          -2.314008,
+          1.946253,
+          -1.570798,
+          1.20311,
+          -2.634477
+        ],
+        "rotation_error_rad": 6.7e-05,
+        "seed_index": 0,
+        "world_m": [
+          -0.0,
+          -0.5,
+          0.85537
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      }
+    ]
+  },
+  "robot_base_pose": {
+    "frame_id": "world",
+    "position_m": [
+      -0.25,
+      -0.05,
+      0.97835
+    ],
+    "quaternion_xyzw": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  },
+  "spec_sha256": "b18fb37ce8440d1ec39162f87ad4ed3d9b5178b975acb405f8a027fb8b26f7c5"
+}

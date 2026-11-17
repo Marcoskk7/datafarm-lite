@@ -1,5 +1,7 @@
 """A-line scene assembly without a simulator: records, layout heights, drawer-shifted reach and SceneGraph IR."""
 from copy import deepcopy
+import json
+from pathlib import Path
 import unittest
 
 import numpy as np
@@ -7,7 +9,7 @@ import numpy as np
 from datafarm.ir import scene_graph
 from datafarm.ir.common import IRError
 from datafarm.kernel.artifacts import ArtifactRef
-from datafarm.scene import asset_records, kinematics, layout
+from datafarm.scene import asset_records, kinematics, layout, planning
 from datafarm.simulation.robot_binding import discover_urdf
 
 
@@ -153,6 +155,82 @@ class LayoutTests(unittest.TestCase):
         with self.assertRaisesRegex(IRError, "cycle"):
             layout.resolve_nodes(spec, self.records)
 
+    def test_joint_sweep_rejects_displacement_the_root_box_cannot_see(self):
+        # Real failure (verification/scene-author-sandbox-20261117): a 0.35 m drawer on a yaw-90 cabinet
+        # cleared the table by 146 mm at the root box but measured 61.9 mm GPU penetration.
+        spec = deepcopy(SPEC)
+        cabinet = spec["nodes"][2]
+        cabinet["xy_m"] = [0.0, -0.75]
+        cabinet["yaw_deg"] = 90
+        cabinet["joint_state"] = {"drawer_joint": 0.2}
+        plan = planning.run_plan(spec, self.records, self.descriptor, spec_sha256="d" * 64)
+        footprint = plan["footprint"]
+        expected = "object.cabinet drawer_joint at 0.2 m moves into object.table"
+        self.assertFalse(plan["ok"])
+        self.assertIn(expected, footprint["problems"])
+        self.assertIn(expected, planning.plan_diagnostics(plan))
+        self.assertFalse(footprint["joint_sweep"]["ok"])
+        self.assertEqual(footprint["joint_sweep"]["checked"],
+                         [{"node": "object.cabinet", "joint": "drawer_joint", "travel_m": 0.2}])
+        corners = {k: np.asarray(v) for k, v in footprint["xy_corners_m"].items()}
+        self.assertFalse(layout._overlap(corners["object.cabinet"], corners["object.table"]))
+        # root box edge sits 50 mm clear of the table; the displaced box crosses it (old check passed here)
+        self.assertAlmostEqual(corners["object.cabinet"][:, 1].max(), -0.45, places=4)
+        self.assertAlmostEqual(corners["object.table"][:, 1].min(), -0.4, places=4)
+
+    def test_joint_sweep_passes_clear_travel_and_drawer_opening_away(self):
+        accepted = deepcopy(SPEC)  # the accepted 1b geometry: opening 0.4 m still clears the table (46 mm there)
+        accepted["nodes"][2]["xy_m"] = [0.0, -1.15]
+        accepted["nodes"][2]["joint_state"] = {"drawer_joint": 0.4}
+        footprint = layout.footprint_check(accepted, layout.resolve_nodes(accepted, self.records), self.records)
+        self.assertTrue(footprint["ok"], footprint["problems"])
+        self.assertEqual(footprint["problems"], [])
+        self.assertTrue(footprint["joint_sweep"]["checked"])
+
+        away = deepcopy(SPEC)  # yaw 270 sends +x along world -y: the box moves off the table
+        away["nodes"][2]["xy_m"] = [0.0, -0.75]
+        away["nodes"][2]["yaw_deg"] = 270
+        away["nodes"][2]["joint_state"] = {"drawer_joint": 0.2}
+        result = layout.footprint_check(away, layout.resolve_nodes(away, self.records), self.records)
+        self.assertTrue(result["ok"], result["problems"])  # symmetric inflation would fail this
+        self.assertEqual(result["problems"], [])
+
+        closed = deepcopy(SPEC)  # existing SPEC case: drawer at 0.2 m, edge-touching the table at x=0.5
+        self.assertTrue(layout.footprint_check(closed, layout.resolve_nodes(closed, self.records),
+                                               self.records)["ok"])
+
+    def test_joint_sweep_is_a_conservative_bbox_gate(self):
+        # Accepted cost of the conservative variant: the whole root box is translated, z-blind, so a floor-level
+        # plate that the drawer passes over in 3D is flagged. Per-part boxes (`parts[]` in AssetRecord) would
+        # sharpen this; that is a cross-line contract pending B sign-off.
+        spec = deepcopy(SPEC)
+        spec["nodes"].append({"node_id": "object.plate_floor", "asset_id": "object.plate_a",
+                              "semantic_tag": "plate", "xy_m": [0.0, -0.55], "on": "floor"})
+        spec["nodes"][2]["xy_m"] = [0.0, -1.05]
+        spec["nodes"][2]["yaw_deg"] = 90
+        spec["nodes"][2]["joint_state"] = {"drawer_joint": 0.4}
+        footprint = layout.footprint_check(spec, layout.resolve_nodes(spec, self.records), self.records)
+        self.assertFalse(footprint["ok"])
+        self.assertIn("object.cabinet drawer_joint at 0.4 m moves into object.plate_floor", footprint["problems"])
+        corners = {k: np.asarray(v) for k, v in footprint["xy_corners_m"].items()}
+        self.assertFalse(layout._overlap(corners["object.cabinet"], corners["object.plate_floor"]))
+
+    def test_joint_sweep_reports_revolute_joints_as_skipped(self):
+        records = deepcopy(self.records)  # AssetRecord has no pivot for revolute joints, so no bounding check
+        records["object.cabinet_a"]["joints"].append(
+            {"name": "lid_joint", "type": "revolute", "axis": [0.0, 1.0, 0.0],
+             "limits": {"lower": 0.0, "upper": 1.5}, "parent": "body", "child": "lid"})
+        spec = deepcopy(SPEC)
+        spec["nodes"][2]["joint_state"] = {"lid_joint": 0.7}
+        footprint = layout.footprint_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertTrue(footprint["ok"])
+        self.assertTrue(footprint["joint_sweep"]["ok"])
+        self.assertEqual(footprint["joint_sweep"]["checked"], [])
+        self.assertEqual(footprint["problems"], [])
+        self.assertEqual(len(footprint["joint_sweep"]["skipped"]), 1)
+        self.assertIn("object.cabinet lid_joint", footprint["joint_sweep"]["skipped"][0])
+        self.assertIn("revolute", footprint["joint_sweep"]["skipped"][0])
+
     def test_reachability_uses_model_tcp_and_reports_unreachable_targets(self):
         nodes = layout.resolve_nodes(SPEC, self.records)
         reach = layout.reachability(SPEC, nodes, self.records, self.descriptor)
@@ -167,6 +245,30 @@ class LayoutTests(unittest.TestCase):
         reach = layout.reachability(far, nodes, self.records, self.descriptor)
         self.assertFalse(reach["ok"])
         self.assertIn("unreachable: beyond", reach["notes"])
+
+    def test_plan_ok_and_diagnostics_report_footprint_overlap(self):
+        plan = planning.run_plan(SPEC, self.records, self.descriptor, spec_sha256="a" * 64)
+        self.assertTrue(plan["ok"], plan)
+        self.assertEqual(plan["spec_sha256"], "a" * 64)
+        self.assertEqual(plan["nodes"], layout.resolve_nodes(SPEC, self.records))
+        self.assertEqual(planning.plan_diagnostics(plan), [])
+
+        compact = deepcopy(SPEC)
+        compact["robot"]["xy_m"] = [0.15, 0.1]
+        plan = planning.run_plan(compact, self.records, self.descriptor, spec_sha256="b" * 64)
+        self.assertFalse(plan["ok"])
+        self.assertIn("object.plate overlaps robot.arm on object.table", planning.plan_diagnostics(plan))
+
+    def test_diagnostics_name_unreachable_targets_with_position_error(self):
+        far = deepcopy(SPEC)
+        far["reach_targets"].append({"name": "beyond", "node": "object.table", "local_m": [3.0, 0.0, 0.1],
+                                     "yaw_samples": 2})
+        plan = planning.run_plan(far, self.records, self.descriptor, spec_sha256="c" * 64)
+        self.assertFalse(plan["ok"])
+        lines = planning.plan_diagnostics(plan)
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn("reach target beyond unreachable: position error ", lines[0])
+        self.assertIn(" m", lines[0])
 
     def test_missing_tcp_candidate_is_an_error_not_a_link_origin(self):
         with self.assertRaisesRegex(IRError, "no TCP candidate"):
@@ -219,6 +321,94 @@ class LayoutTests(unittest.TestCase):
                 asset_id="object.cabinet_b", role="receptacle", fetch=fetch("cabinet_b"),
                 inspection=inspection([0, 0, 0], [1, 1, 1]), usd_ref=ref("asset.usd", "1"),
                 inspection_ref=ref("asset.usd-inspection", "2"), collision_ref=None)
+
+
+class AnchorBodyTests(unittest.TestCase):
+    """`assets[].anchor_body` must be `prim_ref` form; rejected at `plan` start, not deep inside `prepare`."""
+
+    VERIFICATION = Path(__file__).resolve().parents[1] / "verification/request-authoring-1b-20261117"
+
+    def setUp(self):
+        self.records = records()
+
+    def spec(self, *assets):
+        spec = deepcopy(SPEC)
+        spec["assets"] = list(assets)
+        return spec
+
+    def asset(self, anchor_body=None, *, body="articulation", asset_id="object.cabinet_a"):
+        entry = {"asset_id": asset_id, "role": "receptacle", "simready": "cabinet_a", "body": body}
+        if anchor_body is not None:
+            entry["anchor_body"] = anchor_body
+        return entry
+
+    def test_accepted_prim_ref_forms_resolve(self):
+        for value in ("body", "Root/body", "RootNode/Geometry/body_01_obj_00", "_Root/a1", "a/b/c"):
+            with self.subTest(value=value):
+                layout.resolve_nodes(self.spec(self.asset(value)), self.records)
+
+    def test_rejected_forms_raise_one_clear_error(self):
+        rejected = {
+            "": "must be a prim path relative to the asset root",
+            "/RootNode/Geometry/body_01_obj_00": "must be a prim path relative to the asset root",
+            "a//b": "no leading '/', no '.', '..' or empty segments",
+            "a/b/": "no leading '/', no '.', '..' or empty segments",
+            " a/b": "must be a prim path relative to the asset root",
+            "a/b ": "must be a prim path relative to the asset root",
+            "a/ b": "must be a prim path relative to the asset root",
+            "a/./b": "no leading '/', no '.', '..' or empty segments",
+            "a/../b": "no leading '/', no '.', '..' or empty segments",
+            ".": "no leading '/', no '.', '..' or empty segments",
+            "..": "no leading '/', no '.', '..' or empty segments",
+            "a/b-c": "must be a prim path relative to the asset root",
+            "a/b:c": "must be a prim path relative to the asset root",
+            "a/b/c d": "must be a prim path relative to the asset root",
+        }
+        for value, pattern in rejected.items():
+            with self.subTest(value=value), self.assertRaisesRegex(IRError, pattern) as raised:
+                layout.resolve_nodes(self.spec(self.asset(value)), self.records)
+            self.assertIn("assets[0] (object.cabinet_a).anchor_body", str(raised.exception))
+
+    def test_articulation_needs_anchor_body_and_others_may_omit_it(self):
+        with self.assertRaisesRegex(IRError, "assets\\[0\\] \\(object.cabinet_a\\)\\.anchor_body is required "
+                                             "when body='articulation'"):
+            layout.resolve_nodes(self.spec(self.asset(body="articulation")), self.records)
+        layout.resolve_nodes(self.spec(self.asset(body="rigid", asset_id="object.plate_a")), self.records)
+
+    def test_anchor_body_is_validated_even_when_the_body_would_ignore_it(self):
+        spec = self.spec(self.asset("/Root/body", body="rigid", asset_id="object.plate_a"))
+        with self.assertRaisesRegex(IRError, "assets\\[0\\] \\(object.plate_a\\)\\.anchor_body"):
+            layout.resolve_nodes(spec, self.records)
+
+    def test_real_round_one_layout_is_rejected_before_prepare(self):
+        path = self.VERIFICATION / "attempts/001/scene-layout.json"
+        bad = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(bad["assets"][1]["anchor_body"], "/RootNode/Geometry/body_01_obj_00")
+        with self.assertRaisesRegex(
+                IRError,
+                r"assets\[1\] \(object\.drawer_cabinet\)\.anchor_body '/RootNode/Geometry/body_01_obj_00' "
+                r"must be a prim path relative to the asset root, like 'RootNode/Geometry/body_01_obj_00': "
+                r"no leading '/', no '.', '\.\.' or empty segments"):
+            layout.resolve_nodes(bad, {})
+
+    def test_real_round_two_layout_still_resolves(self):
+        path = self.VERIFICATION / "attempts/002/scene-layout.json"
+        good = json.loads(path.read_text(encoding="utf-8"))
+        joints = [{"name": name, "type": "prismatic", "limits": {"lower": 0.0, "upper": 0.5}}
+                  for name in ("joint_part_01_joint_00", "joint_part_02_joint_00")]
+
+        def stub(asset_id, bbox, asset_joints=()):
+            return {"asset_id": asset_id, "bbox_m": bbox, "collision": {}, "frames": {}, "joints": list(asset_joints)}
+
+        stubs = {
+            "object.table_stainless": stub("object.table_stainless", [1.2, 0.8, 0.05]),
+            "object.drawer_cabinet": stub("object.drawer_cabinet", [0.8, 0.5, 0.9], joints),
+            "object.plate": stub("object.plate", [0.2, 0.2, 0.02]),
+        }
+        nodes = layout.resolve_nodes(good, stubs)
+        self.assertEqual([node["node_id"] for node in nodes], ["object.table", "object.cabinet", "object.plate"])
+        # plate bottom sits on the table top (bbox z 0.05) plus one clearance for each of the two layers.
+        self.assertAlmostEqual(nodes[-1]["pose"]["position_m"][2], 0.05 + 2 * layout.SUPPORT_CLEARANCE_M, places=6)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,226 @@
+{
+  "evidence": {
+    "kind": "scene.check-evidence",
+    "media_type": "application/json",
+    "sha256": "ff74cc7d24a6f4e5ce967f21ebba92363a234b34f7621c459d550bb9bc48d939"
+  },
+  "initial_joint_state": {
+    "object.cabinet": [
+      0.35,
+      0.0
+    ]
+  },
+  "penetration": {
+    "contact_count": 58,
+    "initial": {
+      "contact_count": 34,
+      "max_depth_m": 0.0,
+      "ok": true,
+      "pairs": {
+        "None | object.table": {
+          "bodies": [
+            "sm_table_metal_stainless_a03_obj_00",
+            "world"
+          ],
+          "depth_m": -0.001
+        },
+        "object.plate | object.table": {
+          "bodies": [
+            "body_01_obj_00",
+            "sm_table_metal_stainless_a03_obj_00"
+          ],
+          "depth_m": -0.001009
+        },
+        "object.table | robot.airbot": {
+          "bodies": [
+            "left_base_link",
+            "sm_table_metal_stainless_a03_obj_00"
+          ],
+          "depth_m": -0.001003
+        }
+      },
+      "ran": true,
+      "tolerance_m": 0.003
+    },
+    "max_depth_m": 0.061922,
+    "ok": false,
+    "pairs": {
+      "None | object.cabinet": {
+        "bodies": [
+          "body_01_obj_00",
+          "world"
+        ],
+        "depth_m": -0.000303
+      },
+      "None | object.table": {
+        "bodies": [
+          "sm_table_metal_stainless_a03_obj_00",
+          "world"
+        ],
+        "depth_m": -0.001
+      },
+      "object.cabinet | object.table": {
+        "bodies": [
+          "part_01_obj_00",
+          "sm_table_metal_stainless_a03_obj_00"
+        ],
+        "depth_m": 0.061922
+      },
+      "object.plate | object.table": {
+        "bodies": [
+          "body_01_obj_00",
+          "sm_table_metal_stainless_a03_obj_00"
+        ],
+        "depth_m": 6.2e-05
+      },
+      "object.table | robot.airbot": {
+        "bodies": [
+          "left_base_link",
+          "sm_table_metal_stainless_a03_obj_00"
+        ],
+        "depth_m": -0.001003
+      }
+    },
+    "ran": true,
+    "tolerance_m": 0.003
+  },
+  "probes": [
+    {
+      "end_speed_mps": 0.000584,
+      "expected_rest_z_m": [
+        0.55,
+        0.85
+      ],
+      "name": "plate_in_drawer",
+      "node": "object.plate",
+      "ok": true,
+      "released_at_m": [
+        -0.0,
+        -0.5,
+        0.80537
+      ],
+      "rest_m": [
+        -5.2e-05,
+        -0.50016,
+        0.759335
+      ],
+      "support_node": "object.cabinet",
+      "touching": [
+        "object.cabinet"
+      ]
+    }
+  ],
+  "probes_ok": true,
+  "scene_graph": {
+    "kind": "ir.scene-graph",
+    "media_type": "application/json",
+    "sha256": "28162a999a84cb5b156afcf62348449e3aea6787971664ec45de437f76d641ec"
+  },
+  "settle": {
+    "max_drift_m": 0.001057,
+    "max_end_speed_mps": 0.001139,
+    "max_joint_drift": 0.040919,
+    "nodes": {
+      "object.cabinet": {
+        "drift_m": 0.0,
+        "end_m": [
+          0.0,
+          -0.85,
+          0.00537
+        ],
+        "joint_drift": 0.040919,
+        "joint_end": [
+          0.309081,
+          0.0
+        ],
+        "joint_names": [
+          "joint_part_01_joint_00",
+          "joint_part_02_joint_00"
+        ],
+        "joint_start": [
+          0.35,
+          0.0
+        ],
+        "start_m": [
+          0.0,
+          -0.85,
+          0.00537
+        ]
+      },
+      "object.plate": {
+        "drift_m": 0.001057,
+        "end_m": [
+          0.149995,
+          0.049996,
+          0.869981
+        ],
+        "end_speed_mps": 0.001139,
+        "start_m": [
+          0.15,
+          0.05,
+          0.871038
+        ]
+      },
+      "object.table": {
+        "drift_m": 0.0,
+        "end_m": [
+          -0.000565,
+          -0.000998,
+          0.009442
+        ],
+        "start_m": [
+          -0.000565,
+          -0.000998,
+          0.009442
+        ]
+      },
+      "robot.airbot": {
+        "joint_drift": 0.012745,
+        "joint_end": [
+          -0.0,
+          0.000879,
+          -0.012745,
+          -2e-06,
+          -0.0,
+          -1e-06,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "joint_names": [
+          "left_joint1",
+          "left_joint2",
+          "left_joint3",
+          "left_joint4",
+          "left_joint5",
+          "left_joint6",
+          "left_g2_joint",
+          "left_g2_left_joint",
+          "left_g2_right_joint"
+        ],
+        "joint_start": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "physics_dt_s": 0.008333333333333333,
+    "ran": true,
+    "robot_joint_drift_rad": 0.012745,
+    "seconds": 2.0,
+    "stable": false,
+    "steps": 240,
+    "tolerances": {
+      "drift_m": 0.005,
+      "joint": 0.005,
+      "speed_mps": 0.01
+    }
+  }
+}

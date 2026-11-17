@@ -72,6 +72,7 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 |---|---|
 | `kernel` | Shared kernel: standard-library I/O helpers, artifact documents and receipts, schema checks, content-addressed store, file binding and source locks |
 | `grounding` | Grounding ledger: labelled physical quantities and their validated record |
+| `request` | Data request `datafarm.request/1` ([docs/ir/request.md](ir/request.md)): pydantic validator, JSON Schema for the 1a structured LLM call, and the vendor-neutral `StructuredLLM` port |
 | `task` | Task contract checks, review-independence proof (`task/review_identity.py`), white delivery |
 | `expert` | Expert harness: sandboxed author sessions, rollout broker, frozen judge, held-out evaluation, expert library |
 | `simulation` | Simulator-qualification decision logic, joint-margin audit, camera and grasp randomization plans |
@@ -80,9 +81,9 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 | `training` | Admission certificates (`training/admission.py`), launch, dataset and action-mode contracts, cohort auditors, PI0.5 dataset builder (`training/pi05_build.py`) |
 | `evolution` | Feedback store and controller that evaluates and activates capability-layer changes |
 | `orchestration` | Prepare and drive task workspaces (`orchestration/driver.py`), run and resume agent sessions, phases, progress, the task cost ledger, and the batch supervisor (`orchestration/batch.py`: bounded per-item launch, poll, verify and retry) |
-| `entry` | Composition roots: the `datafarm` command (`entry/cli.py`), prerequisite checks (`entry/doctor.py`), expert-harness command and dry run (`entry/expert_cli.py`, `entry/expert_dryrun.py`), run-ledger command (`entry/runs_cli.py`), CaP Codex provider factory (`entry/cap_provider.py`) |
+| `entry` | Composition roots: the `datafarm` command (`entry/cli.py`), prerequisite checks (`entry/doctor.py`), expert-harness command and dry run (`entry/expert_cli.py`, `entry/expert_dryrun.py`), run-ledger command (`entry/runs_cli.py`), CaP Codex provider factory (`entry/cap_provider.py`), request drafting command (`entry/request_cli.py`) |
 | `cap` | CaP skill search and library (B-line) |
-| `adapters` | Outer technology: agent CLIs split by vendor (`agent_harness`: vendor-neutral `session`, `claude_code`, `codex/` with the exec backend, native runner, metered gateway and structured role call (`structured.py`), `fake`), credentials and call log; OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
+| `adapters` | Outer technology: agent CLIs split by vendor (`agent_harness`: vendor-neutral `session`, `claude_code`, `codex/` with the exec backend, native runner, metered gateway and structured role call (`structured.py`), `fake`), credentials and call log; OpenAI-compatible structured LLM for request drafting (`llm`); OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
 | `instructions.py`, `config.py` | Role context compiler; environment/runtime path bindings |
 | `batch_protocol.py` | Contract shared by the batch supervisor and its task implementations: policy, poll and verdict results, `BatchTask`, launch exceptions |
 
@@ -92,11 +93,12 @@ Imports point downward only. `make lint` enforces this with [import-linter](http
 the contracts are `[tool.importlinter]` in [`pyproject.toml`](../pyproject.toml).
 
 1. Layers, top to bottom: `entry` > `orchestration` > `adapters` > (`training`, `expert`, `evolution`, `simulation`,
-   `ledger`, `cap`) > `render` > `task` > `grounding` > (`instructions`, `config`, `batch_protocol`) > `kernel`.
+   `ledger`, `cap`, `scene`) > `render` > `task` > `request` > `ir` > `grounding` > (`instructions`, `config`,
+   `batch_protocol`) > `kernel`.
    A module may import its own layer or any layer below it.
 2. `adapters` never import `orchestration` or `entry`.
-3. Business packages (`grounding`, `task`, `render`, `training`, `expert`, `evolution`, `simulation`, `ledger`, `cap`)
-   never import `orchestration` or `entry`.
+3. Business packages (`grounding`, `ir`, `request`, `task`, `render`, `training`, `expert`, `evolution`, `simulation`,
+   `ledger`, `cap`, `scene`) never import `orchestration` or `entry`.
 4. One-way business chain `training` -> `render` -> `task` -> `grounding`: `task` does not import `render`,
    `training` or `expert`; `render` does not import `training`; `grounding` does not import `task`, `render` or
    `training`. `kernel` imports nothing else in `datafarm`.

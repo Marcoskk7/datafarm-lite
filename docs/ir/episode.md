@@ -37,10 +37,12 @@
 | `backend` | 是 | `{name: "isaaclab", version: "3.0.0", physics: "newton_mjwarp"}` |
 | `seed` / `seed_partition` | 是 | 实际 seed 与所属分区（`dev` / `holdout`） |
 | `sampled_randomization` | 是 | 本次实际采样的物理量与位姿抖动值 |
-| `initial_state` | 是 | `s[0]` 的完整快照摘要，重放从这里恢复 |
+| `initial_state` | 是 | **测量值**：`check` 静置后的 `s[0]` 完整快照摘要（关节、TCP、实体位姿），重放从这里恢复 |
 | `control_dt_s` / `solver_substeps` | 是 | 1/120 与 4 |
 | `joint_names` / `joint_types` / `control_names` | 是 | revolute 用 rad、prismatic 用 m；J 是观测关节数，U 是控制通道数，两者通常不等 |
 | `judge_result` | 是 | `{outcome: success/failure/error/aborted, success: bool/null, terminated, truncated, reason_code, criteria: {criterion_id: bool}, evidence_steps, judge_artifact}` |
+
+布局/SceneGraph 里的 `joint_state` 只是**声明意图**，不是物理事实。物理闸门（`tools/scene_assemble.py check`）写入意图、静置后读出测量值并导出；`setup.initial_state`、`setup.articulations` 和 `state_trace` 里的关节值都取测量值，episode 从测量态开始重放。被动（非驱动）关节在静置中可以动：只要测量值仍在关节限位内、且该节点没有新增接触对，就允许并记为测量初始态；被驱动或保持的关节仍受漂移上限约束。
 
 ### actions
 
@@ -77,7 +79,7 @@
 | `asset_id` | 该节点的 AssetRecord id |
 | `position_m` / `quaternion_xyzw` | 根位姿，world 系，四元数 xyzw 单位长度 |
 | `linear_velocity_m_s` / `angular_velocity_rad_s` | 根线速度 / 角速度，world 系 |
-| `joints` | `[{name, type: revolute/prismatic, unit: rad/m, q, dq}]`，按源资产的非固定关节；抽屉开度就在这里 |
+| `joints` | `[{name, type: revolute/prismatic, unit: rad/m, q, dq}]`，按源资产的非固定关节；抽屉开度就在这里；是仿真测量值，不是 SceneGraph 里声明的 `joint_state` |
 | `links` | `{link 名: {position_m, quaternion_xyzw}}`，各刚体 link 的世界位姿 |
 
 `robot`：

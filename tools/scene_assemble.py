@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
 from datafarm.kernel.io import atomic_write_json, sha256_file  # noqa: E402
 from datafarm.kernel.store import ArtifactStore  # noqa: E402
+from datafarm.entry.scene_files import load_prepared as _records, robot_descriptor  # noqa: E402
 
 USD_MEDIA = 'model/vnd.usd'
 USDA_MEDIA = 'model/vnd.usda'
@@ -31,14 +32,6 @@ USDA_MEDIA = 'model/vnd.usda'
 
 def load_json(path: Path) -> dict:
     return json.loads(Path(path).read_text(encoding='utf-8'))
-
-
-def robot_descriptor(package: Path, asset: str) -> tuple[dict, Path]:
-    from datafarm.simulation.robot_binding import discover_urdf
-    from datafarm.simulation.robot_semantics import file_mesh_resolver
-    delivery = load_json(package / 'delivery_manifest.json')['assets'][asset]
-    urdf = package / delivery['urdf']
-    return discover_urdf(urdf.read_bytes(), mesh_resolver=file_mesh_resolver(urdf)), urdf
 
 
 def prepare(args) -> int:
@@ -105,35 +98,25 @@ def prepare(args) -> int:
     return 0
 
 
-def _records(work: Path) -> tuple[ArtifactStore, dict, dict]:
-    from datafarm.kernel.artifacts import ArtifactRef
-    store = ArtifactStore(work / 'store')
-    prepared = load_json(work / 'prepared.json')
-    records = {k: store.load(ArtifactRef.from_dict(v['record'])) for k, v in prepared['assets'].items()}
-    return store, prepared, records
-
-
 def plan(args) -> int:
-    from datafarm.scene import layout
+    from datafarm.scene import planning
     spec = load_json(args.spec)
     work = Path(args.work)
     _, prepared, records = _records(work)
-    if prepared['spec_sha256'] != sha256_file(args.spec):
+    spec_sha256 = sha256_file(args.spec)
+    if prepared['spec_sha256'] != spec_sha256:
         print('note: spec changed since prepare; asset records are reused', file=sys.stderr)
-    nodes = layout.resolve_nodes(spec, records)
     descriptor, _ = robot_descriptor(Path(prepared['assets'][spec['robot']['asset_id']]['package']),
                                      spec['robot']['package_asset'])
-    reach = layout.reachability(spec, nodes, records, descriptor)
-    footprint = layout.footprint_check(spec, nodes, records)
-    out = {'spec_sha256': sha256_file(args.spec), 'nodes': nodes,
-           'robot_base_pose': layout.robot_base_pose(spec, nodes, records), 'footprint': footprint,
-           'reachability': reach}
+    out = planning.run_plan(spec, records, descriptor, spec_sha256=spec_sha256)
     atomic_write_json(work / 'plan.json', out)
+    reach = out['reachability']
+    footprint = out['footprint']
     for row in reach['targets']:
         print(f"  {'ok ' if row['ok'] else 'NO '} {row['name']:<28} {row['world_m']} err {row['position_error_m']}")
     print(reach['notes'])
     print('footprint ok' if footprint['ok'] else 'footprint: ' + '; '.join(footprint['problems']))
-    return 0 if reach['ok'] and footprint['ok'] else 1
+    return 0 if out['ok'] else 1
 
 
 def check(args) -> int:
@@ -179,11 +162,17 @@ def check(args) -> int:
         scene.reset()
         print(f'scene loaded in {time.time() - started:.1f}s', flush=True)
         initial_joints = isaac_scene.apply_initial_state(sim, scene, nodes=nodes, assets=by_asset)
-        print(f'initial joint state {initial_joints}', flush=True)
+        print(f'initial joint state (declared intent) {initial_joints}', flush=True)
+        joint_limits = {}
+        for node in nodes:
+            record = records.get(node['asset_id']) or {}
+            joint_limits[node['node_id']] = {j['name']: (j['limits']['lower'], j['limits']['upper'])
+                                             for j in record.get('joints', [])}
         settle, penetration = isaac_scene.settle(
             sim, scene, nodes=nodes, assets=by_asset, robot_node_id=robot_spec['node_id'], seconds=args.settle_s,
-            drift_tolerance_m=args.drift_tol, speed_tolerance_mps=args.speed_tol, joint_tolerance=args.joint_tol,
-            penetration_tolerance_m=args.penetration_tol)
+            drift_tolerance_m=args.drift_tol, speed_tolerance_mps=args.speed_tol,
+            joint_tolerance_active=args.joint_tol_active, joint_tolerance_passive=args.joint_tol_passive,
+            penetration_tolerance_m=args.penetration_tol, joint_limits=joint_limits)
         all_nodes = [n['node_id'] for n in nodes] + [robot_spec['node_id']]
         probes = []
         by_id = {n['node_id']: n for n in nodes}
@@ -227,6 +216,8 @@ def check(args) -> int:
     ok = (settle['stable'] and penetration['ok'] and probes_ok and planned['reachability']['ok']
           and planned['footprint']['ok'])
     print(json.dumps({'settle': settle_check, 'penetration': penetration_check, 'probes_ok': probes_ok,
+                      'new_contacts': sorted(settle['new_contacts']),
+                      'measured_joint_state': settle['measured_joint_state'],
                       'reachability_ok': planned['reachability']['ok'], 'footprint_ok': planned['footprint']['ok'],
                       'scene_graph': graph_ref.sha256}, indent=1))
     return 0 if ok else 1
@@ -248,7 +239,12 @@ def main() -> int:
             p.add_argument('--probe-s', type=float, default=2.0)
             p.add_argument('--drift-tol', type=float, default=0.005)
             p.add_argument('--speed-tol', type=float, default=0.01)
-            p.add_argument('--joint-tol', type=float, default=0.005)
+            # One source of truth: --joint-tol is an alias for --joint-tol-active (strict, held/actuated joints).
+            p.add_argument('--joint-tol-active', '--joint-tol', dest='joint_tol_active', type=float, default=0.005,
+                           help='max drift of actuated/held joints (alias: --joint-tol)')
+            p.add_argument('--joint-tol-passive', type=float, default=0.005,
+                           help='drift above which a passive joint is reported as moved (not an acceptance bound; '
+                                'passive joints are gated by limits and new contacts)')
             p.add_argument('--penetration-tol', type=float, default=0.003)
             p.add_argument('--nconmax', type=int, default=4096)
             p.add_argument('--njmax', type=int, default=8192)

@@ -1,0 +1,28 @@
+{
+  "schema": "datafarm.scene-roles/1",
+  "description": "Role rules for request -> scene-layout conformance (docs/ir/scene-layout.md). roles.<role> keys: reach_targets_min (int, minimum reach_targets whose node is this node), require_probe (bool, at least one probe whose node is this node), probe_asset_role (role that a probe's asset must play), require_randomization (bool, node must declare position_jitter_m or yaw_range_deg). joint_state fractions are measured from the joint's lower limit over [lower, upper]. robots.<request robot> maps to the layout robot package_asset and optionally the exact asset_id.",
+  "joint_state": {
+    "open_min_fraction": 0.5,
+    "closed_max_fraction": 0.1
+  },
+  "robots": {
+    "airbot_single_g2": {
+      "package_asset": "airbot_single",
+      "asset_id": "robot.airbot_g2_left"
+    }
+  },
+  "roles": {
+    "task_object": {
+      "reach_targets_min": 1,
+      "require_randomization": true
+    },
+    "receptacle": {
+      "reach_targets_min": 1,
+      "require_probe": true,
+      "probe_asset_role": "task_object"
+    },
+    "background": {
+      "reach_targets_min": 0
+    }
+  }
+}

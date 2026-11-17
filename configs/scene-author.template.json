@@ -1,0 +1,59 @@
+{
+  "schema": "datafarm.scene-author/1",
+  "notes": [
+    "Copy for a run and pass with tools/scene_author.py --agent-config. No secrets here: credentials reach the agent only through the variables named in env_passthrough.",
+    "agent is the agent-harness backend config (same keys as the expert-harness adapter 'agent' section): backend claude | codex | codex-metered | fake.",
+    "price_table is resolved relative to this file; it only prices sessions that report no cost.",
+    "wall_s_per_round caps one agent session; max_budget_usd_per_round is passed to backends that support a session budget (null = none).",
+    "sandbox: every agent session runs inside an OS sandbox (default mode bwrap, falling back to proot; unshare is refused because it turns the allowlist into a denylist). mode none is an explicit opt-out and is recorded in the call ledger. proot selects the binary (null = DATAFARM_PROOT_BIN or PATH); python selects the interpreter prefix the guest must see to run tools/simready.py (null = this interpreter's base prefix); extra_ro adds read-only host paths."
+  ],
+  "agent": {
+    "backend": "claude",
+    "model": "claude-opus-5-5",
+    "cli": "claude",
+    "tools": ["Bash", "Read", "Edit", "Write", "Glob", "Grep"],
+    "disallowed_tools": ["WebFetch", "WebSearch", "Task"],
+    "permission_mode": "bypassPermissions",
+    "setting_sources": "user",
+    "codex": {"cli": "codex", "extra_args": []}
+  },
+  "price_table": "expert-harness/prices.json",
+  "check": {
+    "notes": [
+      "Physics gate: the host runs `tools/scene_assemble.py check` with this Isaac Lab interpreter against the kept attempt layout and the same prepared dir. Acceptance requires check to pass; without an interpreter the run refuses unless --kinematic-only is passed (recorded in attempts.jsonl and the report).",
+      "python: Isaac Lab interpreter (null = --check-python, then $ISAAC_PYTHON). env_script: bash script sourced before check, e.g. an Isaac Lab activation script (null = none).",
+      "These tolerances are the single source of truth; the host forwards each one as an explicit tool flag. joint_tol_active bounds actuated/held joints. Passive (non-actuated) joints have no drift bound: they pass when the measured value stays inside the joint limits and their node gains no new contact pair; joint_tol_passive only decides when a passive joint is reported as moved."
+    ],
+    "python": null,
+    "env_script": null,
+    "timeout_s": 1500,
+    "settle_s": 2.0,
+    "probe_s": 2.0,
+    "drift_tol": 0.005,
+    "speed_tol": 0.01,
+    "joint_tol_active": 0.005,
+    "joint_tol_passive": 0.005,
+    "penetration_tol": 0.003,
+    "nconmax": 4096,
+    "njmax": 8192
+  },
+  "sandbox": {
+    "mode": "bwrap",
+    "fallback": ["proot"],
+    "proot": null,
+    "python": null,
+    "extra_ro": []
+  },
+  "wall_s_per_round": 1800,
+  "max_budget_usd_per_round": null,
+  "env_passthrough": [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "CODEX_HOME",
+    "CLAUDE_CONFIG_DIR"
+  ]
+}
