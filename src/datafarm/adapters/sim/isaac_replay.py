@@ -21,6 +21,8 @@ class IsaacReplayHost:
         self.owned = self.pending = False
         self.steps = 0
         self.unhealthy = False
+        if type(self.dt) not in (int,float) or not math.isfinite(self.dt) or self.dt <= 0 or not callable(reset):
+            raise ValueError("positive replay dt and owned reset required")
         if simulation.get_physics_dt() != self.dt:
             raise ValueError("replay physics dt differs")
 
@@ -52,6 +54,17 @@ class IsaacReplayHost:
         for name, digest in self.setup["source_sha256"].items():
             if sha256_file(importlib.import_module(name).__file__) != digest:
                 raise ValueError("recording runtime implementation differs")
+        from datafarm.task.request_profile import validate_request, validate_task_payload
+        task = self.store.document(ArtifactRef.from_dict(self.setup["task_ref"]))
+        payload = validate_task_payload(task.payload)
+        request = validate_request(self.store.load(ArtifactRef.from_dict(self.setup["request_ref"])))
+        self.store.load_bytes(ArtifactRef.from_dict(self.setup["original_request_ref"]))
+        if (payload["task_id"] != self.setup["task_id"] or payload["task_revision"] != self.setup["task_revision"]
+                or task.artifact_id != payload["task_revision"] or payload["scene_id"] != graph["scene_id"]
+                or self.setup["scene_ref"] not in [r.to_dict() for r in task.evidence]
+                or not task.predecessors or task.predecessors[0].to_dict() != self.setup["request_ref"]
+                or payload["request_id"] != request["request_id"] or request["original_request_ref"] != self.setup["original_request_ref"]):
+            raise ValueError("replay task/request lineage differs")
         self.store.load_bytes(ArtifactRef.from_dict(self.setup["expert_ref"]))
         return deepcopy(self.setup)
 
@@ -92,7 +105,11 @@ class IsaacReplayHost:
                 q = tensor([j["q"] for j in reading["joints"]], handle.data.joint_pos)
                 handle.write_joint_position_to_sim_index(position=q)
                 handle.write_joint_velocity_to_sim_index(velocity=tensor([j["dq"] for j in reading["joints"]], handle.data.joint_vel))
-                handle.set_joint_position_target_index(target=q)
+                # Only declared runtime actuators receive targets. Passive fixture
+                # articulations are restored as state, not converted into drives.
+                command = getattr(getattr(handle, "actuators", None), "target_command", None)
+                if command is not None:
+                    command.set_position_index(value=q, joint_ids=list(range(len(reading["joints"]))))
         self.scene.write_data_to_sim()
         self.simulation.forward()
         self.scene.update(self.dt)
@@ -106,6 +123,8 @@ class IsaacReplayHost:
             raise ValueError("unconsumed replay input")
         from datafarm.simulation.robot_binding import verify_binding
         verify_binding(self.api.binding)
+        if not isinstance(targets,dict):
+            raise ValueError("named replay targets required")
         if any(type(v) not in (int, float) or not math.isfinite(v) for v in targets.values()):
             raise ValueError("invalid replay targets")
         if set(targets) != set(self.api.binding["joint_names"]):

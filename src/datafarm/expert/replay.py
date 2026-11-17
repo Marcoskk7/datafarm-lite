@@ -24,6 +24,7 @@ def quaternion_error(a, b):
 
 
 def compare_states(expected, actual, tolerances):
+    tolerances = validate_tolerances(tolerances)
     errors = {key: 0. for key in TOLERANCES}
     if set(expected["entities"]) != set(actual["entities"]):
         raise ValueError("replay entity coverage differs")
@@ -72,6 +73,16 @@ def compare_states(expected, actual, tolerances):
             raise ValueError("finite measured gripper width required")
     if expected["robot"]["joint_names"] != actual["robot"]["joint_names"] or ("gripper" in expected["robot"]) != ("gripper" in actual["robot"]):
         raise ValueError("robot semantic coverage differs")
+    # Bind duplicated robot q/dq to the measured, source-typed scene articulation.
+    for value in (expected, actual):
+        robot = value["robot"]
+        candidates = [e for e in value["entities"].values()
+                      if [j["name"] for j in e["joints"]] == robot["joint_names"]]
+        if len(candidates) != 1:
+            raise ValueError("robot joint measurements need one scene articulation")
+        for index, joint in enumerate(candidates[0]["joints"]):
+            if any(not math.isclose(robot[key][index], joint[key], rel_tol=0, abs_tol=1e-9) for key in ("q","dq")):
+                raise ValueError("robot q/dq differs from full-scene measurements")
     # TCP/gripper are independently measured and must not silently disappear.
     for key in ("tcp_pose",):
         if (key in expected["robot"]) != (key in actual["robot"]):
@@ -108,6 +119,8 @@ def verify_action_replay(payload, host, tolerances, *, verifier_id):
         if not host.acquire():
             raise ValueError("replay physics owner busy")
         acquired = True
+        if host.source_binding() != payload["setup"]:
+            raise ValueError("source changed before owned replay")
         host.restore(deepcopy(states[0]))
         for step, expected in enumerate(states):
             if step:
@@ -122,12 +135,17 @@ def verify_action_replay(payload, host, tolerances, *, verifier_id):
                 maxima[k] = max(maxima[k], v)
             if not ok:
                 mismatch.append(step)
+        if host.source_binding() != payload["setup"]:
+            raise ValueError("source changed during replay")
         status, reason = ("verified", "WITHIN_EXPLICIT_TOLERANCES") if not mismatch else ("rejected", "STATE_DIVERGENCE")
     except Exception:
         status, reason = "error", "REPLAY_RUNTIME_OR_COVERAGE_ERROR"
     finally:
         if acquired:
-            host.release()
+            try:
+                host.release()
+            except Exception:
+                status, reason = "error", "REPLAY_OWNER_RELEASE_ERROR"
     report = {"schema": PROFILE, "verifier_id": verifier_id, "episode_id": payload["setup"]["episode_id"],
               "source_binding": deepcopy(payload["setup"]), "qualification": qualification, "status": status, "reason_code": reason,
               "checked_states": checked, "expected_states": len(states), "max_errors": maxima,
