@@ -140,24 +140,23 @@ def proposal_schema(context: Mapping[str, Any]) -> dict[str, Any]:
             "properties": {"role": identifier, "node_id": {"type": "string", "enum": node_ids},
                            "frame_id": {"type": "string", "enum": frame_ids}},
             "required": ["role", "node_id", "frame_id"]}
-    # 长度与个数上限同 validate_proposal（text 256/12000，string_list 256，roles 1..128，tasks 1..128）。
-    props = {"name": {"type": "string", "minLength": 1, "maxLength": 256},
+    # 上限同 validate_proposal。只用 FYP 结构化输出实测接受的关键字（enum / pattern / minItems / description）；
+    # 带 maxLength、uniqueItems 的 schema 被上游整条拒收，所以长度上限写进 description。
+    props = {"name": {"type": "string", "description": "Short display name, at most 256 characters."},
              "scene_id": {"type": "string", "enum": [m["scene_id"] for m in context["members"]]},
-             "requirement_ids": {**ids, "minItems": 1, "uniqueItems": True},
-             "roles": {"type": "array", "items": role, "minItems": 1, "maxItems": 128},
-             "needed_apis": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 12000},
-                             "maxItems": 256, "uniqueItems": True},
-             "needed_observations": {"type": "array", "items": identifier, "maxItems": 256, "uniqueItems": True},
-             "episode_count": {"type": "integer", "minimum": 1, "maximum": 100000}}
+             "requirement_ids": {**ids, "minItems": 1},
+             "roles": {"type": "array", "items": role, "minItems": 1},
+             "needed_apis": {"type": "array", "items": text_schema},
+             "needed_observations": {"type": "array", "items": identifier},
+             "episode_count": {"type": "integer", "minimum": 1}}
     task = {"type": "object", "additionalProperties": False, "properties": props, "required": list(props)}
     unresolved = {"type": "object", "additionalProperties": False,
-                  "properties": {"requirement_id": {"type": "string", "enum": requirement_ids},
-                                 "reason": {"type": "string", "minLength": 1, "maxLength": 12000}},
+                  "properties": {"requirement_id": {"type": "string", "enum": requirement_ids}, "reason": text_schema},
                   "required": ["requirement_id", "reason"]}
     return {"type": "object", "additionalProperties": False,
             "properties": {"schema": {"type": "string", "enum": [PROPOSAL_SCHEMA]},
-                           "tasks": {"type": "array", "items": task, "minItems": 1, "maxItems": 128},
-                           "unresolved": {"type": "array", "items": unresolved, "maxItems": 256}},
+                           "tasks": {"type": "array", "items": task, "minItems": 1},
+                           "unresolved": {"type": "array", "items": unresolved}},
             "required": ["schema", "tasks", "unresolved"]}
 
 
