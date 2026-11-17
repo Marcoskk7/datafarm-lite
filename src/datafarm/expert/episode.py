@@ -86,15 +86,38 @@ class EpisodeRecorder:
         self.states, self.actions, self.events = [], [], []
         self.closed = False
         self.rejected_measurements = []
+        # 已入账条目的规范 JSON 字节数之和（含列表分隔逗号）。每次检查只序列化新条目，不再整条重序列化：
+        # 后者每步 O(已录长度)，整条 O(N²)，lab30 上 100 步就要 ~100 s。上限语义不变，见 `_fits`。
+        self._setup_bytes = len(canonical_json_bytes(self.setup))
+        self._bytes = {"actions": 0, "states": 0, "events": 0}
 
-    def _size(self, value):
-        _require(len(canonical_json_bytes(value)) <= self.max_bytes, "episode capture byte budget exhausted")
+    def _item_bytes(self, value):
+        return len(canonical_json_bytes(value))
+
+    def _fits(self, *, setup, **extra):
+        """与旧实现等价的上界：`{"setup":…,"actions":[…],"states":[…],"events":[…]}` 的规范 JSON 长度。
+
+        每个列表 = 2（方括号）+ 条目字节和 + (条目数-1) 个逗号；对象键与冒号/逗号是常数开销。
+        `extra` 是 {列表名: (追加的条目字节, 追加条目数)} 或 {键: 额外对象字节}。
+        """
+        total = 2 + (len('"setup":') + self._setup_bytes + 1 if setup else 0)
+        for name, key in (("actions", '"actions":'), ("states", '"states":'), ("events", '"events":')):
+            count = len(getattr(self, name))
+            size = self._bytes[name]
+            add_bytes, add_count = extra.pop(name, (0, 0))
+            count, size = count + add_count, size + add_bytes
+            total += len(key) + 2 + size + max(0, count - 1) + 1
+        for key, size in extra.items():
+            total += len(f'"{key}":') + size + 1
+        _require(total - 1 <= self.max_bytes, "episode capture byte budget exhausted")
 
     def initial(self, state):
         _require(not self.closed and not self.states, "initial state already captured")
         value = validate_state(state, node_ids=self.setup["node_ids"], step=0, dt=self.setup["control_dt_s"])
-        self._size(value)
+        size = self._item_bytes(value)
+        _require(size <= self.max_bytes, "episode capture byte budget exhausted")
         self.states.append(value)
+        self._bytes["states"] += size
 
     def rejected_measurement(self, value):
         """Retain noncanonical raw readings separately; never round/repair them."""
@@ -102,28 +125,33 @@ class EpisodeRecorder:
 
     def event(self, value):
         _require(not self.closed, "episode closed")
-        self._size({"setup": self.setup, "actions": self.actions, "states": self.states, "events": [*self.events, value]})
+        size = self._item_bytes(value)
+        self._fits(setup=True, events=(size, 1))
         self.events.append(deepcopy(value))
+        self._bytes["events"] += size
 
     def ensure_capacity(self, requested, metadata):
         """Refuse a known step/byte budget exhaustion before target application."""
         _require(not self.closed and len(self.states) == len(self.actions)+1 and len(self.actions) < self.max_steps, "recording step unavailable")
-        self._size({"setup": self.setup, "actions": self.actions, "states": self.states,
-                    "events": self.events, "next_input": {"requested": requested, "command": metadata}})
+        self._fits(setup=True, next_input=self._item_bytes({"requested": requested, "command": metadata}))
 
     def input(self, requested, applied, metadata):
         _require(not self.closed and len(self.states) == len(self.actions)+1 and len(self.actions) < self.max_steps, "recording step unavailable")
         row = {"control_step": len(self.actions), "requested_joint_targets": deepcopy(requested),
                "applied_joint_targets": deepcopy(applied), "application": "actuator_readback", "command": deepcopy(metadata)}
-        self._size({"actions": [*self.actions, row], "states": self.states, "events": self.events})
+        size = self._item_bytes(row)
+        self._fits(setup=False, actions=(size, 1))
         self.actions.append(row)
+        self._bytes["actions"] += size
 
     def measured(self, state):
         _require(not self.closed and len(self.actions) == len(self.states), "no corresponding applied input")
         value = validate_state(state, node_ids=self.setup["node_ids"], step=len(self.states),
                                dt=self.setup["control_dt_s"])
-        self._size({"actions": self.actions, "states": [*self.states, value], "events": self.events})
+        size = self._item_bytes(value)
+        self._fits(setup=False, states=(size, 1))
         self.states.append(value)
+        self._bytes["states"] += size
 
     def finish(self, status, reason_code):
         _require(not self.closed, "episode already closed")
