@@ -155,6 +155,43 @@ lab30run（n001，RTX 4090，驱动 580.95.05，Isaac Sim 6.2 / Isaac Lab 3.0）
 
 **顺带发现的契约文本缺陷（需 B 线处理）**：`task3/public-task-0.json` 的角色文本被去掉了空格——`"destination:already-opendrawerjoint_part_01_joint_00withmovinglinkpart_01_obj_00"`，原意应是 "already-open drawer joint_part_01_joint_00 with moving link part_01_obj_00"。作者模型会把这段当角色名读，语义损失。判定条件与状态判定不受影响（judge 用节点 ID 与关节名）。这是 task-plan 输出侧（A→B 契约文本）的问题，unresolved。
 
+### 5.4 根因更正：此前所有"抓住后滑脱"的记录都不成立（重要）
+
+逐帧读 `state_trace` 后确认：**机械臂从未接触过盘子**。
+
+| seed | 盘子 z 首帧 → 末帧 | 夹持点 TCP | 夹爪宽度变化 | 盘子位移 |
+|---|---|---|---|---|
+| s2v8 / dev-17 | 0.8699 → 0.8700 | (0.782, 0.321, 0.878) | 0.0672 → 0.0082（受阻）→ 0.0024（闭合） | 0.9 mm 漂移 |
+| s2v8 / 130 | 同上（`execution_status: timeout`，3421 帧） | 同上 | 同上 | 同上 |
+
+盘子中心在 (0.78, 0.23, 0.87)，盘帮外沿在 y≈0.316，抓取点 y=0.321 → **抓取点在盘帮外侧正确位置**。但夹爪在 8.2 mm 处受阻后继续闭合到 2.4 mm，而盘子一步没动：说明**指尖落在盘帮顶部之外/之上**，闭合时只是相互挤过，抬升带起的是空气。
+
+因此早期文档里"受阻宽度 0.0082 m、抬升 3 mm 后滑脱"的说法**必须作废**——那 3 mm 是 TCP 命令误差，不是盘子被带起。根因是**抓取高度（`GRASP_DZ`）与盘帮几何不匹配**，不是摩擦、不是夹持力、也不是搜索策略。
+
+盘子径向几何（`runs/chain/plate_profile.py` 对 `prepared.json` 的碰撞网格实测，单位 m，z 自盘底起）：
+
+| 半径 | z 范围 |
+|---|---|
+| 0.090 | 0.000 → 0.0072 |
+| 0.095 | 0.0001 → 0.0256 |
+| 0.100 | 0.0031 → 0.0256 |
+| 0.105 | 0.0118 → 0.0256 |
+
+即外帮是一堵**高 25.6 mm、径向厚约 10 mm** 的陡壁，最薄处只在顶部几个毫米。s2v8 的 `GRASP_DZ=0.012` 把指尖中心放在帮高中部，两指在厚壁处互相挤过；正确做法是让**指面只夹住顶部薄带**（约 z+0.020…0.025），并**闭环验证**（闭爪后小抬升，读盘高，没起来就换高度重试）。
+
+这一步未执行：实例在 2026-11-18 23:05 SGT 到期，用户要求销毁重建（见第 10 节）。
+
+### 5.5 暂停时的状态（2026-11-18 18:40 SGT）
+
+| 项 | 状态 |
+|---|---|
+| 已达成 | PC2 全链路各段（场景+闸门、task-plan、judge 冻结与独立判定、录制、渲染、HDF5、admission 审查器）均以真实数据跑通 |
+| 未达成 | 5 条 judge 成功 + admission 通过的 episode（阻塞在抓取几何，见 5.4） |
+| CaP | 两轮共 39 次 rollout，0 成功；第二轮 10 次里 9 次首个失败是带载抬升的 `SPEED_LIMIT`（抓取前的运动已能走通） |
+| 本机证据 | `runs/integration-20261118/lab30-runs/`（chain + cap-01 含 `search-5/`、`failure-taxonomy.json`、`final/`） |
+| lab30 上的东西 | 随实例销毁；重建后需按 `Next` 重做：仓库 worktree、`.venv`、Isaac 缓存 warmup、judge 重冻结、round 重配 |
+| 下一步（未执行） | 写 `expert_s2v10.py`：按 `dz ∈ [0.024, 0.020, 0.016, 0.012, 0.008, 0.004]` 逐层"下探→闭爪→小抬升→读盘高"，只有盘高抬升 >8 mm 才继续搬运；成功后再跑 5 个不同 seed |
+
 ### 5.2 admission 独立审查（本次新增，任务产出）
 
 仓库的 admission 证书面向 LeRobot 数据集，本 fork 的 HDF5 episode 没有对应审查器。`deploy/admit_episode.py`（任务产出，不进仓库）在**独立进程**中从存储字节重新推导 9 项检查并写 `datafarm.gate-receipt`（`stage=admission`、`authority=admission-root`、subject = episode 文档 sha256，符合 `docs/ir/episode.md`）：
