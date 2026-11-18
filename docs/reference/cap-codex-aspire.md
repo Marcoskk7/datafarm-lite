@@ -30,11 +30,13 @@ python tools/cap_search.py \
 
 Copy and fill the templates first; `round_dir` must be a real, prepared broker round. The task must declare its available API, units and `program_contract`; the provider does not assume every robot uses the same entry function or Python allowlist. Add `--submit` explicitly only when submitting to the harness.
 
-Supported provider settings are `work_root`, `executable`, `model`, `reasoning_effort` and `timeout_s`; any other key is rejected. The main flow uses the deployment's existing Codex login and model configuration.
+Supported provider settings are `work_root`, `executable`, `model`, `reasoning_effort` and `timeout_s`; the composition root additionally accepts the explicit `gateway` environment-name binding described in [FYP gateway](fyp-gateway.md). Other keys are rejected. Without that binding, the existing Codex login and model configuration are used.
 
 ## Injected gateway
 
-The main flow has no built-in model gateway. Local tooling may pass a loopback Responses gateway programmatically: `build_provider(config, gateway=...)`. The gateway object exposes `base`, `client_key`, `calls`, `upstream_model`, `request_shape` and optionally `max_output_tokens`. When a gateway is injected, the CLI ignores user config and rules, disables shell, multi-agent, plugins, skills instructions, MCP and web search, points its model provider at the gateway with zero retries, and receives only the gateway's temporary loopback key; proxy variables and other model credentials are stripped from the child environment. Personal tokens stay in the gateway process and never reach argv, the CLI environment or run artifacts. Gateway implementations are deployment or local test tooling and are not part of this repository.
+The entry composition root supports an explicitly configured [FYP Responses gateway](fyp-gateway.md), or a deployment may still pass `build_provider(config, gateway=...)`. No token, endpoint or machine configuration is shipped in the source. FYP requests originate on the server itself through its configured Tailscale connection; a userspace deployment uses an explicit server-loopback proxy. Each configured role gets a separate temporary listener and credential, and the personal FYP key remains in the parent process.
+
+With a gateway, Codex ignores user config and rules, disables shell, multi-agent, plugins, skills instructions, MCP and web, and uses zero retries. Proxy variables and other model credentials are stripped from the child environment. The gateway preserves tool semantics for separately scoped tool-capable use, but structured CaP/Judge roles force `tool_choice=none`, reject tool-call inputs/outputs and preserve CLI-supplied definitions. Requests and output allowances are reserved before sending; unknown/incomplete requests block further spend. Transport/source/model/config fingerprints participate in identity, preventing cross-channel reuse.
 
 Without a gateway the CLI runs with a read-only sandbox. Read isolation between directories of the same user is not guaranteed by `cwd` or the prompt; strict deployments must protect data through broker/OS separation.
 
@@ -58,7 +60,7 @@ Privileged means physical state only. It excludes the task-success implementatio
 
 Each decision persists the request, prompt, schema and a starting receipt before the call. It keeps the CLI thread ID, JSONL events, the result, token usage, the output token budget and, with an injected gateway, the upstream request count and returned model; unknown dollar cost is `null`.
 
-The identity binds the request, prompt, schema, token budget, configuration, and the source of both the CaP role module and the structured-call adapter. A completed result is reused after digest verification; pending, failed or interrupted directories are never resubmitted automatically. Inspect the session and model request records first, then continue with a traceable new version. On timeout the CLI process tree is terminated; if the OS refuses, leftover processes must still be checked, and a failure record is not proof that the process stopped.
+The identity binds the request, prompt, schema, token budget, configuration, the source of both the CaP role module and the structured-call adapter, and the non-secret transport fingerprint. A completed result is reused after digest verification; pending, failed or interrupted directories are never resubmitted automatically. Inspect the session and model request records first, then continue with a traceable new version. On timeout the CLI process tree is terminated; if the OS refuses, leftover processes must still be checked, and a failure record is not proof that the process stopped.
 
 Changing either source file changes the identity, so decisions recorded before such a change are not reused.
 
@@ -69,3 +71,30 @@ The user asked to use an existing or manually built fixed scene first, without t
 The user separately authorised one diagnostic run of the deployed H3 renderer with test videos sent to a specified address. That H3 output is an explicit diagnostic exception with its own source and generation record; it is not proof of faithful action replay, task success or trainable data, and does not change the default state-rendering pipeline's claims. A video that does not follow the trajectory is labelled as such and never presented as real simulation footage.
 
 Earlier local provider check: one real Codex request through a loopback gateway connected, with no robot action. Programmatic regression covers the full repair/distil/re-verify loop through a scripted CLI subprocess; that fixture result is not a claim of real model control success. Server physics and H3 end-to-end results are reported separately after their runs.
+
+## Shared measured state (current /1)
+
+The recorder, CaP feedback and source-bound Judge use
+`datafarm.ir.episode_state.validate_state`. State entries have exactly
+`control_step`, `time_s`, `units`, `frame_id`, `entities`, `robot`, `contacts`.
+Robot observations use `tcp`, not `tcp_pose` (the capability name
+`capabilities.tcp_pose` is unchanged). Judge `judge-episode/1` preserves
+`state_trace` without renaming its states. CaP `privileged-state/1` carries
+validated initial/final states; its version is on the envelope, not each state.
+
+Judge retains task/scene/request authority, full actuator readback actions,
+structured evidence paths such as `["state_trace","entities","object.plate","position_m"]`,
+contact availability/coverage, and initial-only or interrupted capture handling.
+Execution faults are not task predicate failures. Threshold value, unit, basis
+and requirement IDs remain immutable. The independent reviewer consumes this
+same exact layout, emits review only, and requires `issues=[]` for a pass.
+
+Keeping /1 does not preserve compatibility with earlier /1 layouts or frozen
+hashes. Use a new build/review/freeze identity; never rewrite a previous freeze.
+Shared-state adaptation is based on Marcos PR13 commit `74bf9ec`; Judge /2 and
+its weaker source/path projection are not imported.
+
+A's existing rendering tools and source files are unchanged here. Their older
+`setup.joint_names`, state shape and playback calls still need an A-owned
+consumer update. State-driven rendering and action-driven physics replay are
+separate checks; this branch does not claim GPU/render validation.

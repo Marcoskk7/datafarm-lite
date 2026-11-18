@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import math
-from collections.abc import Mapping
+from datafarm.ir.episode_state import UNITS, validate_state
 
 from datafarm.kernel.artifacts import ArtifactDocument, ArtifactRef, IRKind
 from datafarm.kernel.identifiers import logical_id, storage_key
@@ -11,44 +11,11 @@ from datafarm.kernel.schema import canonical_json_bytes, validate_ref
 from datafarm.kernel.io import is_sha256
 
 PROFILE = "measured-scene-episode/1"
-UNITS = {"length": "m", "angle": "rad", "time": "s"}
 
 
 def _require(ok, message):
     if not ok:
         raise ValueError(message)
-
-
-def validate_state(state, node_ids, step, dt):
-    _require(isinstance(state, Mapping) and state.get("control_step") == step
-             and type(state["control_step"]) is int, "state clock gap")
-    _require(state.get("units") == UNITS and state.get("frame_id") == "world", "state units/frame")
-    _require(type(state.get("time_s")) in (int, float) and
-             math.isclose(state["time_s"], step * dt, rel_tol=0, abs_tol=1e-9), "state time mismatch")
-    _require(set(state.get("entities", {})) == set(node_ids), "incomplete entity coverage")
-    for node, reading in state["entities"].items():
-        _require(isinstance(reading, Mapping) and reading.get("availability") == "available", "entity state unavailable")
-        for key, count in (("position_m", 3), ("quaternion_xyzw", 4),
-                           ("linear_velocity_m_s", 3), ("angular_velocity_rad_s", 3)):
-            vector = reading.get(key)
-            _require(isinstance(vector, list) and len(vector) == count and
-                     all(type(v) in (int, float) and math.isfinite(v) for v in vector), "invalid entity vector: " + key)
-        _require(math.isclose(math.hypot(*reading["quaternion_xyzw"]), 1, abs_tol=1e-6), "unnormalized quaternion")
-        links = reading.get("links", {})
-        _require(isinstance(links, dict), "invalid links")
-        for reading_pose in links.values():
-            for key, size in (("position_m", 3), ("quaternion_xyzw", 4)):
-                vector = reading_pose.get(key)
-                _require(isinstance(vector, list) and len(vector) == size and all(type(v) in (int, float) and math.isfinite(v) for v in vector), "invalid link pose")
-            _require(math.isclose(math.hypot(*reading_pose["quaternion_xyzw"]), 1, abs_tol=1e-6), "invalid link quaternion")
-        joints = reading.get("joints", [])
-        _require(isinstance(joints, list) and len({j["name"] for j in joints}) == len(joints), "invalid joint coverage")
-        for joint in joints:
-            _require(joint.get("type") in ("revolute", "prismatic") and joint.get("unit") ==
-                     ("m" if joint["type"] == "prismatic" else "rad"), "invalid joint type/unit")
-            _require(all(type(joint.get(k)) in (int, float) and math.isfinite(joint[k]) for k in ("q", "dq")), "invalid q/dq")
-    canonical_json_bytes(state)
-    return deepcopy(dict(state))
 
 
 def validate_episode(payload):
@@ -75,7 +42,7 @@ def validate_episode(payload):
     _require(isinstance(states, list) and states, "initial measured state missing")
     _require(isinstance(actions, list), "actions must be a list")
     for i, state in enumerate(states):
-        validate_state(state, nodes, i, dt)
+        validate_state(state, node_ids=nodes, step=i, dt=dt)
     entity_signature = {n: ([j["name"] for j in states[0]["entities"][n]["joints"]],
                             set(states[0]["entities"][n]["links"])) for n in nodes}
     for state in states:
@@ -125,7 +92,7 @@ class EpisodeRecorder:
 
     def initial(self, state):
         _require(not self.closed and not self.states, "initial state already captured")
-        value = validate_state(state, self.setup["node_ids"], 0, self.setup["control_dt_s"])
+        value = validate_state(state, node_ids=self.setup["node_ids"], step=0, dt=self.setup["control_dt_s"])
         self._size(value)
         self.states.append(value)
 
@@ -153,7 +120,7 @@ class EpisodeRecorder:
 
     def measured(self, state):
         _require(not self.closed and len(self.actions) == len(self.states), "no corresponding applied input")
-        value = validate_state(state, self.setup["node_ids"], len(self.states), self.setup["control_dt_s"])
+        value = validate_state(state, node_ids=self.setup["node_ids"], step=len(self.states), dt=self.setup["control_dt_s"])
         self._size({"actions": self.actions, "states": [*self.states, value], "events": self.events})
         self.states.append(value)
 
@@ -176,7 +143,8 @@ class EpisodeRecorder:
         return ArtifactDocument(kind=IRKind.EPISODE, artifact_id=self.setup["episode_id"],
             created_at=created_at, producer="b-scene-recorder",
             predecessors=(), evidence=tuple(ArtifactRef.from_dict(self.setup[k]) for k in
-                ("request_ref", "original_request_ref", "task_ref", "scene_ref", "runtime_ref", "expert_ref")), payload=checked)
+                ("request_ref", "original_request_ref", "task_ref", "scene_ref", "runtime_ref", "expert_ref")) +
+                ((ArtifactRef.from_dict(self.setup["task_contract_ref"]),) if self.setup.get("task_contract_ref") is not None else ()), payload=checked)
 
 
 def episode_identity(task_id, task_revision, attempt_id):

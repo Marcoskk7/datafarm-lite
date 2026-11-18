@@ -27,6 +27,10 @@ One note per component. Each states what the code guarantees and what it does no
 | A line: SimReady retrieval, collision prep, layout, reachability, Isaac Lab scene checks, agent-authored layouts | [scene-assembly](reference/scene-assembly.md) | `tools/simready.py`, `tools/scene_assemble.py`, `tools/scene_author.py`, `src/datafarm/scene/`, `src/datafarm/adapters/assets/` |
 | Robot API auto-discovery, semantic config and Isaac Lab instance binding | [robot-auto-binding](reference/robot-auto-binding.md) | `simulation/robot_binding.py`, `simulation/isaac_robot.py`, `tools/discover_robot.py` |
 | Model-generated task judge, independent review and freeze | [judge-generation](reference/judge-generation.md) | `src/datafarm/judge/`, `src/datafarm/entry/judge_cli.py`; plugs into adapter/1 |
+| Explicit deployment FYP Responses transport | [fyp-gateway](reference/fyp-gateway.md) | Codex adapter and entry composition; no bundled credentials |
+| Source-bound full-state action replay | [action-replay](reference/action-replay.md) | `expert/replay.py`, `adapters/sim/isaac_replay.py`, `entry/episode_replay.py` |
+| Request-bound Judge Episode contract | [judge-episode-contract](reference/judge-episode-contract.md) | Full measured Episode evaluation with frozen source/1 |
+| Isolated scene expert execution and broker handoff | [scene-harness](reference/scene-harness.md) | Narrow IPC and source-pinned scene job entry |
 | Render contract | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
 | H3 control hybrid and Seedance | [rendering](reference/rendering.md) | `src/datafarm/adapters/render/h3/`, `src/datafarm/adapters/render/seedance/` |
 | Render verifier | [render-verifier](reference/render-verifier.md) | `src/datafarm/render/verify/` |

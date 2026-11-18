@@ -2,9 +2,10 @@
 
 PRoot is an **opt-in Linux userspace path-translation runner**, not an OS security
 boundary. It can launch a CLI in an explicit guest filesystem when ptrace is
-available. It does not replace the existing expert `bwrap`, `unshare` or `none`
-modes, does not change CaP's public-request whitelist, and does not alter Judge
-freeze formats or admission rules.
+available. The standalone launcher remains separate from general SandboxSpec modes.
+An explicit scene-expert integration is available through `scene_job` and
+`scene_execution`; see [scene harness](scene-harness.md). It does not change
+CaP's public-request whitelist or Judge freeze formats/admission rules.
 
 Implementation:
 - `datafarm.adapters.sandbox.proot`: explicit rootfs/binds, runtime preflight,
@@ -121,9 +122,9 @@ Judge source through a writable PRoot bind. The trusted host rejected the change
 bundle. No old frozen record was rewritten.
 
 This demonstrates tamper **detection**, not prevention, secrecy or a security
-signature. Production Judge generation, review and evaluation stay outside this
-experimental launcher unless a separate design establishes the required trust
-boundary. No claim that PRoot satisfies current expert isolation contracts is made.
+signature. Production Judge generation, review and evaluation stay outside the guest.
+The explicit scene integration verifies live freeze and source bindings around
+expert execution; this supplies tamper detection, not secrecy or containment. No claim that PRoot satisfies current expert isolation contracts is made.
 
 ## Validation policy
 
@@ -133,5 +134,28 @@ process-group cleanup are exercised by local-only validation scripts. Existing
 sandbox and Codex tests are run unchanged. These scripts, package downloads,
 model outputs and logs are excluded from this feature's source commit.
 
-Do not enable this experimental runtime by default or interpret the successful
-weak-isolation case as permission to bypass required production sandbox gates.
+Select scene PRoot only through acknowledged deployment configuration.
+Never silently fall back to it or interpret its successful functional probe as
+OS containment. The old native Codex sandbox behavior remains unchanged.
+
+## Shared package and streaming expert adapter
+
+The package structure from A request-authoring is retained: `model`, `registry`,
+`bwrap`, `proot`, `unshare`, `jobwrapper`. The scene expert consumer uses
+`proot.runner_argv(ProotSpec, command)`, not the backend's
+`argv(SandboxSpec, command)`. There is no restored `isolation.py` compatibility
+module. Scene-author sandbox and scene-expert streaming IPC are separate consumers.
+
+Preparation imports the shared host package under the real non-root OS identity.
+A root trusted host uses `setpriv`; PRoot's simulated `-i` identity is not a substitute.
+A stdlib-only copied launcher executes the validated plan with scrubbed environment
+and preserves stdin/stdout for observe/move IPC. The shared package itself is not
+copied as a standalone `proot.py` or bound into the expert guest. The guest gets
+only snapshotted expert/worker and explicitly selected runtime paths. Host scene,
+store, physics and Judge authority remain on the trusted host.
+
+Launch inputs and shared-module fingerprints are checked before/after execution.
+PRoot still does not enforce readonly/network/PID namespaces or prevent malicious
+escape. Bounded process-group cleanup has the previously documented limitations.
+Frozen dependency manifests include the actual package modules, not the removed
+`isolation.py`; changed runtime sources require fresh Judge generation/freezing.

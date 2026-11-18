@@ -22,9 +22,26 @@ Methods: get,items,keys,values,append,extend,copy,count,index. Math attributes o
 numeric functions (sqrt/sin/cos/acos/atan2/hypot/isfinite/isclose/pi etc).
 Use task_contract['thresholds'][threshold_id]['value']; never duplicate threshold
 numbers in source. scene_metadata contains only supplied model/scene data.
-episode is judge-episode/1: units={length:m,angle:rad,time:s}, frame_id=world,
-positive control_dt_s, measured states with contiguous control_step starting
-at 0, N actions (each with its control_step) and N+1 states, events, termination. Never score requested targets
+episode is the current source-bound judge-episode/1.
+All evidence_fields are JSON-encoded arrays of exact key segments, NOT dot
+paths: ["state_trace","entities","object.a","position_m"] keeps object.a intact.
+Each state_trace entry has exactly control_step, time_s, units, frame_id,
+entities, robot, contacts. entities[node_id] has availability="available",
+asset_id, position_m[3], quaternion_xyzw[4] (unit xyzw), linear_velocity_m_s[3],
+angular_velocity_rad_s[3], joints[{name,type,unit,q,dq}], links{name:{position_m,
+quaternion_xyzw}}. Joint type/unit pairs are revolute/rad or prismatic/m.
+robot has joint_names,q,dq and optional tcp{frame_id:"world",position_m,
+quaternion_xyzw}, gripper{width_m,width_range_m,state_source,verification,
+within_defined_range}. contacts has control_step,sampling="cycle_end_snapshot",
+availability,coverage,rows; rows=null means unavailable, NEVER zero contact.
+Available rows are {a,b,body_a,body_b,dist_m}; a/b are scene IDs or null.
+Use available_fields exactly; incomplete contact coverage is not complete evidence.
+Required /1 clock/frame: units={length:m,angle:rad,time:s}, frame_id=world,
+positive control_dt_s and time_s=control_step*control_dt_s. Completed episodes
+have N actions and N+1 states, starting at step 0; initial-only completed episodes
+may have zero actions. Preserve all task_id/task_revision/scene_ref/node_ids.
+Actions include control_step, requested_joint_targets, applied_joint_targets,
+application="actuator_readback", command. Never score requested targets
 as achieved. The host validates missing evidence, finite data and frame coverage.
 Return result({condition_id: bool_or_None,...}, metrics_dict, reason_code_string).
 IMPORTANT: result is ALREADY PROVIDED by the host. Do NOT define, assign or
@@ -50,16 +67,15 @@ api/program_contract metadata describes future expert execution, not additional
 physical predicates. Host-enforced restrictions must not be claimed as verified
 by a state-only judge. If an explicit requirement itself asks for program-access
 or state-write verification, demand its evidence or return missing_inputs.
-Preserve upstream goals, hard constraints, threshold IDs/values/units exactly.
+Preserve upstream goals, hard constraints, threshold IDs/values/units, bases and
+requirement bindings exactly.
 You may derive missing task-level thresholds from supplied dimensions, clock and
 explicit rules. Mark them derived, give units and a reproducible basis. Do not
 invent measured calibration, unavailable contacts or missing physical facts.
 List missing intent/data in missing_inputs; never weaken a gate to make it pass.
 Conditions need unique IDs, linked requirement_ids, measurement, units,
 threshold_ids and exact evidence_fields from observations.available_fields.
-If original Task IR predicates declare judge_criterion for terminal/transient
-predicates, the condition IDs MUST be exactly that declared set; preserve those
-stage-graph references and cover other relevant requirements inside those conditions.
+Use the current request-task/1 requirement IDs; it does not prescribe a stage graph.
 Judge from complete measured trajectories, not targets or success labels.
 Return only the structured candidate. ''' + RUNTIME_CONTRACT
 
@@ -77,7 +93,8 @@ when full containment is required, fake target-state evidence and lost stages.
 Independent negative cases must actually violate their labeled conditions.
 Create at least one independently labeled success and one failure case; across
 all host and independent failure cases, every condition needs a violated case.
-Cases are JSON strings encoding judge-episode/1 physical state histories; never
+Cases are JSON strings encoding the exact current source-bound judge-episode/1
+state_trace layout described above, not older states/tcp_pose layouts; never
 include hidden seeds, expert programs or success labels in episode input.
 Do not attest pass when required intent or evidence is absent. Return pass,
 revise or needs_input and one explicit check for EVERY current condition.
