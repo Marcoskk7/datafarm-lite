@@ -110,7 +110,41 @@ lab30run（n001，RTX 4090，驱动 580.95.05，Isaac Sim 6.2 / Isaac Lab 3.0）
 | s2v8 | 17 | author-02 | 3421 | timeout | judge `failure`；完整渲染 + HDF5 实跑 |
 | s2v9 | 18 | author-02 | 1532 | error | 抬升时 `SPEED_LIMIT` |
 
-**第 5 节结论**：5 条成功 episode 的验收标准**未达成**。链路上除"专家能完成任务"和 admission 之外的每一段（场景组装 + GPU 闸门、task-plan、judge 冻结与独立判定、live 录制、状态重放渲染、HDF5 导出与独立校验）都在 lab30 上用真实数据跑通；阻塞点是抓取大盘的专家本身（物理抓取），按"同一阶段连续失败 3 次即停止"规则，该阶段在 s2v7–s2v9 后停止。
+**第 5 节结论**：5 条成功 episode 的验收标准**未达成**。链路上除"专家能完成任务"之外每一段（场景组装 + GPU 闸门、task-plan、judge 冻结与独立判定、live 录制、状态重放渲染、HDF5 导出与独立校验、admission 审查器）都在 lab30 上用真实数据跑通；阻塞点是抓取带帮大盘的专家本身（物理抓取）。手写专家阶段按"同一阶段连续失败 3 次即停止"在 s2v9 后停止；用户随后要求接入 CaP 重开该阶段（5.1），CaP 用 13 个候选 / 30 次 rollout 得到同一结论（0 成功，全部卡在 `plate_in_open_drawer`）。
+
+### 5.1 CaP 接入（用户 2026-11-18 追加要求）
+
+用户要求接入 CaP 搜索重开专家阶段（覆盖第 4 节"连续失败 3 次即停止"）。round、引擎与证据在 lab30 `runs/cap-01/`（本机副本 `runs/integration-20261118/lab30-runs/cap-01/`；>5 MB 的 episode 只在 lab30，哈希在本机 `cap-01/LARGE_FILES.sha256`）。
+
+**接入方式（全部走仓库既有代码路径，未改仓库源码）**：
+
+| 组件 | 做法 | 证据 |
+|---|---|---|
+| task adapter/1 | `deploy/make_adapter.py` 生成 `adapter-base.json`，再由 `judge_cli attach` 生成 `adapter.json`：冻结 judge 经 `verifier.judge_bundle` + 外部锚点 `480bea02…` 绑定，条件 ID/描述取自冻结 TaskContract | `deploy/adapter.json`（`verifier.version = bc872123…`） |
+| holdout | `expert_harness.py make-holdout-seeds --per-family 3 --spares 1` → `private/holdout.json`（0600，agent 不可读） | `private/holdout.json` |
+| round | `prepare-round`：brief 9464 字符，lint 0 error | `round/brief.md`、`round/round.json` |
+| smoke | `smoke-rollout --seed 100`：真实 job 脚本 → 真 Isaac 录制 → judge 在沙箱外独立进程 | `smoke/1/smoke-s100/verdict.json`（`judged`，`success=false`） |
+| 作者 | `tools/cap_search.py` + `deploy/capdeploy.py`（并行引擎 + Codex provider 经 `127.0.0.1:8897` relay，`gpt-6.1-sol`）；rollout 由 `run-round` 的 broker 执行，占位 agent 只维持 broker 存活 | `search-*/`、`codex-decisions/`（每次决策的 request/schema/prompt/receipt/events 全留） |
+| 公开轨迹 | `deploy/run_rollout.py` 额外写 `sim/primitive.jsonl`（每 primitive 的实测 before/after，按证据预算裁剪：数值 1e-4、只留 plate/cabinet 实体与夹爪/抽屉 link、接触行只留相碰对并标 `coverage=truncated`），并用 `sys.monitoring` 捕获专家异常打印 `EXPERT_RAISED` 供 harness 归类 `expert_error` | `round/rollouts/A-*/sim/primitive.jsonl` |
+
+**结果（lab30 实测）**：**13 个候选、30 次 counted rollout、0 成功、0 infra 失败**。判定失败项 30/30 全是同一条 `plate_in_open_drawer=false`；执行状态 22 次 `motion_timeout`、8 次 `physical_conditions_failed`。模型诊断与手写专家一致：夹爪已接触盘帮（双侧接触 −0.2/−0.5 mm，受阻宽度 0.0082 m），抬升时保持不住。
+
+**CaP 阶段暴露的部署问题（均已定位，不涉及仓库语义）**：
+
+| # | 现象 | 根因 | 处理 |
+|---|---|---|---|
+| 1 | 首轮 `inspect` 抛 `Selected evidence exceeds the context budget` | 我的公开轨迹单条 primitive 记录约 43 KB，4 条即超 24 KB 证据预算 | 裁到单条约 5 KB（降精度、裁实体/接触行）；`inspect` 改为预算内保留前缀并附 `evidence-budget` 说明，不再让整个搜索失败 |
+| 2 | `cap_search` 在 broker 回 `concurrency` 时整体退出 | broker 先到先得：满 2 个运行中即拒；并行引擎把拒绝当致命错误 | 撤回同一 identity 的被拒响应后等待重试；拒绝记录仍在 round `processed/` 与事件日志 |
+| 3 | 一次 provider 调用 `turn.failed: stream disconnected before completion`（77 s，最大 prompt 95.8 KB） | 上游先回 200 再中途断流；relay 只记录到一条无关的 `400 NUS upstream did not accept this request`，故不是配额/鉴权 | 失败决策目录移到 `codex-decisions-failed/` 并记录原因；是否与长度相关待定因实验（第 7 节） |
+| 4 | rollout 无法用 bwrap/unshare | 容器拒绝 mount namespace（`Failed to make / slave`、`Operation not permitted`）；`proot` 可用但 seccomp 加速未生效（`PROOT_NO_SECCOMP` 开关耗时相同） | 实测 proot 每次 syscall 多 71 µs → Isaac 加载 11.85 s → 412.79 s，而录制阶段 9.97 s → 12.17 s 几乎不变（证明是 syscall 截获而非 CPU）；round 只能 `isolation: none`，harness 记 30 条 `unisolated_rollouts` 违规 |
+
+### 5.2 admission 独立审查（本次新增，任务产出）
+
+仓库的 admission 证书面向 LeRobot 数据集，本 fork 的 HDF5 episode 没有对应审查器。`deploy/admit_episode.py`（任务产出，不进仓库）在**独立进程**中从存储字节重新推导 9 项检查并写 `datafarm.gate-receipt`（`stage=admission`、`authority=admission-root`、subject = episode 文档 sha256，符合 `docs/ir/episode.md`）：
+
+`episode_document_intact`、`episode_trace_complete`（N 动作 / N+1 状态）、`judge_bundle_verified`（外部锚点）、`judge_reevaluated_success`（**重跑冻结 judge**）、`judge_matches_recorded`、`render_manifest_intact`、`state_playback_verified`、`hdf5_valid_bitexact`、`hdf5_bound_to_episode`。
+
+**负控（实测）**：对判失败的 `s2/regress/s2v8-seed19` 运行 → `reject`，唯一失败项正是 `judge_reevaluated_success`，其余 8 项 true（`runs/cap-01/admission-negative-control-s2v8-seed19.json`，receipt `b200863d…`）。正控需要一条 judge 判成功的 episode，本次未取得，故 admission 正路径未执行。
 
 **命令与产物**（驱动脚本副本：本机 `runs/integration-20261118/chain-src/`；lab30 `runs/chain/`）：
 
