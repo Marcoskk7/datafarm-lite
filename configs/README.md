@@ -20,3 +20,4 @@ that give the expected form, not values measured for your robot or task.
 | `render/overlay.template.json` | Per-task slots of the render prompt |
 | `render/h3-control-hybrid-v1.json` | Default H3 render recipe |
 | `render/h3-ood-restyle-v1.json` | Out-of-distribution tabletop and light edit of an accepted render |
+| `llm.template.json` | Model for the request-drafting call (`tools/request_draft.py`): model, optional OpenAI-compatible `base_url`, and the *name* of the key's environment variable |

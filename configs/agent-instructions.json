@@ -71,6 +71,13 @@
       "documents": [
         "prompts/instructions/self-improvement.md"
       ]
+    },
+    "scene-author": {
+      "skills": [],
+      "documents": [
+        "docs/ir/request.md",
+        "docs/ir/scene-layout.md"
+      ]
     }
   },
   "task_products": "runs/<run-id>/task; never loaded without explicit current-task routing"

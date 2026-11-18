@@ -1,0 +1,63 @@
+{
+  "accepted": true,
+  "accepted_layout": {
+    "path": "scene-layout.json",
+    "prepared_dir": "prepared/854fc489b3884bc0",
+    "round": 2,
+    "sha256": "efcf331fd864ba689b002ca8565b8cdbd341902c50c1a1b6442c46ce40083c91"
+  },
+  "agent_call_ids": [
+    "call-9ae5a8fbc5a0436ab834ab25d8aee9e8",
+    "call-4788542dd53f4fb2a9eb934820d9d5af"
+  ],
+  "attempts_log": "attempts.jsonl",
+  "final": {
+    "conformance": {
+      "complete": true,
+      "ok": true,
+      "problems": [],
+      "skipped": []
+    },
+    "diagnostics": [],
+    "layout": {
+      "changed": true,
+      "kept": "attempts/002/scene-layout.json",
+      "present": true,
+      "sha256": "efcf331fd864ba689b002ca8565b8cdbd341902c50c1a1b6442c46ce40083c91",
+      "valid": true
+    },
+    "plan": {
+      "diagnostics": [],
+      "error": null,
+      "ok": true,
+      "ran": true
+    },
+    "prepare": {
+      "asset_set_sha256": "854fc489b3884bc0af6eecdd39d173f02c17e21429a6077e775b2899ecc68967",
+      "dir": "prepared/854fc489b3884bc0",
+      "error": null,
+      "ok": true,
+      "ran": true,
+      "reused": false
+    },
+    "round": 2
+  },
+  "max_rounds": 5,
+  "next_step": "on a GPU host: python tools/scene_assemble.py check --spec /opt/data/private/isaaclab/request-authoring/runs/1b-20261117-023625/scene-layout.json --work /opt/data/private/isaaclab/request-authoring/runs/1b-20261117-023625/prepared/854fc489b3884bc0 --headless",
+  "not_verified": [
+    "check (Isaac Lab settle, penetration and placement probes) was not run: run tools/scene_assemble.py check on a GPU host before using this layout",
+    "reachability is kinematic only: no collision-aware planning and no grasp feasibility"
+  ],
+  "request": {
+    "path": "examples/request/plate-drawer-airbot.yaml",
+    "request_id": "plate-drawer-airbot-001",
+    "sha256": "653d04f9e9035512d02a64578beebf7061bc5668f77b0634318748d7bee6ea2b"
+  },
+  "rounds": 2,
+  "schema": "datafarm.scene-authoring-report/1",
+  "stop_reason": "accepted",
+  "verified": [
+    "request conformance with AssetRecords (complete)",
+    "plan: footprint and kinematic reachability"
+  ]
+}

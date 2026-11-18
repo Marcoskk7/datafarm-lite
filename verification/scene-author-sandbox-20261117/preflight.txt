@@ -1,0 +1,71 @@
+SUMMARY {"mode": "proot", "base": "allowlist", "guest_root": "empty (allowlist)", "ok": true, "degraded": false, "ro_soft": true, "readonly_enforced": false, "share_net": true, "readonly_binds": 6, "checked_masks": 23, "leaks": 0, "umounted": 0, "writable_readonly": 6, "unwritable_workspace": 0, "error": null, "spec": "sandbox/rounds/001/sandbox-spec.json", "probe": "sandbox/rounds/001/isolation-probe.json", "leaked_paths": []}
+CLAUDE 2.1.325 (Claude Code)
+
+RUN {
+ "cwd": "/opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/workspace",
+ "workspace_write": true,
+ "cache_list": [
+  ".hull-cache",
+  "dishware_plastic_bigPlate_a01",
+  "dishware_plastic_tray_a01",
+  "fixture_cabinet_b01",
+  "kitchenware_bowl_f01",
+  "kitchenware_bowl_k01",
+  "kitchenware_tray_a01",
+  "table_metal_a02"
+ ],
+ "cache_meta": [
+  ".hull-cache",
+  "dishware_plastic_bigPlate_a01",
+  "dishware_plastic_tray_a01"
+ ],
+ "robot_list": [
+  "MIGRATION_CHANGES.md",
+  "README.md",
+  "__pycache__",
+  "assets",
+  "assets_manifest.json",
+  "delivery_manifest.json",
+  "numpy_compatibility.json",
+  "robot_profiles.py"
+ ],
+ "urdf": "/opt/data/private/isaaclab/a-scene/runtime/robot_assets_isaaclab3_validated_20261113/assets/dualxarm_description/urdf/dualxarm_relative_paths.urdf",
+ "urdf_head": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<!-- Generated from dualxarm.SLDASM (SolidWorks 2026) by scripts/build_urdf.py.\r",
+ "claude_home": [
+  ".local",
+  "IsaacLab30",
+  "node"
+ ],
+ "git_dir": "ERR No such file or directory",
+ "examples": "ERR No such file or directory",
+ "runs": "ERR No such file or directory",
+ "tmp_ls": [
+  "cab.json",
+  "claude-1002",
+  "dr.json"
+ ],
+ "proc_uptime": "3269568.29 186293225.30\n",
+ "python": "pxr+coacd ok",
+ "python_err": ""
+}
+
+STDERR 
+SIMREADY_RC 0
+SIMREADY_OUT {
+  "revision": "21b045a878e13d4ca922f0f8ebc2ff1e84bb06d4",
+  "terms": [
+    "plate"
+  ],
+  "results": [
+    {
+      "asset": "dishware_plastic_bigPlate_a01",
+      "score": 2.0
+    },
+    {
+      "asset": "dishware_plastic_smallPlate_a01",
+      "score": 2.0
+    }
+  ]
+}
+
+SIMREADY_ERR 

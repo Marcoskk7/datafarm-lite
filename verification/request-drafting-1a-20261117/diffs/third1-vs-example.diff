@@ -1,0 +1,66 @@
+--- examples/request/plate-drawer-airbot.yaml (minus request_id)
++++ evidence/third1/request.yaml (minus request_id)
+@@ -1,30 +1,42 @@
+ schema: datafarm.request/1
+ robot: airbot_single_g2
+-task: put the plate into the open drawer
++task: put the mug on the shelf
+ scene:
+-  setting: kitchen
+   objects:
+-    - object_id: object.table
+-      category: table
+-      role: background
+-      constraints: {support: floor}
+-    - object_id: object.cabinet
+-      category: drawer_cabinet
+-      role: receptacle
+-      constraints: {joint: prismatic, joint_state: open, support: floor}
+-    - object_id: object.plate
+-      category: plate
+-      role: task_object
+-      constraints: {shape: raised_rim, support: object.table}
+-  asset_sources: [simready, partnet_mobility]
+-episodes: 20
++  - object_id: object.table
++    category: table
++    role: background
++    constraints:
++      support: floor
++    count: 1
++  - object_id: object.shelf
++    category: shelf
++    role: receptacle
++    constraints:
++      support: floor
++    count: 1
++  - object_id: object.mug
++    category: mug
++    role: task_object
++    constraints:
++      support: object.table
++    count: 1
++episodes: 50
+ seeds:
+-  dev: [0, 99]
+-  holdout: [1000, 1019]
+-cameras: [head, left_wrist]
++  dev:
++  - 0
++  - 99
++  holdout:
++  - 1000
++  - 1019
++cameras:
++- head
+ render:
+   engine: isaac_rtx
+-  views: [head, third_person]
++  views:
++  - head
++  - third_person
+   materials: 2
+   lights: 2
+-dataset: {format: hdf5}
++dataset:
++  format: hdf5

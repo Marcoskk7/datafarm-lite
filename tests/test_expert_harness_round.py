@@ -25,6 +25,10 @@ from xh_helpers import HOLDOUT, expert, write_adapter, write_plan
 WRITE = {"op": "write", "path": "expert.py", "text": expert(0.99)}
 
 
+def round_id(paths: RoundPaths) -> str:
+    return json.loads(paths.round_json.read_text())["round_id"]
+
+
 class RoundFixture(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="xh-round-"))
@@ -35,7 +39,7 @@ class RoundFixture(unittest.TestCase):
         adapter = write_adapter(self.tmp / "task", overrides)
         write_plan(self.tmp / "task", sessions, cost=cost)
         paths = RoundPaths(self.tmp / "round")
-        prepare_round(adapter, paths.root, clock=self.clock, round_id="XR-toy-test")
+        prepare_round(adapter, paths.root, clock=self.clock, round_id="toy-test")
         return adapter, paths
 
     def runner(self, adapter, paths, **kwargs) -> RoundRunner:
@@ -118,7 +122,7 @@ class LoopTests(RoundFixture):
         calls = read_calls(paths.agent_calls)
         self.assertEqual(len(calls), 2)
         self.assertTrue(all(c.component == "expert-harness/session" and c.status == "ok" and c.cost_usd == 0.25
-                            and c.cost_source == "provider" and c.run_id == "XR-toy-test" for c in calls))
+                            and c.cost_source == "provider" and c.run_id == round_id(paths) for c in calls))
         self.assertEqual(state["cost_usd_known"], 0.5)
         self.assertEqual(state["counters"]["counted"], 1)
         self.assertTrue(state["manifest"]["ok"])
@@ -250,7 +254,7 @@ class LoopTests(RoundFixture):
         from datafarm.expert.round import harness_code_sha256, manifest_entries
         from datafarm.expert.state import EventLog
 
-        ManifestGuard(paths, manifest_entries(adapter, paths), state, EventLog(paths, "XR-toy-test", self.clock.now),
+        ManifestGuard(paths, manifest_entries(adapter, paths), state, EventLog(paths, round_id(paths), self.clock.now),
                       self.clock.now, extra={"harness_code_sha256": harness_code_sha256()}).record_start()
         summary = runner.run()
         self.assertEqual(summary["status"], "completed")

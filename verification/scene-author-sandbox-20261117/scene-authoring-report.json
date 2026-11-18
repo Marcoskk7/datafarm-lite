@@ -1,0 +1,62 @@
+{
+  "accepted": true,
+  "accepted_layout": {
+    "path": "scene-layout.json",
+    "prepared_dir": "prepared/78c0d8dceaa3310a",
+    "round": 1,
+    "sha256": "b18fb37ce8440d1ec39162f87ad4ed3d9b5178b975acb405f8a027fb8b26f7c5"
+  },
+  "agent_call_ids": [
+    "call-fced6bfdadc24418ae7869680f21b219"
+  ],
+  "attempts_log": "attempts.jsonl",
+  "final": {
+    "conformance": {
+      "complete": true,
+      "ok": true,
+      "problems": [],
+      "skipped": []
+    },
+    "diagnostics": [],
+    "layout": {
+      "changed": true,
+      "kept": "attempts/001/scene-layout.json",
+      "present": true,
+      "sha256": "b18fb37ce8440d1ec39162f87ad4ed3d9b5178b975acb405f8a027fb8b26f7c5",
+      "valid": true
+    },
+    "plan": {
+      "diagnostics": [],
+      "error": null,
+      "ok": true,
+      "ran": true
+    },
+    "prepare": {
+      "asset_set_sha256": "78c0d8dceaa3310ab94fd68ff1c2809f1abf7eb48d79c445e748ece6cad67535",
+      "dir": "prepared/78c0d8dceaa3310a",
+      "error": null,
+      "ok": true,
+      "ran": true,
+      "reused": false
+    },
+    "round": 1
+  },
+  "max_rounds": 3,
+  "next_step": "on a GPU host: python tools/scene_assemble.py check --spec /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/scene-layout.json --work /opt/data/private/isaaclab/request-authoring/runs/1b-proot-20261117-233440/prepared/78c0d8dceaa3310a --headless",
+  "not_verified": [
+    "check (Isaac Lab settle, penetration and placement probes) was not run: run tools/scene_assemble.py check on a GPU host before using this layout",
+    "reachability is kinematic only: no collision-aware planning and no grasp feasibility"
+  ],
+  "request": {
+    "path": "examples/request/plate-drawer-airbot.yaml",
+    "request_id": "plate-drawer-airbot-001",
+    "sha256": "653d04f9e9035512d02a64578beebf7061bc5668f77b0634318748d7bee6ea2b"
+  },
+  "rounds": 1,
+  "schema": "datafarm.scene-authoring-report/1",
+  "stop_reason": "accepted",
+  "verified": [
+    "request conformance with AssetRecords (complete)",
+    "plan: footprint and kinematic reachability"
+  ]
+}

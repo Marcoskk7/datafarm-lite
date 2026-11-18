@@ -31,7 +31,7 @@ from datafarm.expert.adapter import HoldoutSeed, TaskAdapter, write_holdout_seed
 from datafarm.expert.brief import lint_file
 from datafarm.expert.handoff import build_handoff
 from datafarm.expert.holdout import evaluate_holdout
-from datafarm.adapters.sandbox.isolation import probe_available
+from datafarm.adapters.sandbox import probe_available
 import datafarm.adapters.fakes as fake_package
 from datafarm.expert.layout import RoundPaths
 from datafarm.expert.library import ExpertLibrary, add_from_round

@@ -1,0 +1,8 @@
+{
+  "provider": "openai",
+  "model": "gpt-4.1-mini",
+  "base_url": null,
+  "api_key_env": "OPENAI_API_KEY",
+  "timeout_s": 120,
+  "response_format": "json_schema"
+}

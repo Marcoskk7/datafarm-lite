@@ -101,6 +101,11 @@ def _validate_timestamp(value: str, label: str) -> None:
         raise SchemaError(f"{label} is not a valid timestamp") from exc
 
 
+def is_absolute_filesystem_path(value: str) -> bool:
+    """`/...` 或 `C:\\...`：kernel 在可移植文档里两种都拒收；其他模块复用这一条定义。"""
+    return PurePosixPath(value).is_absolute() or bool(WINDOWS_ABSOLUTE_PATTERN.match(value))
+
+
 def _validate_portable_value(value: Any, *, label: str = "document") -> None:
     if value is None or isinstance(value, (bool, int)):
         return
@@ -109,7 +114,7 @@ def _validate_portable_value(value: Any, *, label: str = "document") -> None:
             raise SchemaError(f"{label} contains a non-finite float")
         return
     if isinstance(value, str):
-        if PurePosixPath(value).is_absolute() or WINDOWS_ABSOLUTE_PATTERN.match(value):
+        if is_absolute_filesystem_path(value):
             raise SchemaError(
                 f"{label} contains an absolute filesystem path; use an ArtifactRef"
             )

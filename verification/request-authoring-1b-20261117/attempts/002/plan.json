@@ -1,0 +1,265 @@
+{
+  "footprint": {
+    "ok": true,
+    "problems": [],
+    "xy_corners_m": {
+      "object.cabinet": [
+        [
+          0.3861,
+          -1.4944
+        ],
+        [
+          0.3861,
+          -0.807
+        ],
+        [
+          -0.3861,
+          -0.807
+        ],
+        [
+          -0.3861,
+          -1.4944
+        ]
+      ],
+      "object.plate": [
+        [
+          0.213,
+          -0.1095
+        ],
+        [
+          0.387,
+          -0.1095
+        ],
+        [
+          0.387,
+          0.0695
+        ],
+        [
+          0.213,
+          0.0695
+        ]
+      ],
+      "object.table": [
+        [
+          -0.9104,
+          -0.3602
+        ],
+        [
+          0.9093,
+          -0.3602
+        ],
+        [
+          0.9093,
+          0.3582
+        ],
+        [
+          -0.9104,
+          0.3582
+        ]
+      ],
+      "robot.airbot": [
+        [
+          -0.1332,
+          -0.3385
+        ],
+        [
+          0.0562,
+          -0.3385
+        ],
+        [
+          0.0562,
+          -0.0615
+        ],
+        [
+          -0.1332,
+          -0.0615
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "asset_id": "object.table_stainless",
+      "node_id": "object.table",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.0,
+          0.0,
+          0.80421
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "semantic_tag": "table"
+    },
+    {
+      "asset_id": "object.drawer_cabinet",
+      "joint_state": {
+        "joint_part_01_joint_00": 0.4,
+        "joint_part_02_joint_00": 0.0
+      },
+      "node_id": "object.cabinet",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.0,
+          -1.15,
+          0.00537
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.707106781,
+          0.707106781
+        ]
+      },
+      "semantic_tag": "drawer"
+    },
+    {
+      "asset_id": "object.plate",
+      "node_id": "object.plate",
+      "pose": {
+        "frame_id": "world",
+        "position_m": [
+          0.3,
+          -0.02,
+          0.87095
+        ],
+        "quaternion_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "randomization": {
+        "position_jitter_m": 0.03,
+        "yaw_range_deg": [
+          -180,
+          180
+        ]
+      },
+      "semantic_tag": "plate"
+    }
+  ],
+  "ok": true,
+  "reachability": {
+    "checked": true,
+    "notes": "4/4 targets solved by multi-start damped least-squares IK on the left_end_link model TCP, approach from above, joint-limit margin 0.05 rad; no collision-aware planning",
+    "ok": true,
+    "targets": [
+      {
+        "iterations": 16,
+        "name": "plate_center_above",
+        "ok": true,
+        "position_error_m": 0.000218,
+        "q": [
+          0.540495,
+          -1.521665,
+          1.063163,
+          -1.570796,
+          1.112216,
+          -1.03031
+        ],
+        "rotation_error_rad": 7.8e-05,
+        "seed_index": 0,
+        "world_m": [
+          0.3,
+          -0.02,
+          0.97095
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 18,
+        "name": "plate_rim_grasp",
+        "ok": true,
+        "position_error_m": 0.000268,
+        "q": [
+          0.447565,
+          -1.883181,
+          1.297975,
+          -1.570797,
+          0.985503,
+          -1.123231
+        ],
+        "rotation_error_rad": 8.6e-05,
+        "seed_index": 0,
+        "world_m": [
+          0.375,
+          -0.02,
+          0.89095
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 12,
+        "name": "drawer_release_above",
+        "ok": true,
+        "position_error_m": 0.000241,
+        "q": [
+          -1.570803,
+          -2.111976,
+          1.604447,
+          1.570794,
+          -1.063201,
+          -5e-06
+        ],
+        "rotation_error_rad": 7e-05,
+        "seed_index": 8,
+        "world_m": [
+          -0.0,
+          -0.67,
+          0.86537
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      },
+      {
+        "iterations": 12,
+        "name": "drawer_place",
+        "ok": true,
+        "position_error_m": 0.000309,
+        "q": [
+          -1.570804,
+          -2.267512,
+          1.617771,
+          1.570794,
+          -0.920971,
+          -5e-06
+        ],
+        "rotation_error_rad": 8.9e-05,
+        "seed_index": 8,
+        "world_m": [
+          -0.0,
+          -0.67,
+          0.79537
+        ],
+        "yaw_rad": 0.0,
+        "yaw_samples_tried": 1
+      }
+    ]
+  },
+  "robot_base_pose": {
+    "frame_id": "world",
+    "position_m": [
+      0.0,
+      -0.2,
+      0.97835
+    ],
+    "quaternion_xyzw": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  },
+  "spec_sha256": "efcf331fd864ba689b002ca8565b8cdbd341902c50c1a1b6442c46ce40083c91"
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "datafarm.request-draft/1",
+  "sentence": "50 episodes, only the head camera: put the mug on the shelf",
+  "sentence_sha256": "e379bedbc044f2a5e109447deeab8c103c18e4d65768b110a49a14a67a5d91ee",
+  "prompt_file_sha256": "93f8bb5a228144d53f87b8bcb35aedeebf70b570b2826ccaf7cd32db6e071206",
+  "prompt_sha256": "4f90df0b3052fd8df13348f31699f3e0bf01d4a5a1787d24152927e23ff79077",
+  "request_sha256": "b45b0dd1f723073bd530807327b0c394064c4abdbe19038329a4935ddb94adf7",
+  "model": "fyp-opus",
+  "response_id": "chatcmpl-msg_011Ch76eJhopEUS1kYZR9XTD",
+  "input_tokens": 3393,
+  "output_tokens": 177,
+  "provenance": {
+    "cameras": "sentence",
+    "dataset.format": "default",
+    "episodes": "sentence",
+    "render.engine": "default",
+    "render.lights": "default",
+    "render.materials": "default",
+    "render.views": "default",
+    "request_id": "default",
+    "robot": "default",
+    "scene": "sentence",
+    "schema": "default",
+    "seeds.dev": "default",
+    "seeds.holdout": "default",
+    "task": "sentence"
+  }
+}
