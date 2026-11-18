@@ -447,6 +447,14 @@ class TaskAdapter:
                 raise ConfigError("rollout.sim.argv must be a non-empty list")
             if not rollout["verdict"].get("file") or not rollout["verdict"].get("success"):
                 raise ConfigError("rollout.verdict needs 'file' and 'success'")
+        if "dev_outcome" in rollout:
+            # 开发 rollout 只记录执行（不经 Judge）；冻结 Judge 只判定最终稿（holdout）。
+            dev = rollout["dev_outcome"]
+            rel = dev.get("file") if isinstance(dev, Mapping) else None
+            if (not isinstance(dev, Mapping) or set(dev) != {"schema", "file"}
+                    or dev.get("schema") != "execution-summary/1" or not isinstance(rel, str) or not rel
+                    or Path(rel).is_absolute() or ".." in Path(rel).parts):
+                raise ConfigError("rollout.dev_outcome must be {schema: execution-summary/1, file: <relative run-dir path>}")
         if rollout.get("backend") == "command" and not rollout.get("submit", {}).get("argv"):
             raise ConfigError("rollout.submit.argv is required for the command backend")
         for which in ("agent", "rollout"):

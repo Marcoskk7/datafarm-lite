@@ -9,11 +9,14 @@
    只有声明的可写工作目录与缓存可写）；当 runner 拒绝已存在的输出目录时，
    它可以写入某个可写工作目录的新子目录，之后由工具链将其移动；
 4. 沙箱**外部**的 judge 步骤（verifier 代码在第 3 步中被屏蔽），将 verdict
-   文件写入第 3 步无法触碰的运行目录根；
+   文件写入第 3 步无法触碰的运行目录根；若 adapter 声明了 ``rollout.dev_outcome``，
+   开发（dev）rollout 跳过此步：只记录执行结果，任务是否成功由作者自检判断，
+   冻结 Judge 只在 holdout（最终稿）上运行一次；
 5. 最后写入包含退出码的 ``harness-job.json``。
 
-结果由工具链而非 agent 分类：judged（计入）、expert error（计入：例如
-trace 容量超限或插件抛出异常），以及不计入的基础设施类（初始状态无效、
+结果由工具链而非 agent 分类：judged（计入）、executed（计入，仅 dev_outcome 模式的
+开发 rollout，success=None）、expert error（计入：例如 trace 容量超限或插件抛出异常），
+以及不计入的基础设施类（初始状态无效、
 仿真器启动失败、judge 失败、节点丢失、超时、隔离失败、提交失败）。
 """
 
@@ -33,11 +36,13 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 from datafarm.expert.adapter import TaskAdapter, validate_proot_rollout
 from datafarm.adapters.sandbox import PROBE_SCRIPT, job_wrapper_bash, make_empty_file
 from datafarm.expert.util import ConfigError, HarnessError, get_dotted
+from datafarm.ir.execution_outcome import classify_execution, classify_result
 from datafarm.kernel.io import read_json, sha256_bytes, sha256_text
 
 JOB_SCHEMA = "datafarm.expert-harness.job/1"
 
-COUNTED_CLASSES = frozenset({"judged", "expert_error"})
+COUNTED_CLASSES = frozenset({"judged", "executed", "expert_error"})
+DEV_OUTCOME_SCHEMA = "execution-summary/1"
 _STATUS_DETAIL = {"lost": "no heartbeat and no result; node or process gone",
                   "timeout": "no result within the rollout wall limit",
                   "submit_failed": "could not submit the job within the submission window",
@@ -109,8 +114,22 @@ def _log_tail(path: Path, limit: int = 400_000) -> str:
         return ""
 
 
-def classify_run_dir(run_dir: Path, rollout_cfg: Mapping[str, Any], *, status: str = "finished") -> Outcome:
-    """对已完成（或丢失 / 超时）的作业目录进行分类。"""
+def dev_outcome_file(rollout_cfg: Mapping[str, Any], purpose: str | None) -> str | None:
+    """开发 rollout 不经 Judge 时的执行摘要文件（相对运行目录）；否则为 None。"""
+
+    spec = rollout_cfg.get("dev_outcome")
+    if purpose != "dev" or not isinstance(spec, Mapping):
+        return None
+    return spec.get("file")
+
+
+def classify_run_dir(run_dir: Path, rollout_cfg: Mapping[str, Any], *, status: str = "finished",
+                     purpose: str | None = None) -> Outcome:
+    """对已完成（或丢失 / 超时）的作业目录进行分类。
+
+    ``purpose="dev"`` 且 adapter 声明 ``rollout.dev_outcome`` 时只按记录器执行摘要分类
+    （executed / expert_error / sim_failure），不读取也不要求 verdict。
+    """
 
     if status in _STATUS_DETAIL:
         return Outcome(status, False, None, {}, None, None, None, None, _STATUS_DETAIL[status])
@@ -133,11 +152,17 @@ def classify_run_dir(run_dir: Path, rollout_cfg: Mapping[str, Any], *, status: s
                                                  "the expert was not run")
     if valid is False:
         return out("init_invalid", None, {}, "the initial-state generator reported an invalid start")
+    execution_file = dev_outcome_file(rollout_cfg, purpose)
+    summary = _read_json_quiet(run_dir / execution_file) if execution_file else None
+    if isinstance(summary, dict):
+        # 开发 rollout：只记录执行，不经 Judge；任务成功与否由作者自检判断。
+        cls, success, detail = classify_execution(summary)
+        return out(cls, success, {"execution_status": summary.get("execution_status"),
+                                  "reason_code": summary.get("reason_code")}, detail)
     verdict_cfg = rollout_cfg.get("verdict", {})
-    verdict = _read_json_quiet(run_dir / verdict_cfg.get("file", "verdict.json"))
+    verdict = None if execution_file else _read_json_quiet(run_dir / verdict_cfg.get("file", "verdict.json"))
     if verdict_cfg.get("schema") == "judge-result/1" and isinstance(verdict, dict):
         # 生成 Judge 的 error/aborted 保持 success=None，不经旧协议的 bool() 转换成任务失败。
-        from datafarm.judge.integration import classify_result
         cls, success, detail = classify_result(verdict)
         return out(cls, success, {name: get_dotted(verdict, path)
                    for name, path in verdict_cfg.get("fields", {}).items()}, detail)
@@ -176,6 +201,8 @@ def classify_run_dir(run_dir: Path, rollout_cfg: Mapping[str, Any], *, status: s
     if sim_exit not in (0, None) or not produced:
         return out("sim_failure", None, {}, f"simulator exit {sim_exit} without an expert error "
                                            "signature; treated as infrastructure")
+    if execution_file:
+        return out("sim_failure", None, {}, "the simulator finished but wrote no execution summary")
     return out("judge_failure", None, {}, "the simulator finished but no verdict was produced")
 
 
@@ -234,7 +261,9 @@ xh_sandboxed() { local cwd="$1"; shift; (cd "$cwd" && "$@"); }
     record = " ".join(_q(p) for p in adapter.shell_paths(cfg.get("record_digests", [])))
     judge_lines = []
     verdict_outputs = set()
-    for step in cfg.get("judge", []):
+    # dev_outcome 模式下开发 rollout 不运行 Judge：冻结 Judge 只对最终稿（holdout）判定一次。
+    judge_steps = [] if dev_outcome_file(cfg, spec.purpose) else cfg.get("judge", [])
+    for step in judge_steps:
         argv = adapter.x(step["argv"], keep_env=True, **values)
         stdout = step.get("stdout", f"judge-{step['name']}.stdout")
         for output in step.get("outputs", []):
@@ -378,7 +407,7 @@ class JobRolloutBackend:
         return "running"
 
     def outcome(self, spec: AttemptSpec, receipt: Mapping[str, Any], status: str) -> Outcome:
-        return classify_run_dir(spec.run_dir, self.cfg, status=status)
+        return classify_run_dir(spec.run_dir, self.cfg, status=status, purpose=spec.purpose)
 
 
 class CommandRolloutBackend(JobRolloutBackend):

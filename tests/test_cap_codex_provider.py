@@ -14,7 +14,7 @@ from datafarm.cap.io import read_json, write_json
 from datafarm.cap.search import SearchConfig, SearchRunner
 from datafarm.cap.library import SkillLibrary
 from datafarm.cap.state_feedback import feedback
-from test_cap_search import Actor, Engine, TASK as LEGACY_TASK
+from test_cap_search import Actor, CHECK, Engine, TASK as LEGACY_TASK
 
 POPEN='datafarm.adapters.agent_harness.codex.structured.subprocess.Popen'
 
@@ -38,7 +38,9 @@ else:
     result={'action':'propose','code':'repaired' if request.get('top_programs') or role=='verifier' else 'bad',
             'hypothesis':'Measured state indicates a frame error; use relative coordinates',
             'expected_failure':'Failure if frame hypothesis is wrong','proposal_applied_as_written':role=='verifier',
-            'event_ids':[],'episode_id':None}
+            'event_ids':[],'episode_id':None,
+            'check':(Path(__file__).with_name('check.py').read_text()
+                     if (request.get('self_check') or {}).get('status')=='required' else None)}
 Path(argv[argv.index('--output-last-message')+1]).write_text(json.dumps(result))
 print(json.dumps({'type':'thread.started','thread_id':str(uuid.uuid4())}),flush=True)
 print(json.dumps({'type':'turn.completed','usage':{'input_tokens':10,'output_tokens':10}}),flush=True)
@@ -50,7 +52,8 @@ class StateEngine:
     def evaluate(self, code, seeds, phase):
         self.requests.append((code,phase))
         return {'episodes':[dict(episode_id=f'{phase}-{len(self.requests)}-{s}',seed=s,phase=phase,
-                                 success=code=='repaired',score=float(code=='repaired'),
+                                 execution={'expert_error':False,'execution_status':'completed','reason_code':None},
+                                 trace=[{'event_id':0,'api':'move','ok':code=='repaired'}],
                                  privileged_state={'availability':'available','initial':STATE,'final':STATE}) for s in seeds]}
 
 
@@ -59,6 +62,7 @@ class CodexProviderTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)
         (self.root/'fake.py').write_text(FAKE)
+        (self.root/'check.py').write_text(CHECK)
         write_json(self.root/'skill.json',SKILL)
         self.provider=build_provider({'work_root':str(self.root/'provider')})
         self.popen=subprocess.Popen
@@ -69,7 +73,8 @@ class CodexProviderTests(unittest.TestCase):
         return self.popen([sys.executable,str(self.root/'fake.py'),*argv[1:]],**kwargs)
 
     def request(self, **kwargs):
-        return {**dict(role='actor',task=TASK,observation_mode='privileged_state'),**kwargs}
+        return {**dict(role='actor',task=TASK,observation_mode='privileged_state',
+                       self_check={'status':'required'}),**kwargs}
 
     def test_scripted_cli_full_repair_and_fresh_verifier(self):
         engine=StateEngine()
@@ -108,6 +113,8 @@ class CodexProviderTests(unittest.TestCase):
                         self.request(task={**TASK,'image_inputs':['x.png']}),
                         self.request(task={**TASK,'state':float('nan')}),
                         {**self.request(),'role':'verifier','winner':{'code':'secret'}},
+                        {**self.request(),'role':'verifier'},
+                        {**self.request(),'self_check':None},
                         {**self.request(),'observation_mode':'primitive_trace'}):
             with self.assertRaises(ValueError): public_request(request)
 
@@ -174,6 +181,17 @@ class CodexProviderTests(unittest.TestCase):
         receipt=read_json(next((self.root/'gateway').glob('*/receipt.json')))
         self.assertEqual(receipt['transport']['upstream_requests'],1)
         self.assertEqual(gateway.max_output_tokens,5000)
+
+    def test_schema_and_validator_enforce_self_check(self):
+        self.assertIn('check',response_schema('actor',TASK['api'])['required'])
+        from datafarm.cap.codex_provider import validate_decision
+        base={'action':'propose','code':'x','hypothesis':'h','expected_failure':'f'}
+        required=self.request()
+        frozen=self.request(self_check={'status':'frozen','source':CHECK})
+        self.assertEqual(validate_decision({**base,'check':CHECK},required)['check'],CHECK)
+        for value,request in (({**base,'check':None},required),({**base,'check':'import os'},required),
+                              ({**base,'check':CHECK},frozen)):
+            with self.assertRaises(ValueError): validate_decision(value,request)
 
     def test_removed_settings_are_rejected(self):
         with self.assertRaises(ValueError):

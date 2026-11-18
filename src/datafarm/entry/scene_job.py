@@ -207,6 +207,9 @@ def bind_scene_adapter(raw, *, factory, factory_sha256, config, store_root, cont
     result['rollout']['verdict']={'schema':'judge-result/1','file':'verdict.json','success':'success',
         'fields':{'reason_code':'reason_code','predicate_results':'predicate_results','metrics':'metrics'}}
     result['rollout']['init_state']={'file':'native-parent/native/initial-state.json','valid':'valid','family':'family'}
+    # Development rollouts are executed but not judged: CaP iterates with its own self-check and the
+    # frozen Judge above scores only the final submission once, on hidden holdout seeds.
+    result['rollout']['dev_outcome']={'schema':'execution-summary/1','file':'native-parent/native/episode-ref.json'}
     result.setdefault('manifest',{}).setdefault('files',[]).extend([str(Path(factory).resolve()),str(Path(config).resolve()),str(Path(contract_ref_document).resolve())])
     return result
 

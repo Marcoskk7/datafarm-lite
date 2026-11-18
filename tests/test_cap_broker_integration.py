@@ -26,7 +26,9 @@ class BrokerIntegrationTests(unittest.TestCase):
         from xh_helpers import expert
         with patch('datafarm.cap.xh.time.sleep',self.tick):
             result=self.engine.evaluate(expert(1),[3],'debug')
-            self.assertTrue(result['episodes'][0]['success'])
+            # The engine returns execution facts; success is decided by the author self-check.
+            self.assertFalse(result['episodes'][0]['execution']['expert_error'])
+            self.assertNotIn('success',result['episodes'][0])
             self.assertEqual(self.fixture.broker.counted(),1)
             submitted=self.engine.submit(expert(1))
             self.assertEqual(submitted['status'],'accepted')

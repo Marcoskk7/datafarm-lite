@@ -49,35 +49,7 @@ def attach_adapter(raw, bundle, anchor, episode_relative):
     return result
 
 
-# 记录器 termination.reason_code 中可归责于 expert 的原因；这些 rollout 计入预算（counted）。
-EXPERT_EXECUTION_REASONS = frozenset({
-    'JOINT_LIMIT', 'SPEED_LIMIT', 'TRACKING_ERROR', 'LOCAL_IK_NONCONVERGENCE', 'GRIPPER_NONCONVERGENCE',
-    'WALL_TIME_LIMIT', 'INVALID_ARGUMENT', 'UNKNOWN_FRAME', 'BUDGET_EXHAUSTED', 'CALL_BUDGET',
-    'CONTROL_BUDGET', 'EXPERT_EXCEPTION', 'EXPERT_WALL_BUDGET', 'EXPERT_PROTOCOL_ERROR',
-    'EXPERT_AUDIT_REJECTED'})
-
-
-def execution_reason(value):
-    """从 ``EXECUTION_<STATUS>:<REASON>`` 中取出记录器原因；不匹配时返回 None。"""
-    code = value.get('reason_code') if isinstance(value, dict) else None
-    if not isinstance(code, str) or not code.startswith('EXECUTION_') or ':' not in code:
-        return None
-    return code.split(':', 1)[1]
-
-
-def classify_result(value):
-    """新协议不对 null/string 使用 bool()；旧 adapter 的布尔协议不受影响。"""
-    if not isinstance(value, dict) or value.get('schema_version') != 'judge-result/1':
-        return 'judge_failure', None, 'Missing or invalid generated JudgeResult'
-    outcome, success = value.get('outcome'), value.get('success')
-    if outcome in ('success', 'failure') and type(success) is bool and success == (outcome == 'success'):
-        predicates = value.get('predicate_results')
-        if predicates is not None and (not isinstance(predicates, dict) or not predicates or any(type(v) is not bool for v in predicates.values()) or all(predicates.values()) != success):
-            return 'judge_failure', None, 'Judge predicates contradict success'
-        return 'judged', success, str(value.get('reason_code', outcome))
-    if outcome == 'aborted' and success is None:
-        return 'aborted', None, str(value.get('reason_code', 'aborted'))
-    if outcome == 'error' and success is None and execution_reason(value) in EXPERT_EXECUTION_REASONS:
-        # expert 自身导致的执行失败是有效的“专家失败”，计数且 success=False；宿主故障仍不计数。
-        return 'expert_error', False, str(value['reason_code'])
-    return 'judge_failure', None, str(value.get('reason_code', 'invalid or unavailable judge evidence'))
+# Execution-outcome classification moved to ``datafarm.ir.execution_outcome`` so the broker
+# (``expert``) does not import ``judge``; re-exported here for existing callers.
+from datafarm.ir.execution_outcome import (  # noqa: E402,F401
+    EXPERT_EXECUTION_REASONS, classify_result, execution_reason)

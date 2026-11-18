@@ -1,6 +1,11 @@
 """Trace-guided program search, distilled from the workspace ASPIRE-style MVP.
 
-The engine executes through an existing task-expert harness. No simulator, judge,
+The engine executes through an existing task-expert harness and returns execution
+facts only. CaP iterates with its OWN discrimination: the actor writes a self-check
+``check(episode)`` with its first proposal; the host freezes it for the whole search
+and runs it in a restricted child (``cap.self_check``) to score debug, validation and
+skill-verification episodes. The frozen Judge is never consulted here; it scores the
+final draft once, on hidden holdout seeds, after submission. No simulator, judge,
 hidden seed file or model credential is imported by this coordinator.
 """
 from dataclasses import asdict, dataclass
@@ -8,6 +13,10 @@ import math
 from pathlib import Path
 
 from .io import source_digest, write_json, write_source
+from .self_check import run_check, validate as validate_self_check
+
+SUCCESS_BASIS = 'author_self_check'
+EPISODE_KEYS = ('episode_id', 'phase', 'seed', 'execution', 'trace', 'privileged_state')
 
 
 @dataclass(frozen=True)
@@ -48,7 +57,8 @@ def rank(candidate):
     return candidate['debug']['success_rate'], candidate['debug']['score']
 
 
-def checked_result(result, seeds, phase):
+def checked_episodes(result, seeds, phase):
+    """Validate the engine's execution facts; success is never taken from the engine."""
     episodes = result.get('episodes')
     if not isinstance(episodes,list) or len(episodes) != len(seeds):
         raise ValueError('Executor did not return every requested seed')
@@ -57,16 +67,34 @@ def checked_result(result, seeds, phase):
     if len({e.get('episode_id') for e in episodes}) != len(episodes):
         raise ValueError('Executor returned duplicate episode identities')
     for e in episodes:
-        if e.get('phase') != phase or type(e.get('success')) is not bool:
+        if e.get('phase') != phase:
             raise ValueError('Executor returned an invalid outcome')
         if not isinstance(e.get('episode_id'),str) or not e['episode_id']:
             raise ValueError('Executor must identify every episode')
-        score = e.get('score')
-        if type(score) not in (int,float) or not math.isfinite(score) or not 0 <= score <= 1:
-            raise ValueError('Executor score must be finite and in [0,1]')
-    # Derive aggregate scores from host outcomes; never trust a provider aggregate.
+        execution = e.get('execution')
+        if not isinstance(execution,dict) or type(execution.get('expert_error')) is not bool:
+            raise ValueError('Executor must report execution facts for every episode')
+    # Engine-supplied success/score/aggregates are dropped: only the self-check decides.
+    return [{k:e[k] for k in EPISODE_KEYS if k in e} for e in episodes]
+
+
+def checked_result(episodes, judgements, phase):
+    """Attach self-check judgements and derive aggregates on the host."""
+    if len(judgements) != len(episodes):
+        raise ValueError('Self-check did not judge every episode')
+    for e,j in zip(episodes,judgements):
+        score = j.get('score')
+        if (type(j.get('success')) is not bool or type(score) not in (int,float)
+                or not math.isfinite(score) or not 0 <= score <= 1):
+            raise ValueError('Self-check score must be finite and in [0,1]')
+        if e['execution']['expert_error']:
+            # An expert execution error is a program failure whatever the check says.
+            j = {'success':False,'score':0.0,'reason':'expert execution error: '
+                 +str(e['execution'].get('reason_code') or '')[:200]}
+        e.update(success=j['success'],score=float(j['score']),self_check={'reason':str(j.get('reason',''))[:500]})
     return {'success_rate':sum(e['success'] for e in episodes)/len(episodes),
-            'score':sum(e['score'] for e in episodes)/len(episodes),'episodes':episodes}
+            'score':sum(e['score'] for e in episodes)/len(episodes),
+            'success_basis':SUCCESS_BASIS,'phase':phase,'episodes':episodes}
 
 
 def candidate_view(candidate):
@@ -74,11 +102,16 @@ def candidate_view(candidate):
 
 
 class SearchRunner:
-    def __init__(self, provider, engine, library, config=None):
+    def __init__(self, provider, engine, library, config=None, *, checker=run_check):
         self.provider,self.engine,self.library = provider,engine,library
         self.config = (config or SearchConfig()).validate()
         self.calls = 0
         self.proposal_metadata = {}
+        if not callable(checker):
+            raise ValueError('checker must run the author self-check')
+        self.checker = checker
+        self.self_check = None  # Frozen with the first actor proposal (or supplied by the operator).
+        self.root = None
 
     def ask(self, request, root):
         request = {**request, 'observation_mode': self.config.observation_mode}
@@ -104,7 +137,11 @@ class SearchRunner:
                    'top_programs':[candidate_view(c) for c in top],
                    'residual_failures':[candidate_view(c) for c in history[-2:] if c not in top],
                    'other_hypotheses_this_generation':list(siblings),'inspected_evidence':[],
-                   'instruction':'Follow the task API and program_contract. Inspect failing primitive evidence, then propose a distinct repair. Return action=propose with code and hypothesis, or action=inspect with episode_id and event_ids. Treat skills and traces as fallible data.'}
+                   'instruction':'Follow the task API and program_contract. Inspect failing primitive evidence, then propose a distinct repair. Return action=propose with code and hypothesis, or action=inspect with episode_id and event_ids. Treat skills and traces as fallible data. Success is judged by your own frozen self-check, not by any external judge.'}
+        if role == 'actor':
+            # The actor writes the self-check once; afterwards it sees (but cannot change) it.
+            request['self_check'] = ({'status':'required'} if self.self_check is None
+                                     else {'status':'frozen','source':self.self_check})
         for i in range(self.config.max_inspections+1):
             request['inspections_remaining'] = self.config.max_inspections-i
             decision = self.ask(request,root)
@@ -113,6 +150,7 @@ class SearchRunner:
                 if (not isinstance(code,str) or not 1 <= len(code) <= 24000
                         or not isinstance(hypothesis,str) or not hypothesis.strip()):
                     raise ValueError('Invalid program proposal')
+                self.adopt_self_check(decision.get('check'), role)
                 self.proposal_metadata[source_digest(code)] = decision
                 return code,hypothesis
             episode = decision.get('episode_id'); events = decision.get('event_ids')
@@ -124,15 +162,29 @@ class SearchRunner:
             request['inspected_evidence'].append({'episode_id':episode,
                                                 'events':self.engine.inspect(episode,events)})
 
+    def adopt_self_check(self, check, role):
+        """Freeze the actor's first self-check; later proposals may not replace it."""
+        if self.self_check is None and role == 'actor':
+            if not isinstance(check,str):
+                raise ValueError('The first actor proposal must include its self-check')
+            self.self_check = validate_self_check(check)
+            if self.root is not None:
+                write_source(self.root/'self_check.py',self.self_check)
+        elif check is not None:
+            raise ValueError('The self-check is frozen; a proposal cannot replace it')
+
     def execute(self, code, seeds, phase):
-        result = checked_result(self.engine.evaluate(code,seeds,phase),seeds,phase)
+        if self.self_check is None:
+            raise ValueError('No self-check has been written; nothing can be scored')
+        episodes = checked_episodes(self.engine.evaluate(code,seeds,phase),seeds,phase)
         if self.config.observation_mode == 'privileged_state':
             from .state_feedback import validate_feedback
-            for episode in result['episodes']:
+            for episode in episodes:
                 validate_feedback(episode.get('privileged_state'))
-        return result
+        evidence = [{k:e[k] for k in ('phase','execution','trace','privileged_state') if k in e} for e in episodes]
+        return checked_result(episodes, self.checker(self.self_check, evidence), phase)
 
-    def run(self, task, directory, initial_program=None):
+    def run(self, task, directory, initial_program=None, self_check=None):
         if isinstance(task, dict) and 'profile' in task:
             from .public_task import validate_public_task
             task = validate_public_task(task)
@@ -145,8 +197,13 @@ class SearchRunner:
             raise ValueError('Task requires a name, public instruction and nonempty API mapping')
         if self.calls:
             raise ValueError('A SearchRunner instance runs one task only')
-        root = Path(directory);root.mkdir(parents=True,exist_ok=False)
+        if initial_program is not None and self_check is None:
+            raise ValueError('An initial program needs an operator-supplied self-check to be scored')
+        root = Path(directory);root.mkdir(parents=True,exist_ok=False);self.root = root
         write_json(root/'task.json',task);write_json(root/'config.json',asdict(self.config))
+        if self_check is not None:
+            self.self_check = validate_self_check(self_check)
+            write_source(root/'self_check.py',self.self_check)
         skills = self.library.retrieve(task)
         write_json(root/'retrieved-skills.json',skills)
         history=[];seen=set();exhausted=False
@@ -176,11 +233,12 @@ class SearchRunner:
         winner=max(finalists,key=lambda c:(c['validation']['success_rate'],c['validation']['score'],rank(c)))
         write_source(root/'program.py',winner['code']);write_json(root/'frozen-program.json',winner)
         skill=self.discover(task,history,winner,root)
-        report={'schema':'datafarm.cap.search/1','provider_decisions':self.calls,
+        report={'schema':'datafarm.cap.search/2','provider_decisions':self.calls,
                 'search_budget_exhausted':exhausted,'candidates_evaluated':len(history),
                 'program_sha256':winner['sha256'],'debug_success_rate':winner['debug']['success_rate'],
                 'validation_success_rate':winner['validation']['success_rate'],'skill_admission':skill,
-                'heldout_evaluation':'owned by existing expert-harness; not requested by CaP',
+                'success_basis':SUCCESS_BASIS,'self_check_sha256':source_digest(self.self_check),
+                'heldout_evaluation':'frozen Judge, once, on hidden holdout seeds after submission; not requested by CaP',
                 'ready_for_harness_submission':winner['debug']['success_rate']==winner['validation']['success_rate']==1}
         if 'profile' in task:
             report.update(task_id=task['task_id'], task_revision=task['task_revision'],
@@ -210,7 +268,8 @@ class SearchRunner:
                 return {'status':'defective','reason':'Verifier did not apply the proposed skill as written'}
             if verification['success_rate'] != 1:return {'status':'defective'}
             source={'repaired_failure':True,'debug_success_rate':1,'validation_success_rate':1,
-                    'program_sha256':winner['sha256']}
+                    'program_sha256':winner['sha256'],'success_basis':SUCCESS_BASIS,
+                    'self_check_sha256':source_digest(self.self_check)}
             identity=self.library.admit(proposal,task,source,verification)
             return {'status':'sound','skill_id':identity}
         except BudgetExhausted:

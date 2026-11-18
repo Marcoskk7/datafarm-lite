@@ -32,7 +32,8 @@ class XHTests(unittest.TestCase):
             code=(self.root/'workspace'/args['file']).read_text()
             write_json(self.root/'broker/results'/(aid+'.json'),{
                 'attempt_id':aid,'seed':args['seed'],'expert_sha256':source_digest(code),
-                'outcome_class':'judged','counted':True,'success':True,'run_dir':str(directory)})
+                'outcome_class':'executed','counted':True,'success':None,'run_dir':str(directory),
+                'fields':{'execution_status':'completed','reason_code':'EXPERT_RETURNED'}})
 
     def test_engine_uses_broker_and_reuses_existing_attempt(self):
         code='class Expert: pass\n'
@@ -73,3 +74,22 @@ class XHTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'bound'):self.engine.evaluate(code,[0],'debug')
         source=next((self.root/'workspace').glob('cap-*.py'));source.write_text('modified')
         with self.assertRaisesRegex(ValueError,'modified'):self.engine.evaluate(code,[0],'debug')
+
+
+class XHExecutionOnlyTests(XHTests):
+    """The author sees execution facts only; a dev verdict never leaks into an episode."""
+    def test_episode_has_execution_facts_and_no_verdict(self):
+        with patch('datafarm.cap.xh.time.sleep',self.service):
+            episode=self.engine.evaluate('class Expert: pass\n',[0],'debug')['episodes'][0]
+        self.assertEqual(episode['execution'],{'expert_error':False,'execution_status':'completed',
+                                               'reason_code':'EXPERT_RETURNED'})
+        self.assertNotIn('success',episode);self.assertNotIn('evaluation',episode)
+
+    def test_uncounted_infrastructure_is_not_a_program_failure(self):
+        def infra(_):
+            self.service(_)
+            for f in (self.root/'broker/results').glob('*.json'):
+                raw=read_json(f);raw.update(outcome_class='sim_failure',counted=False);write_json(f,raw)
+        with patch('datafarm.cap.xh.time.sleep',infra):
+            with self.assertRaisesRegex(RuntimeError,'Infrastructure'):
+                self.engine.evaluate('class Expert: pass\n',[0],'debug')

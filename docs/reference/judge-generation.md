@@ -44,7 +44,7 @@ Missing data, non-finite values, clock inconsistencies and execution exceptions 
 cancellation produces `aborted` / `success=null`; execution timeout/errors are not ordinary judged task failures.
 When the recorded Episode itself ended in `error/failed/timeout`, the result's `reason_code` is
 `EXECUTION_<STATUS>:<termination.reason_code>`; the harness counts expert-caused reasons as `expert_error`
-(see `judge/integration.py::EXPERT_EXECUTION_REASONS`) and leaves host faults as uncounted `judge_failure`. The host checks
+(see `ir/execution_outcome.py::EXPERT_EXECUTION_REASONS`, re-exported by `judge/integration.py`) and leaves host faults as uncounted `judge_failure`. The host checks
 condition coverage and result consistency, and runs every test case twice to confirm determinism. Every condition
 needs a failure case that actually triggers it, and the independent review must supply its own positive and negative
 cases rather than repeating the author's claim of success.
@@ -107,7 +107,8 @@ projection; it does not overwrite the input adapter or historical artifacts. The
 
 In rollout, a verdict with `schema: judge-result/1` is classified without `bool()`: `success` / `failure` count as
 judged results, `aborted` is recorded as aborted, and judge errors are recorded as judge failures with `success=null`,
-never as task failures. Adapters that use the existing boolean verdict protocol are unchanged.
+never as task failures. Adapters that use the existing boolean verdict protocol are unchanged. When the adapter sets `rollout.dev_outcome`,
+development rollouts do not run the judge at all; only holdout rollouts are judged.
 
 A scripted fixture can be used to test the build mechanism, but it has `ready_for_cap=false` and cannot start
 production CaP. Only a build with a real model and independent review can become ready. CaP receives only the public
