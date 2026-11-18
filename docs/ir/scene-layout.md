@@ -63,10 +63,11 @@
 | `joint_state` | 否 | `{关节名: 初值}`；关节名是上游 USD 里的名字（AssetRecord `joints[].name`），值必须在该关节 `limits` 内。非零初值还参与占地扫掠检查，见下 |
 | `randomization` | 否 | `{position_jitter_m, yaw_range_deg}`，原样写进 SceneGraph；`yaw_range_deg` 是度且在 `[-180, 180]` |
 
-非零 `joint_state` 的两条作用：驱动 `reach_targets[].joint` 的目标平移（见下），以及把该节点的占地矩形
-沿关节轴平移后再做重叠检查（`layout.joint_sweep_check`，见 `plan` 检查第 4 条）。后者只对 `prismatic`
-可判定；`revolute` 在 AssetRecord 里没有枢轴，`plan` 会在 `footprint.joint_sweep.skipped` 里明确列出，
-而不是当成通过。
+非零 `joint_state` 的两条作用：驱动 `reach_targets[].joint` 的目标平移（见下），以及把该节点的占地
+扫掠后再做重叠检查（`layout.joint_sweep_check`，见 `plan` 检查第 4 条）。AssetRecord 带 `parts[]`
+（分件碰撞盒）和该关节的 `anchor_m` 时按移动件精确扫掠（`prismatic` 平移、`revolute` 绕枢轴旋转）；
+缺分件或枢轴时回退到整根系包围盒平移，此时 `revolute` 无法界定转动，`plan` 会在
+`footprint.joint_sweep.skipped` 里明确列出，而不是当成通过。
 
 高度解算规则（`layout.resolve_nodes`）：
 
@@ -162,12 +163,21 @@ AssetRecord 没有 `collision.base_bbox_min_m` 时报错，不假设基座原点
 3. 占地检查：每个非 floor 节点（以及由 `on`/`xy_m` 解出的机器人基座）的包围盒底面矩形按偏航旋转后，
    必须落在支撑节点顶面包围盒内；同一支撑面上的物体（floor 也算同一支撑面）两两不许相交。
    机器人给了显式 `base_pose` 时不参与占地检查。只适用于平放物体。
-4. 关节初值扫掠（`layout.joint_sweep_check`，结果折进 `footprint`）：每个节点上非零的 `prismatic`
-   `joint_state` 把它的占地矩形按 `R_z(yaw)·axis·v` 平移，再与同一支撑面（`on` 相同，floor 也算同一面）
-   上的其他节点、以及自身支撑节点做 SAT 相交（边贴边不算）。命中写一行
-   `object.cabinet drawer_joint at 0.35 m moves into object.table`。这是保守的包围盒测试：整根系包围盒平移、
-   z 盲、不加余量，所以地面层的薄板也可能被误报。`revolute` 初值没有枢轴可用（AssetRecord 只有 `joints[]`，
-   没有 `parts[]` 分件几何；按分件收紧是跨线契约，待 B 确认），一律记入 `footprint.joint_sweep.skipped`。
+4. 关节初值扫掠（`layout.joint_sweep_check`，结果折进 `footprint`），两条路径：
+   - **分件路径（优先）**：AssetRecord 有 `parts[]`、且该关节带 `child_body`（`parts[].prim` 的刚体 prim
+     路径；`joints[].child` 本身是关节子 prim 的叶名，常是刚体下的网格，不能直接对叶名）时，
+     只扫移动件。`prismatic` 把分件盒沿 `R_z(yaw)·axis·v` 平移，扫掠体取起点盒与终点盒的凸包（对凸盒精确）；
+     `revolute` 若有 `joints[].anchor_m`，把分件三轴盒绕枢轴沿 `axis` 转 0→v，按 ≤5° 采样，
+     取全部采样 8 个角的 XY 投影凸包（轴向不平行世界 Z 时投影是六边形，取凸包即保守外包；
+     弦替代圆弧使覆盖内收不超过 `1e-3·r`）。这类关节记入 `checked` 并带 `method: "parts"`
+     （prismatic 记 `travel_m`，revolute 记 `travel_rad`）。
+   - **保守回退**：缺 `parts[]`、缺移动件或转动缺 `anchor_m` 时，`prismatic` 把整根系包围盒按
+     `R_z(yaw)·axis·v` 平移；`revolute` 无法界定转动，一律记入 `footprint.joint_sweep.skipped`
+     （回退输出与引入 `parts[]` 前逐字节一致，`checked` 里没有 `method`）。
+
+   两条路径都只与同一支撑面（`on` 相同，floor 也算同一面）上的其他节点、以及自身支撑节点做 SAT 相交
+   （边贴边不算），命中写一行 `object.cabinet drawer_joint at 0.35 m moves into object.table`
+   （revolute 的单位写 `rad`）。都是 z 盲、不加余量，所以地面层的薄板仍可能被误报。
    这仍是 GPU 之前的运动学前置闸门，不替代 `check` 的穿透测量。
 5. 逐个 `reach_targets` 求逆解，全部有解才 ok。
 6. 写 `plan.json`：`spec_sha256`、`nodes`、`robot_base_pose`、`reachability`、`footprint`（含
@@ -189,7 +199,7 @@ AssetRecord 没有 `collision.base_bbox_min_m` 时报错，不假设基座原点
 6. 退出码 0 当且仅当静置稳定、无穿透、探针全过、可达性 ok、占地 ok。`plan.json` 的 `ok` 不参与判断，
    `check` 分别读 `reachability.ok` 与 `footprint.ok`。
 
-`plan` 的关节扫掠与 `check` 的关节规则是两层：前者是 GPU 之前的运动学包围盒闸门（整盒平移、z 盲），
+`plan` 的关节扫掠与 `check` 的关节规则是两层：前者是 GPU 之前的运动学包围盒闸门（分件盒平移/转动或整盒平移、z 盲），
 后者判定仿真测量值；`plan` 通过不能替代 `check`，`check` 的被动关节规则也不能用来放宽扫掠。
 
 ## 示例（节选）

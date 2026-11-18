@@ -14,6 +14,7 @@
 | `bbox_m` | 是 | 静止姿态下 AABB `[x, y, z]`，米 |
 | `collision` | 是 | `{kind: "mesh" / "convex_hull" / "primitive", artifact?: ArtifactRef}`；没有单独碰撞网格时 `kind` 指主文件里的碰撞几何 |
 | `joints` | 是 | 关节数组，刚体写 `[]`，见下 |
+| `parts` | 否 | 分件碰撞盒数组，每个刚体（连杆）一条，见下；给场景按移动件扫掠关节行程，旧记录没有也能用 |
 | `frames` | 是 | `{up_axis: "Z", root_frame_id, link_frame_ids: {...}}`；导入需要旋转或缩放时在 `notes` 写明 |
 | `physical_quantities` | 是 | 复用 `datafarm.grounding/1` 的 physical_quantities 列表，见下 |
 | `notes` | 否 | 人读备注：导入时的旋转、缩放、已知简化 |
@@ -37,7 +38,28 @@
 | `axis` | 是 | 关节轴，单位向量（资产自身坐标系） |
 | `limits` | 是 | `{lower, upper}`；revolute 用 rad，prismatic 用 m |
 | `parent` / `child` | 是 | 连杆名 |
+| `anchor_m` | 否 | 关节枢轴（关节系原点）在资产根系的坐标 `[x, y, z]`，米；revolute 绕它转动，prismatic 也带上 |
+| `child_body` | 否 | 关节 `child` prim 所属刚体的 prim 路径（`prim_ref` 形式，如 `RootNode/Geometry/part_01_obj_00`），指向 `parts[].prim` |
 | `mimic` | 否 | `{joint, multiplier, offset}`；G2 夹爪的从动指在这里，B 只观测不下发 |
+
+`parts[i]`（分件碰撞盒，可选）：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `name` | 是 | 刚体/连杆 prim 路径的叶名（如 `part_01_obj_00`） |
+| `prim` | 否 | 刚体 prim 路径（`prim_ref` 形式，资产根相对、无前导 `/`，如 `RootNode/Geometry/part_01_obj_00`）；`joints[].child_body` 指向它 |
+| `bbox_min_m` / `bbox_max_m` | 是 | 该刚体全部碰撞几何的轴对齐包围盒，资产根系（`frames.root_frame_id`）、米、静止姿态 |
+
+- 坐标系与单位：`parts[]` 和 `anchor_m` 都在资产根系里，米；场景把它们当作节点位姿前（rest）的几何，
+  节点绕世界 Z 的偏航由 SceneLayout 的 `yaw_deg` 加上去。关节初值 `joint_state` 再叠加在分件上。
+- `parts[]` 由 `inspect_asset` 的碰撞体包围盒按刚体合并生成（同一刚体多个碰撞体取并集），每个刚体一条；
+  叶名可能重复，按 `prim` 区分。
+- `joints[].child` 是关节子 prim 的叶名，SimReady 里常是刚体下面的网格（`part_01_obj_00/part_01_mesh_00`
+  → `part_01_mesh_00`），和分件叶名（`part_01_obj_00`）对不上，所以移动件靠 `child_body` 连到 `parts[].prim`；
+  字段缺失时不按叶名猜，场景回退到整根系包围盒扫掠。
+- 这是**可选**字段：旧记录没有 `parts[]` / `child_body` / `anchor_m` 仍然通过校验（按
+  `datafarm.asset-record/1` 的版本规则第 8 条，新增可选字段不升版本）；场景扫掠在缺分件、缺 `child_body`
+  或转动缺枢轴时回退到整根系包围盒。
 
 `physical_quantities[i]`（字段和校验照搬 `src/datafarm/grounding/quantities.py::validate_quantities`）：
 
@@ -100,7 +122,14 @@
   "collision": {"kind": "convex_hull"},
   "joints": [
     {"name": "joint.drawer.slide", "type": "prismatic", "axis": [0, 1, 0],
-     "limits": {"lower": 0.0, "upper": 0.42}, "parent": "cabinet_body", "child": "drawer"}
+     "limits": {"lower": 0.0, "upper": 0.42}, "parent": "cabinet_body_mesh", "child": "drawer_mesh",
+     "anchor_m": [0.0, -0.2, 0.35], "child_body": "RootNode/Geometry/part_01_obj_00"}
+  ],
+  "parts": [
+    {"name": "body_01_obj_00", "prim": "RootNode/Geometry/body_01_obj_00",
+     "bbox_min_m": [-0.3, -0.25, 0.0], "bbox_max_m": [0.3, 0.25, 0.8]},
+    {"name": "part_01_obj_00", "prim": "RootNode/Geometry/part_01_obj_00",
+     "bbox_min_m": [-0.26, -0.24, 0.3], "bbox_max_m": [0.26, -0.02, 0.5]}
   ],
   "frames": {"up_axis": "Z", "root_frame_id": "object.cabinet_drawer", "link_frame_ids": {}},
   "physical_quantities": [

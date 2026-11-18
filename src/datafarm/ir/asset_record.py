@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from datafarm.grounding.quantities import GroundingError, validate_quantities
-from datafarm.ir.common import IRError, check, identifier, portable, ref, require, vector
+from datafarm.ir.common import IRError, check, identifier, portable, prim_path, ref, require, vector
 from datafarm.kernel.io import is_finite_number
 from datafarm.kernel.schema import validate_ref
 
@@ -49,6 +49,20 @@ def validate(document: Any) -> dict[str, int]:
     bbox = vector(document["bbox_m"], 3, f"{label}.bbox_m")
     check(all(x > 0 for x in bbox), f"{label}.bbox_m must be positive")
 
+    parts = document.get("parts")
+    if parts is not None:
+        check(isinstance(parts, list) and bool(parts), f"{label}.parts must be a non-empty list")
+        for index, part in enumerate(parts):
+            where = f"{label}.parts[{index}]"
+            check(isinstance(part, Mapping), f"{where} must be an object")
+            require(part, ("name", "bbox_min_m", "bbox_max_m"), where)
+            check(isinstance(part["name"], str) and bool(part["name"]), f"{where}.name must be a link name")
+            if part.get("prim") is not None:
+                prim_path(part["prim"], f"{where}.prim")
+            low = vector(part["bbox_min_m"], 3, f"{where}.bbox_min_m")
+            high = vector(part["bbox_max_m"], 3, f"{where}.bbox_max_m")
+            check(all(a <= b for a, b in zip(low, high)), f"{where}.bbox_min_m must not exceed bbox_max_m")
+
     collision = document["collision"]
     check(isinstance(collision, Mapping) and collision.get("kind") in COLLISION_KINDS,
           f"{label}.collision.kind must be one of {list(COLLISION_KINDS)}")
@@ -74,6 +88,10 @@ def validate(document: Any) -> dict[str, int]:
               f"{where}.limits must be {{lower <= upper}}")
         for end in ("parent", "child"):
             check(isinstance(joint[end], str) and bool(joint[end]), f"{where}.{end} must be a link name")
+        if joint.get("anchor_m") is not None:
+            vector(joint["anchor_m"], 3, f"{where}.anchor_m")
+        if joint.get("child_body") is not None:
+            prim_path(joint["child_body"], f"{where}.child_body")
         if joint.get("mimic") is not None:
             mimic = joint["mimic"]
             check(isinstance(mimic, Mapping) and isinstance(mimic.get("joint"), str)

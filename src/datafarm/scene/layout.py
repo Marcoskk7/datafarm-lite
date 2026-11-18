@@ -9,21 +9,18 @@
 from __future__ import annotations
 
 import math
-import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
 
 from datafarm.ir import scene_graph
-from datafarm.ir.common import IRError, check, identifier
-from datafarm.kernel.schema import is_absolute_filesystem_path
+from datafarm.ir.common import IRError, check, identifier, is_prim_path
 from datafarm.scene import kinematics
 
 LAYOUT_SCHEMA = "datafarm.scene-layout/1"
 SUPPORT_CLEARANCE_M = 0.001
 
-PRIM_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 ANCHOR_BODY_EXAMPLE = "RootNode/Geometry/body_01_obj_00"
 ANCHOR_BODY_RULE = (
     f"must be a prim path relative to the asset root, like {ANCHOR_BODY_EXAMPLE!r}: "
@@ -42,13 +39,7 @@ def _check_anchor_body(asset: Mapping[str, Any], index: int) -> None:
         if asset.get("body") == "articulation":
             raise IRError(f"{label} is required when body='articulation' and {ANCHOR_BODY_RULE}")
         return
-    invalid = (
-        not isinstance(value, str)
-        or not value
-        or is_absolute_filesystem_path(value)
-        or any(not PRIM_NAME_PATTERN.fullmatch(segment) for segment in value.split("/"))
-    )
-    if invalid:
+    if not is_prim_path(value):
         raise IRError(f"{label} {value!r} {ANCHOR_BODY_RULE}")
 
 
@@ -155,16 +146,128 @@ def _overlap(a: np.ndarray, b: np.ndarray) -> bool:
 
 
 JOINT_SWEEP_EPS_M = 1e-6
+REVOLUTE_SWEEP_STEP_RAD = math.radians(5.0)   # 旋转扫掠采样步长上限（见 `_swept_footprint` 的误差说明）
+
+
+def _box_corners(lo: Sequence[float], hi: Sequence[float]) -> np.ndarray:
+    """轴对齐包围盒的 8 个角（资产/根坐标系，米）。"""
+    return np.array([[x, y, z] for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])], float)
+
+
+def _to_xy(points: np.ndarray, matrix: np.ndarray) -> np.ndarray:
+    """资产系 3D 点经节点位姿投到世界 XY（节点位姿只有偏航，没有缩放与侧倾）。"""
+    return (np.c_[points, np.ones(len(points))] @ matrix.T)[:, :2]
+
+
+def _rotate_about(points: np.ndarray, pivot: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
+    """Rodrigues：把 Nx3 点绕「过 `pivot`、方向 `axis`」的轴转 `angle` 弧度。"""
+    v = points - pivot
+    cos, sin = math.cos(angle), math.sin(angle)
+    return pivot + v * cos + np.cross(axis, v) * sin + np.outer(v @ axis, axis) * (1.0 - cos)
+
+
+def _convex_hull(points: np.ndarray) -> np.ndarray:
+    """二维点集凸包（Andrew 单调链、逆时针、去掉共线点）；点不足或全共线时少于 3 个点。"""
+    pts = np.unique(np.round(np.asarray(points, float), 9), axis=0)
+    if len(pts) < 3:
+        return pts
+    pts = pts[np.lexsort((pts[:, 1], pts[:, 0]))]
+
+    def cross(o: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower: list[np.ndarray] = []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    upper: list[np.ndarray] = []
+    for p in pts[::-1]:
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return np.array(lower[:-1] + upper[:-1])
+
+
+def _polys_overlap(a: np.ndarray, b: np.ndarray) -> bool:
+    """两个凸多边形（Nx2）是否相交（分离轴，边贴边不算）；退化到不足 3 点视为无面积、不相交。"""
+    if len(a) < 3 or len(b) < 3:
+        return False
+    for poly in (a, b):
+        for i in range(len(poly)):
+            edge = poly[(i + 1) % len(poly)] - poly[i]
+            axis = np.array([-edge[1], edge[0]])
+            if not np.any(axis):
+                continue
+            pa, pb = a @ axis, b @ axis
+            if pa.max() <= pb.min() + 1e-9 or pb.max() <= pa.min() + 1e-9:
+                return False
+    return True
+
+
+def _moving_parts(record: Mapping[str, Any], joint: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """关节的移动件：`joints[].child_body` 指向的刚体分件（`parts[].prim`）。
+
+    分件名是刚体 prim 的叶名（如 `part_01_obj_00`），而 `joints[].child` 是关节子 prim 的叶名
+    （SimReady 常是刚体下的网格 prim，如 `part_01_mesh_00`），叶名对不上，所以按刚体 prim 路径连接；
+    缺 `child_body` 时不猜，返回空让调用方回退到保守路径。
+    """
+    link = joint.get("child_body")
+    if link is None:
+        return []
+    return [part for part in record.get("parts") or [] if part.get("prim") == link]
+
+
+def _swept_footprint(record: Mapping[str, Any], joint: Mapping[str, Any], kind: str, value: float,
+                     matrix: np.ndarray) -> list[tuple[str, np.ndarray]] | None:
+    """移动件从 0 扫到 `value` 时的世界 XY 覆盖（每个分件一个凸多边形）。
+
+    缺 `parts[]`、缺该关节的移动件、或转动关节缺 `anchor_m` 时返回 None，调用方走原来的保守回退。
+
+    - `prismatic`：分件盒只平移，扫掠体 = 起点盒与终点盒的凸包；对凸盒这就是精确覆盖（不是采样）。
+    - `revolute`：分件三轴盒绕 `anchor_m` 沿 `axis` 旋转，按 ≤ `REVOLUTE_SWEEP_STEP_RAD`（5°）采样，
+      取所有采样 8 个角投影的凸包。一般轴向（不平行世界 Z）时旋转盒的 XY 投影是六边形，
+      这里同样取 8 角投影的凸包（保守外包）。采样点之间用弦代替圆弧，覆盖会内收不超过
+      r·(1−cos 2.5°) ≈ 1.0e-3·r（r 是分件角点到轴的距离）——比 GPU 之前的 1 mm 量级余量还小。
+    """
+    parts = _moving_parts(record, joint)
+    if not parts:
+        return None
+    anchor = joint.get("anchor_m")
+    if kind == "revolute" and anchor is None:
+        return None
+    axis = np.asarray(joint["axis"], float)
+    swept: list[tuple[str, np.ndarray]] = []
+    if kind == "prismatic":
+        shift = axis * value
+        for part in parts:
+            lo = np.asarray(part["bbox_min_m"], float)
+            hi = np.asarray(part["bbox_max_m"], float)
+            corners = np.vstack([_box_corners(lo, hi), _box_corners(lo + shift, hi + shift)])
+            swept.append((part["name"], _convex_hull(_to_xy(corners, matrix))))
+        return swept
+    pivot = np.asarray(anchor, float)
+    steps = max(1, math.ceil(abs(value) / REVOLUTE_SWEEP_STEP_RAD))
+    angles = np.linspace(0.0, value, steps + 1)
+    for part in parts:
+        corners = _box_corners(np.asarray(part["bbox_min_m"], float), np.asarray(part["bbox_max_m"], float))
+        cloud = np.vstack([_to_xy(_rotate_about(corners, pivot, axis, angle), matrix) for angle in angles])
+        swept.append((part["name"], _convex_hull(cloud)))
+    return swept
 
 
 def joint_sweep_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
                       records: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
-    """非零 `joint_state` 的关节初值把占地矩形沿关节轴平移到哪儿，是否撞上别的物体。
+    """非零 `joint_state` 的关节初值扫掠到哪里，是否撞上别的物体（GPU 之前的运动学前置闸门）。
 
-    只做可判定的部分：`prismatic` 的移动件保守地当作整个根系包围盒沿 `R_z(yaw)·axis·v` 平移，
-    再和同一支撑面（`on` 相同）上的其它节点、以及自己的支撑节点做 SAT 相交测试（边贴边不算）。
-    旋转关节没有枢轴信息（AssetRecord 只有 `joints[]`，没有 `parts[]` 几何），AABB 平移无法界定转动，
-    因此记为 `skipped` 而不是静默放行。这是 GPU 之前的运动学前置闸门：z 盲、整盒平移、不加余量。
+    优先走 `parts[]` 精确路径：AssetRecord 带分件包围盒（`parts[]`，资产根系、米）时，只扫该关节的
+    移动件（`joints[].child_body` 指向的 `parts[]` 分件），`prismatic` 平移分件盒、`revolute` 绕 `anchor_m` 旋转分件盒，
+    再与同一支撑面（`on` 相同）上的其它节点、以及自己的支撑节点做凸多边形 SAT 相交（边贴边不算）；
+    这类结果在 `checked` 里带 `method: "parts"`。
+
+    缺 `parts[]`、缺移动件或转动缺枢轴时回退到原来的保守路径：`prismatic` 把整个根系包围盒沿
+    `R_z(yaw)·axis·v` 平移（输出与未引入 `parts[]` 前完全一致，`checked` 里没有 `method`），
+    `revolute` 记为 `skipped` 而不是静默放行。两条路径都是 z 盲、不加余量，只判 XY 占地。
     """
     entries = {n["node_id"]: n for n in spec["nodes"]}
     corners: dict[str, np.ndarray] = {}
@@ -182,13 +285,28 @@ def joint_sweep_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]
         if not state:
             continue
         record = records[node["asset_id"]]
-        rotation = kinematics.pose_matrix(node["pose"])[:2, :2]
+        matrix = kinematics.pose_matrix(node["pose"])
+        rotation = matrix[:2, :2]
+        support = supports[node_id]
+        others = [other for other, other_support in supports.items()
+                  if other != node_id and (other_support == support or other == support)]
         for name, raw in state.items():
             value = float(raw)
             if abs(value) <= JOINT_SWEEP_EPS_M:
                 continue
             joint = _joint(record, name)
             kind = joint["type"]
+            swept = _swept_footprint(record, joint, kind, value, matrix) if kind in ("prismatic", "revolute") else None
+            if swept is not None:
+                entry: dict[str, Any] = {"node": node_id, "joint": name, "method": "parts"}
+                entry["travel_m" if kind == "prismatic" else "travel_rad"] = round(abs(value), 6)
+                checked.append(entry)
+                unit = "m" if kind == "prismatic" else "rad"
+                hit = next((other for _, polygon in swept for other in others
+                            if _polys_overlap(polygon, corners[other])), None)
+                if hit is not None:
+                    problems.append(f"{node_id} {name} at {value:g} {unit} moves into {hit}")
+                continue
             if kind == "revolute":
                 skipped.append(f"{node_id} {name}: revolute joint has no pivot in the AssetRecord, "
                                "an AABB translation cannot bound a rotation")
@@ -198,9 +316,6 @@ def joint_sweep_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]
                 continue
             moved = corners[node_id] + rotation @ (np.asarray(joint["axis"], float)[:2] * value)
             checked.append({"node": node_id, "joint": name, "travel_m": round(abs(value), 6)})
-            support = supports[node_id]
-            others = [other for other, other_support in supports.items()
-                      if other != node_id and (other_support == support or other == support)]
             for other in others:
                 if _overlap(moved, corners[other]):
                     problems.append(f"{node_id} {name} at {value:g} m moves into {other}")

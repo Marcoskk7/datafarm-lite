@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from datafarm.ir import asset_record
@@ -33,27 +33,72 @@ def body_masses(inspection: Mapping[str, Any]) -> dict[str, float]:
     return {**summed, **authored}
 
 
+def parts(inspection: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """每个刚体（连杆）的碰撞几何包围盒：分件几何，资产根系、米，记录的是静止姿态。
+
+    `name` 是刚体 prim 路径的叶名（如 `part_01_obj_00`），`prim` 是资产根相对的刚体 prim 路径
+    （`prim_ref` 形式，如 `RootNode/Geometry/part_01_obj_00`）。关节的 `child` 是关节子 prim 的叶名，
+    SimReady 常是刚体下面的网格（`part_01_mesh_00`），叶名对不上，所以 `joints[].child_body` 存刚体路径，
+    场景按它找移动件。同一刚体下的多个碰撞体取包围盒并集；prim 路径唯一，叶名重复时保留多条。
+    """
+    boxes: dict[str, dict[str, list[float]]] = {}
+    for collider in inspection["colliders"]:
+        body = collider.get("body")
+        if not body or "bbox_min_m" not in collider or "bbox_max_m" not in collider:
+            continue
+        entry = boxes.setdefault(body, {"bbox_min_m": list(collider["bbox_min_m"]),
+                                        "bbox_max_m": list(collider["bbox_max_m"])})
+        entry["bbox_min_m"] = [min(a, b) for a, b in zip(entry["bbox_min_m"], collider["bbox_min_m"])]
+        entry["bbox_max_m"] = [max(a, b) for a, b in zip(entry["bbox_max_m"], collider["bbox_max_m"])]
+    return [{"name": prim.rsplit("/", 1)[-1], "prim": prim,
+             "bbox_min_m": [round(v, 5) for v in box["bbox_min_m"]],
+             "bbox_max_m": [round(v, 5) for v in box["bbox_max_m"]]}
+            for prim, box in sorted(boxes.items())]
+
+
+def owner_body(child: str | None, bodies: Sequence[str]) -> str | None:
+    """关节 `child` prim 所属的刚体：`bodies` 里是它父路径（或它本身）的最长一条。
+
+    SimReady 的关节子 prim 常是刚体下的网格（`.../part_01_obj_00/part_01_mesh_00`），刚体本身是
+    `.../part_01_obj_00`；没有唯一父路径时返回 None，场景据此回退到保守扫掠，不按叶名猜。
+    """
+    if not child:
+        return None
+    owners = [body for body in bodies if child == body or child.startswith(body + "/")]
+    return max(owners, key=len) if owners else None
+
+
 def build_record(*, asset_id: str, role: str, fetch: Mapping[str, Any], inspection: Mapping[str, Any],
                  usd_ref: ArtifactRef, inspection_ref: ArtifactRef, collision_ref: ArtifactRef | None,
                  collision_bbox: tuple[list[float], list[float]] | None = None, notes: str = "") -> dict[str, Any]:
     """关节名保持上游 USD 里的名字，场景 `joint_state` 与 Isaac Lab 绑定都按这个名字查。
 
     `collision_bbox` 是替换后碰撞几何（凸包）的包围盒；凸包会比渲染网格外扩几毫米，布局按它算支撑高度。
+    `parts[]`、`joints[].anchor_m` 与 `joints[].child_body` 只在 inspect 结果里有时才写：
+    前者给布局按移动件扫掠，后两者是转动枢轴与移动件所在的刚体。
     """
     lo, hi = inspection["bbox_min_m"], inspection["bbox_max_m"]
     bbox = [round(h - l, 5) for l, h in zip(lo, hi)]
+    part_boxes = parts(inspection)
+    bodies = [part["prim"] for part in part_boxes]
     joints = []
     for joint in inspection["joints"]:
         if joint["type"] not in ("prismatic", "revolute"):
             continue
-        joints.append({
+        entry = {
             "name": joint["name"],
             "type": joint["type"],
             "axis": joint["axis"],
             "limits": {"lower": round(joint["limits"]["lower"], 6), "upper": round(joint["limits"]["upper"], 6)},
             "parent": joint["parent"].rsplit("/", 1)[-1],
             "child": joint["child"].rsplit("/", 1)[-1],
-        })
+        }
+        if joint.get("anchor_m") is not None:
+            entry["anchor_m"] = [round(float(v), 5) for v in joint["anchor_m"]]
+        owner = owner_body(joint.get("child"), bodies)
+        if owner is not None:
+            entry["child_body"] = owner
+        joints.append(entry)
     evidence = [inspection_ref.to_dict()]
     quantities = []
     total_mass = sum(body_masses(inspection).values())
@@ -107,6 +152,8 @@ def build_record(*, asset_id: str, role: str, fetch: Mapping[str, Any], inspecti
     }
     if notes:
         record["notes"] = notes
+    if part_boxes:
+        record["parts"] = part_boxes
     asset_record.validate(record)
     return record
 
