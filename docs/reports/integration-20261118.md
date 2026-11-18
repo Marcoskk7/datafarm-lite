@@ -138,6 +138,21 @@ lab30run（n001，RTX 4090，驱动 580.95.05，Isaac Sim 6.2 / Isaac Lab 3.0）
 | 3 | 一次 provider 调用 `turn.failed: stream disconnected before completion`（77 s，最大 prompt 95.8 KB） | 上游先回 200 再中途断流；relay 只记录到一条无关的 `400 NUS upstream did not accept this request`，故不是配额/鉴权 | 失败决策目录移到 `codex-decisions-failed/` 并记录原因；是否与长度相关待定因实验（第 7 节） |
 | 4 | rollout 无法用 bwrap/unshare | 容器拒绝 mount namespace（`Failed to make / slave`、`Operation not permitted`）；`proot` 可用但 seccomp 加速未生效（`PROOT_NO_SECCOMP` 开关耗时相同） | 实测 proot 每次 syscall 多 71 µs → Isaac 加载 11.85 s → 412.79 s，而录制阶段 9.97 s → 12.17 s 几乎不变（证明是 syscall 截获而非 CPU）；round 只能 `isolation: none`，harness 记 30 条 `unisolated_rollouts` 违规 |
 
+### 5.3 CaP 失败分类（37 次 rollout 全量，`runs/cap-01/failure-taxonomy.json`）
+
+| 项 | 计数 |
+|---|---|
+| 成功 / 失败 | 0 / 37 |
+| 失败判定条件 | 37/37 全是 `plate_in_open_drawer=false`（`drawer_preopened`、`other_drawer_closed` 均 true） |
+| 执行状态 | 23 `motion_timeout`、14 `physical_conditions_failed` |
+| 第一个失败的 primitive | 16 `move_tcp: LOCAL_IK_NONCONVERGENCE`、8 `move_tcp: SPEED_LIMIT`、6 `move_tcp: JOINT_LIMIT`、7 `move_gripper: GRIPPER_NONCONVERGENCE` |
+
+解读：**没有任何一次是在"抓住后抬升滑脱"处首次失败的**——37 次里大多数在**抓取前的运动**就终止（IK 不收敛 16、关节限位 6、速度超限 8），只有 7 次卡在夹爪闭合。也就是说 CaP 的候选大量浪费在运动可行性上，而不是真正去试"托底/倾斜"这类能改变保持力的抓法。手写专家 s2v8 之所以能走到抓取（并用 via 点绕开腕部限位），是靠离线用仓库运动学做的稠密连续性检查——这份信息目前不在作者的可见输入里。
+
+由此得到的候选改进（未执行，待用户决定）：把"已用仓库运动学校验过的关节空间 via 路径（s2v8 所用）+ 夹爪行程 0.072 m 与物体尺寸对比 + 已观测的滑脱量化"作为**事实**写进 brief 的 `runtime_facts`，让搜索把预算花在保持力上。这需要 `expert_harness.py amend` 记录原因。
+
+**顺带发现的契约文本缺陷（需 B 线处理）**：`task3/public-task-0.json` 的角色文本被去掉了空格——`"destination:already-opendrawerjoint_part_01_joint_00withmovinglinkpart_01_obj_00"`，原意应是 "already-open drawer joint_part_01_joint_00 with moving link part_01_obj_00"。作者模型会把这段当角色名读，语义损失。判定条件与状态判定不受影响（judge 用节点 ID 与关节名）。这是 task-plan 输出侧（A→B 契约文本）的问题，unresolved。
+
 ### 5.2 admission 独立审查（本次新增，任务产出）
 
 仓库的 admission 证书面向 LeRobot 数据集，本 fork 的 HDF5 episode 没有对应审查器。`deploy/admit_episode.py`（任务产出，不进仓库）在**独立进程**中从存储字节重新推导 9 项检查并写 `datafarm.gate-receipt`（`stage=admission`、`authority=admission-root`、subject = episode 文档 sha256，符合 `docs/ir/episode.md`）：
