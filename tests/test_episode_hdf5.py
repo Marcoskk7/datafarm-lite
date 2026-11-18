@@ -244,9 +244,22 @@ class EpisodeHdf5Test(unittest.TestCase):
         self.assertFalse(self.path.exists(), "失败时不留半个文件")
 
         unequal = payload()
-        unequal["actions"][1]["applied_joint_targets"].pop("left_g2_joint")
-        with self.assertRaisesRegex(ValueError, "requested/applied channel sets differ"):
+        unequal["actions"][1]["requested_joint_targets"]["left_wrist_joint"] = 0.0
+        with self.assertRaisesRegex(ValueError, "not applied actuator channels"):
             self.export(unequal)
+
+    def test_partial_requests_are_masked_not_rejected(self):
+        """lab30 s2v8：move_tcp 只请求手臂关节，move_gripper 只请求夹爪；applied 仍是全量读回。"""
+        partial = payload()
+        partial["actions"][1]["requested_joint_targets"].pop("left_g2_joint")
+        self.export(partial)
+        names = [n.decode() if isinstance(n, bytes) else n for n in h5py.File(self.path, "r")["meta/control_names"][()]]
+        with h5py.File(self.path, "r") as root:
+            mask = root["action/robots/robot/requested_mask"][()]
+        column = names.index("left_g2_joint")
+        self.assertTrue(mask[0, column])
+        self.assertFalse(mask[1, column])
+        self.assertEqual(validate_hdf5(self.path, partial), [])
 
     def test_export_refuses_a_payload_that_is_not_a_recorded_episode(self):
         broken = payload()

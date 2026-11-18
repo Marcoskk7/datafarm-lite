@@ -31,7 +31,8 @@
 /state/entities/<node_id>/joints/<joint>/q,dq    [N+1,1] float64；组属性 type/unit
 /state/entities/<node_id>           attr: asset_id
 /action/interval_steps              [N,2] int64，第 k 行 [k, k+1]
-/action/robots/<robot_id>/requested [N,U] float64，按 control_names 顺序
+/action/robots/<robot_id>/requested [N,U] float64，按 control_names 顺序；未请求的位置写 0.0，不可解读
+/action/robots/<robot_id>/requested_mask [N,U] bool，该周期是否请求了该通道
 /action/robots/<robot_id>/applied   [N,U] float64，按 control_names 顺序
 /action/call_id                     [N] UTF-8，`command.call_id`，缺省为 ""
 /contacts/records                   [N+1] UTF-8 JSON（与 state_trace[k].contacts 逐字节一致）
@@ -50,7 +51,9 @@
   `joint_names` 等长的列表），其次同名 entity 的关节类型；两者都没有时逐关节写 `unknown`，
   `meta.joint_types_source` 分别记 `provenance` / `state_trace_entity` / `unknown`。
 - `control_names`：全部 action 的 `applied_joint_targets` 键的**排序**列表。逐行通道集合必须一致，
-  且 `requested_joint_targets` 与 `applied_joint_targets` 的键集合必须相同；缺通道直接失败，绝不补 NaN。
+  applied 缺通道直接失败，绝不补值。`requested_joint_targets` 只含该周期实际下发的通道（lab30 实录：
+  `move_tcp` 只请求 6 个手臂关节，`move_gripper` 只请求夹爪主关节），必须是 applied 通道的子集；
+  未请求的位置由 `requested_mask=false` 标出，`requested` 对应值无意义。
 - `J ≠ U` 是常态：J 是观测关节数，U 是实际控制通道数，两者不互相推导。
 - 数组是录制值的 float64/int64 原样拷贝：不重采样、不取整、不做插值；N 条动作对应 N+1 个状态。
 - `contacts.rows` 的 `null`（不可用）与 `[]`（可用且零接触）在 JSON 记录里原样保留，不互相替换。

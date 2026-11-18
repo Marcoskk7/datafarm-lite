@@ -72,13 +72,17 @@ def _episode_payload(episode_document: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _control_names(actions: Sequence[Mapping[str, Any]], setup: Mapping[str, Any]) -> list[str]:
-    """控制通道 = applied 目标键，排序固定；逐行缺通道直接失败（不补 NaN）。"""
+    """控制通道 = applied 目标键（执行器全量读回），排序固定；逐行 applied 缺通道直接失败（不补值）。
+
+    requested 只含本周期实际下发的通道（录制器实测：move_tcp 只请求手臂 6 关节，move_gripper 只请求主关节），
+    必须是 applied 通道的子集；未请求的位置由 `requested_mask` 标为 False，`requested` 该位置写 0.0 且不可解读。
+    """
     sets = []
     for index, action in enumerate(actions):
         requested, applied = action["requested_joint_targets"], action["applied_joint_targets"]
-        if set(requested) != set(applied):
-            _fail(f"action {index}: requested/applied channel sets differ: "
-                  f"{sorted(set(requested) ^ set(applied))}")
+        if not set(requested) <= set(applied):
+            _fail(f"action {index}: requested channels {sorted(set(requested) - set(applied))} "
+                  "are not applied actuator channels")
         sets.append(set(applied))
     first = sets[0] if sets else set()
     for index, names in enumerate(sets):
@@ -90,6 +94,12 @@ def _control_names(actions: Sequence[Mapping[str, Any]], setup: Mapping[str, Any
         _fail(f"setup.control_names {sorted(set(declared))} does not match applied target channels "
               f"{sorted(first)}")
     return sorted(first)
+
+
+def _requested_rows(actions: Sequence[Mapping[str, Any]], control_names: Sequence[str]) -> tuple[list, list]:
+    values = [[float(action["requested_joint_targets"].get(joint, 0.0)) for joint in control_names] for action in actions]
+    mask = [[joint in action["requested_joint_targets"] for joint in control_names] for action in actions]
+    return values, mask
 
 
 def _robot_node_id(states: Sequence[Mapping[str, Any]], joint_names: Sequence[str],
@@ -246,8 +256,11 @@ def _write_action(root: h5py.File, payload: Mapping[str, Any], *, robot_node_id:
     group = root.create_group("action")
     _int_array(group, "interval_steps", [[index, index + 1] for index in range(len(actions))])
     robot = group.create_group("robots").create_group(robot_node_id)
-    for source, name in (("requested_joint_targets", "requested"), ("applied_joint_targets", "applied")):
-        _float_array(robot, name, [[float(action[source][joint]) for joint in control_names] for action in actions])
+    requested, mask = _requested_rows(actions, control_names)
+    _float_array(robot, "requested", requested)
+    robot.create_dataset("requested_mask", data=np.asarray(mask, dtype=np.bool_))
+    _float_array(robot, "applied", [[float(action["applied_joint_targets"][joint]) for joint in control_names]
+                                    for action in actions])
     _string_array(group, "call_id", [str(action.get("command", {}).get("call_id", "")) for action in actions])
 
 
@@ -449,6 +462,7 @@ def read_episode(path: str | Path) -> dict[str, Any]:
         out["action"]["call_id"] = _strings(action["call_id"])
         for name, group in action["robots"].items():
             out["action"]["robots"][name] = {"requested": group["requested"][()],
+                                             "requested_mask": group["requested_mask"][()],
                                              "applied": group["applied"][()]}
         if "contacts" in root:
             out["contacts"] = [json.loads(text) for text in _strings(root["contacts"]["records"])]
@@ -621,6 +635,7 @@ def validate_hdf5(path: str | Path, episode_payload: Mapping[str, Any] | None = 
         action_robot = f"action/robots/{robot_id}"
         for name in ("requested", "applied"):
             _expect_shape(root, f"{action_robot}/{name}", (actions, len(control_names)), np.float64, problems)
+        _expect_shape(root, f"{action_robot}/requested_mask", (actions, len(control_names)), np.bool_, problems)
         call_id = root.get("action/call_id")
         if not isinstance(call_id, h5py.Dataset) or call_id.shape != (actions,) or \
                 h5py.check_string_dtype(call_id.dtype) is None:
@@ -718,10 +733,12 @@ def _compare_payload(root: h5py.File, payload: Mapping[str, Any], problems: list
                               [[float(entry["entities"][node_id]["joints"][index][name])] for entry in trace],
                               np.float64, problems)
 
-    for source_key, name in (("requested_joint_targets", "requested"), ("applied_joint_targets", "applied")):
-        _expect_array(root, f"action/robots/{robot_id}/{name}",
-                      [[float(action[source_key][joint]) for joint in control_names] for action in actions],
-                      np.float64, problems)
+    requested, mask = _requested_rows(actions, control_names)
+    _expect_array(root, f"action/robots/{robot_id}/requested", requested, np.float64, problems)
+    _expect_array(root, f"action/robots/{robot_id}/requested_mask", mask, np.bool_, problems)
+    _expect_array(root, f"action/robots/{robot_id}/applied",
+                  [[float(action["applied_joint_targets"][joint]) for joint in control_names] for action in actions],
+                  np.float64, problems)
     _expect_strings(root, "action/call_id",
                     [str(action.get("command", {}).get("call_id", "")) for action in actions], problems)
     _expect_strings(root, "contacts/records", [_text(record, "contacts") for record in source["contacts"]], problems)
