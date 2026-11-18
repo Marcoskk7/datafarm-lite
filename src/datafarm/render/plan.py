@@ -12,6 +12,7 @@ import numpy as np
 
 from datafarm.ir import render_spec
 from datafarm.ir.common import check
+from datafarm.kernel.io import is_finite_number
 
 VARIANTS_SCHEMA = "datafarm.isaac-render-variants/1"
 CAMERA_PREFIX = "camera."
@@ -219,6 +220,65 @@ def full_joint_positions(record_joints: Sequence[Mapping[str, Any]], joint_names
         check(mimic is not None and mimic["joint"] in recorded,
               f"state_trace has no value for joint {name!r} and it is not a mimic of a recorded joint")
         values[name] = mimic["multiplier"] * recorded[mimic["joint"]] + mimic.get("offset", 0.0)
+    return values
+
+
+def _state_entity(state: Mapping[str, Any], node_id: str, step: int) -> Mapping[str, Any]:
+    where = f"state_trace[{step}].entities"
+    entities = state.get("entities")
+    check(isinstance(entities, Mapping), f"{where} must be an object")
+    entity = entities.get(node_id)
+    check(isinstance(entity, Mapping), f"{where}.{node_id} is missing")
+    check(entity.get("availability") == "available", f"{where}.{node_id} is not available")
+    return entity
+
+
+def state_robot(state: Mapping[str, Any], step: int) -> tuple[list[str], list[float]]:
+    """当前 Episode 的机器人段：`state.robot.joint_names` 与同序 `q`，按测得顺序返回，不重排、不插值。"""
+    where = f"state_trace[{step}].robot"
+    robot = state.get("robot")
+    check(isinstance(robot, Mapping), f"{where} must be an object")
+    names = robot.get("joint_names")
+    check(isinstance(names, list) and bool(names) and all(isinstance(n, str) and n for n in names),
+          f"{where}.joint_names must be non-empty strings")
+    check(len(set(names)) == len(names), f"{where}.joint_names must be distinct")
+    q = robot.get("q")
+    check(isinstance(q, list) and len(q) == len(names) and all(is_finite_number(v) for v in q),
+          f"{where}.q must be {len(names)} finite numbers")
+    return list(names), [float(v) for v in q]
+
+
+def state_entity_pose(state: Mapping[str, Any], node_id: str, step: int) -> dict[str, Any]:
+    """实体根位姿：`position_m` / `quaternion_xyzw` 在世界系。
+
+    `links[...]` 是刚体（或 articulation 的 body）原点，不是实体根位姿——桌子的实测刚体原点比场景根低
+    近 0.8 m，拿它当根位姿会把整张桌子搬走，所以这里只读根位姿。
+    """
+    where = f"state_trace[{step}].entities.{node_id}"
+    entity = _state_entity(state, node_id, step)
+    position, quaternion = entity.get("position_m"), entity.get("quaternion_xyzw")
+    check(isinstance(position, list) and len(position) == 3 and all(is_finite_number(v) for v in position),
+          f"{where}.position_m must be 3 finite numbers")
+    check(isinstance(quaternion, list) and len(quaternion) == 4 and all(is_finite_number(v) for v in quaternion),
+          f"{where}.quaternion_xyzw must be 4 finite numbers")
+    check(math.isclose(math.hypot(*quaternion), 1.0, abs_tol=1e-6), f"{where}.quaternion_xyzw is not a unit quaternion")
+    return {"frame_id": "world", "position_m": [float(v) for v in position],
+            "quaternion_xyzw": [float(v) for v in quaternion]}
+
+
+def state_entity_joints(state: Mapping[str, Any], node_id: str, step: int) -> dict[str, float]:
+    """该实体自己的关节测量值 `{name: q}`；调用方再按 node_id + name 落到仿真关节，避免跨实体同名。"""
+    where = f"state_trace[{step}].entities.{node_id}"
+    joints = _state_entity(state, node_id, step).get("joints")
+    check(isinstance(joints, list), f"{where}.joints must be a list")
+    values: dict[str, float] = {}
+    for index, joint in enumerate(joints):
+        check(isinstance(joint, Mapping), f"{where}.joints[{index}] must be an object")
+        name, q = joint.get("name"), joint.get("q")
+        check(isinstance(name, str) and bool(name), f"{where}.joints[{index}].name must be a non-empty string")
+        check(name not in values, f"{where}.joints has duplicate name {name!r}")
+        check(is_finite_number(q), f"{where}.joints[{index}].q must be finite")
+        values[name] = float(q)
     return values
 
 

@@ -19,7 +19,7 @@
 | --- | --- |
 | `setup` | 场景 / 机器人 / runtime profile / 合同 / judge / expert 的 ArtifactRef，引擎版本，seed 与分区，实际初始状态与随机化采样，`control_dt_s`，关节顺序与类型，能力快照，judge 结果 |
 | `actions` | 逐控制周期的 `requested` / `applied` 目标、`interval_steps`、控制模式、原语 `call_id` |
-| `state_trace` | N+1 个状态：命名关节 q/dq、TCP、任务实体位姿与速度、铰接状态、夹爪开度、有效性标记 |
+| `state_trace` | N+1 个整场快照：每个实体的根位姿、链接与关节，机器人关节段，接触快照 |
 | `contacts` | `availability` + 接触记录 |
 | `events` | 原语开始/结束、阶段变化、错误、judge、停止与恢复 |
 | `frame_map` | 每帧的 `camera_id`、`variant_id`、`control_step`、内外参引用、图像 ArtifactRef |
@@ -35,10 +35,10 @@
 | `sampled_randomization` | 是 | 本次实际采样的物理量与位姿抖动值 |
 | `initial_state` | 是 | **测量值**：`check` 静置后的 `s[0]` 完整快照摘要（关节、TCP、实体位姿），重放从这里恢复 |
 | `control_dt_s` / `solver_substeps` | 是 | 1/120 与 4 |
-| `joint_names` / `joint_types` / `control_names` | 是 | revolute 用 rad、prismatic 用 m；J 是观测关节数，U 是控制通道数，两者通常不等 |
+| `node_ids` | 是 | 本 episode 覆盖的场景节点；`state_trace[k].entities` 必须与之逐一对应 |
 | `judge_result` | 是 | `{outcome: success/failure/error/aborted, success: bool/null, terminated, truncated, reason_code, criteria: {criterion_id: bool}, evidence_steps, judge_artifact}` |
 
-布局/SceneGraph 里的 `joint_state` 只是**声明意图**，不是物理事实。物理闸门（`tools/scene_assemble.py check`）写入意图、静置后读出测量值并导出；`setup.initial_state`、`setup.articulations` 和 `state_trace` 里的关节值都取测量值，episode 从测量态开始重放。被动（非驱动）关节在静置中可以动：只要测量值仍在关节限位内、且该节点没有新增接触对，就允许并记为测量初始态；被驱动或保持的关节仍受漂移上限约束。
+布局/SceneGraph 里的 `joint_state` 只是**声明意图**，不是物理事实。物理闸门（`tools/scene_assemble.py check`）写入意图、静置后读出测量值并导出；`setup.initial_state` 和 `state_trace` 里的关节值都取测量值，episode 从测量态开始重放。被动（非驱动）关节在静置中可以动：只要测量值仍在关节限位内、且该节点没有新增接触对，就允许并记为测量初始态；被驱动或保持的关节仍受漂移上限约束。
 
 ### actions
 
@@ -53,23 +53,49 @@ MVP 只有 `joint_position_target`。N 条动作必须对应 N+1 个状态；`mo
 
 ### state_trace
 
+每个 `state_trace[k]` 是第 k 个控制周期末的整场快照。字段集合由 `src/datafarm/ir/episode_state.py` 固定，多一个少一个都拒绝；消费方按字段名读取，不按位置。
+
 | 字段 | 说明 |
 | --- | --- |
-| `control_step` | 整数步号；`s[k]` 在第 k 个周期结束后采样 |
-| `q` / `dq` | 按 `joint_names` 顺序的观测关节位置 / 速度 |
-| `tcp` | 命名 TCP 的 Pose |
-| `entities` | `{node_id: {pose, linear_velocity, angular_velocity}}`，所有任务实体和渲染需要的动态实体 |
-| `articulations` | `{joint_name: 值}`，抽屉等；是仿真测量值，不是 SceneGraph 里声明的 `joint_state` |
-| `gripper` | `{width_m, master: q, mimic: q}` |
-| `valid` | 非有限数值时为 false |
+| `control_step` / `time_s` | 步号与时间；`time_s == control_step * control_dt_s` |
+| `units` / `frame_id` | 固定 `{length: m, angle: rad, time: s}` 与 `world` |
+| `entities` | `{node_id: 实体快照}`，必须覆盖场景全部 `node_id` |
+| `robot` | 机器人观测段，见下 |
+| `contacts` | 本周期末的接触快照，见下 |
+
+实体快照：
+
+| 字段 | 说明 |
+| --- | --- |
+| `availability` | 只允许 `available`；不可用的实体不进 episode |
+| `asset_id` | 对应 SceneGraph 的 `asset_id` |
+| `position_m` / `quaternion_xyzw` | **实体根位姿**，世界系，米 / 单位四元数 xyzw |
+| `linear_velocity_m_s` / `angular_velocity_rad_s` | 根速度，世界系 |
+| `joints` | `[{name, type, unit, q, dq}]`；`revolute` 配 `rad`、`prismatic` 配 `m`，同一实体内名字不能重复 |
+| `links` | `{link_name: {position_m, quaternion_xyzw}}`，各刚体（或 articulation 的 body）的世界位姿 |
+
+`links` 是刚体原点，**不是**实体根位姿：桌子的实测刚体原点可能比场景根低近 0.8 m，回放只拿 `position_m` 当根位姿，把 `links` 当根位姿会把整张桌子搬走。
+
+机器人段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `joint_names` / `q` / `dq` | 同一顺序的观测关节；名字唯一、长度一致 |
+| `tcp` | 可选，`{frame_id: world, position_m, quaternion_xyzw}` |
+| `gripper` | 可选，`{width_m, width_range_m, state_source, verification, within_defined_range}`；开度由实测手指关节反算，不是名义值 |
+
+关节名只在一台实体（或机器人）内唯一：两个实体可以有同名关节。消费方按 `node_id + joint_name` 绑定，不能用一个全局扁平字典。
 
 ### contacts
 
 | 字段 | 说明 |
 | --- | --- |
-| `availability` | `available` / `unavailable` / `not_requested`；无记录只有在查询有效时才表示零接触 |
-| `sampling` | `cycle_end_snapshot` 或后端给的周期聚合；不宣称子步完备 |
-| `records` | `[{control_step, body_a, body_b, force_n: [x,y,z], position_m: [x,y,z], normal: [x,y,z]}]` |
+| `availability` | `available` / `unavailable`；`unavailable` 时 `rows` 必须是 `null`，不能拿空列表冒充零接触 |
+| `rows` | `[{a, b, body_a, body_b, dist_m}]`；`a`/`b` 是 node_id 或 `null`（world/ground），`body_a`/`body_b` 是 `usd:/World/...` 形式的场景内标识，不是磁盘路径 |
+| `coverage` | `unknown` / `complete` / `truncated`；`complete` 只在求解器计数 `nacon <= naconmax` 时成立，不宣称子步完备 |
+| `sampling` / `control_step` | 固定 `cycle_end_snapshot`，且等于同一状态的 `control_step` |
+| `force_availability` / `normal_availability` | 只允许 `unavailable`：本线不测力与法向 |
+| `reason_code` | 可选，接触不可用时的原因码 |
 
 ### frame_map
 
@@ -132,9 +158,7 @@ MVP 只有 `joint_position_target`。N 条动作必须对应 N+1 个状态；`mo
       "initial_state": {"control_step": 0, "q": [0.0, 0.02]},
       "control_dt_s": 0.008333333333333333,
       "solver_substeps": 4,
-      "joint_names": ["left_joint1", "left_g2_joint"],
-      "joint_types": ["revolute", "prismatic"],
-      "control_names": ["left_joint1", "left_g2_joint"],
+      "node_ids": ["object.table", "object.plate", "robot.airbot"],
       "judge_result": {"outcome": "success", "success": true, "terminated": true, "truncated": false,
                        "reason_code": "GOAL_REACHED",
                        "criteria": {"plate_inside_drawer": true, "plate_at_rest": true},
@@ -146,12 +170,19 @@ MVP 只有 `joint_position_target`。N 条动作必须对应 N+1 个状态；`mo
        "control_names": ["left_joint1", "left_g2_joint"], "requested": [0.0, 0.02], "applied": [0.0, 0.02]}
     ],
     "state_trace": [
-      {"control_step": 0, "q": [0.0, 0.02], "dq": [0.0, 0.0], "valid": true,
-       "tcp": {"frame_id": "world", "position_m": [0.5, 0.0, 0.8], "quaternion_xyzw": [0, 0, 0, 1]},
-       "entities": {"object.plate": {"pose": {"frame_id": "world", "position_m": [0.5, -0.25, 0.78], "quaternion_xyzw": [0, 0, 0, 1]},
-                                     "linear_velocity": [0, 0, 0], "angular_velocity": [0, 0, 0]}},
-       "articulations": {"joint.drawer.slide": 0.42},
-       "gripper": {"width_m": 0.06, "master": 0.02, "mimic": 0.02}}
+      {"control_step": 0, "time_s": 0.0, "units": {"length": "m", "angle": "rad", "time": "s"},
+       "frame_id": "world",
+       "entities": {"object.plate": {"availability": "available", "asset_id": "object.plate",
+                                     "position_m": [0.5, -0.25, 0.78], "quaternion_xyzw": [0, 0, 0, 1],
+                                     "linear_velocity_m_s": [0, 0, 0], "angular_velocity_rad_s": [0, 0, 0],
+                                     "joints": [],
+                                     "links": {"body": {"position_m": [0.5, -0.25, 0.78],
+                                                        "quaternion_xyzw": [0, 0, 0, 1]}}}},
+       "robot": {"joint_names": ["left_joint1", "left_g2_joint"], "q": [0.0, 0.02], "dq": [0.0, 0.0],
+                 "tcp": {"frame_id": "world", "position_m": [0.5, 0.0, 0.8], "quaternion_xyzw": [0, 0, 0, 1]}},
+       "contacts": {"availability": "available", "rows": [], "coverage": "complete",
+                    "sampling": "cycle_end_snapshot", "control_step": 0,
+                    "force_availability": "unavailable", "normal_availability": "unavailable"}}
     ],
     "contacts": {"availability": "available", "sampling": "cycle_end_snapshot", "records": []},
     "events": [
