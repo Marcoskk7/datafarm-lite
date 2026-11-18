@@ -13,14 +13,14 @@ from datafarm.entry.cap_provider import build_provider
 from datafarm.cap.io import read_json, write_json
 from datafarm.cap.search import SearchConfig, SearchRunner
 from datafarm.cap.library import SkillLibrary
-from datafarm.cap.state_feedback import feedback
+from datafarm.cap.state_feedback import feedback, validate_feedback
+from b_contract_fixtures import state
 from test_cap_search import Actor, CHECK, Engine, TASK as LEGACY_TASK
 
 POPEN='datafarm.adapters.agent_harness.codex.structured.subprocess.Popen'
 
 
-STATE = {'schema_version':'privileged-state/1','control_step':0,
-         'frame_id':'world','units':{'length':'m','angle':'rad','time':'s'},'objects':{}}
+STATE = state(0)
 TASK = {'name':'state-fixture','instruction':'Return home', 'api':{'move':'move()'},
         'program_contract':'Return restricted Python with a main function'}
 SKILL = {'name':'relative motion','failure_signature':'wrong frame','when_to_apply':'relative request',
@@ -54,7 +54,7 @@ class StateEngine:
         return {'episodes':[dict(episode_id=f'{phase}-{len(self.requests)}-{s}',seed=s,phase=phase,
                                  execution={'expert_error':False,'execution_status':'completed','reason_code':None},
                                  trace=[{'event_id':0,'api':'move','ok':code=='repaired'}],
-                                 privileged_state={'availability':'available','initial':STATE,'final':STATE}) for s in seeds]}
+                                 privileged_state={'schema_version':'privileged-state/1','availability':'available','initial':STATE,'final':STATE}) for s in seeds]}
 
 
 class CodexProviderTests(unittest.TestCase):
@@ -69,6 +69,10 @@ class CodexProviderTests(unittest.TestCase):
         self.launches=[]
 
     def launch(self, argv, **kwargs):
+        # Patching subprocess.Popen affects every importer. Only substitute the
+        # Codex command; the #18 self-check must run its actual restricted worker.
+        if argv[0] != 'codex':
+            return self.popen(argv, **kwargs)
         self.launches.append(argv)
         return self.popen([sys.executable,str(self.root/'fake.py'),*argv[1:]],**kwargs)
 
@@ -84,6 +88,8 @@ class CodexProviderTests(unittest.TestCase):
             report=SearchRunner(self.provider,engine,SkillLibrary(self.root/'skills'),config).run(TASK,self.root/'run')
         self.assertEqual(report['skill_admission']['status'],'sound')
         self.assertTrue(report['ready_for_harness_submission'])
+        self.assertEqual(report['success_basis'], 'author_self_check')
+        self.assertIn('not requested by CaP', report['heldout_evaluation'])
         receipts=[read_json(p) for p in (self.root/'provider').glob('*/receipt.json')]
         ids=[i for r in receipts for i in r['sessions']]
         self.assertEqual(len(set(ids)),len(ids))
@@ -126,9 +132,26 @@ class CodexProviderTests(unittest.TestCase):
         schema=response_schema('distiller',TASK['api'])
         self.assertEqual(schema['properties']['skill']['anyOf'][0]['properties']['requires']['items']['enum'],['move'])
 
+    def test_feedback_current_schema_and_backwards_clock(self):
+        envelope = feedback([{'before': state(0), 'after': state(1)}])
+        self.assertEqual(validate_feedback(envelope), envelope)
+        self.assertEqual(envelope['schema_version'], 'privileged-state/1')
+        self.assertNotIn('schema_version', envelope['initial'])
+        with self.assertRaisesRegex(ValueError, 'backwards'):
+            feedback([{'before': state(1), 'after': state(0)}])
+        legacy = {'schema_version': 'privileged-state/1', 'control_step': 0,
+                  'frame_id': 'world', 'units': STATE['units'], 'objects': {}}
+        with self.assertRaises(ValueError):
+            feedback([{'before': legacy, 'after': legacy}])
+        unversioned = {'availability': 'available', 'initial': state(0), 'final': state(1)}
+        with self.assertRaisesRegex(ValueError, 'did not provide privileged'):
+            validate_feedback(unversioned)
+
     def test_missing_state_is_not_silently_vision_or_legacy(self):
         runner=SearchRunner(Actor(),Engine(),SkillLibrary(self.root/'skills'),
                             SearchConfig(observation_mode='privileged_state'))
+        # #18 requires a frozen author self-check before any execution is scored.
+        runner.adopt_self_check(CHECK, 'actor')
         with self.assertRaisesRegex(ValueError,'did not provide privileged'):
             runner.execute('bad',[0],'debug')
 
