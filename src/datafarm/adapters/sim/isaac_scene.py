@@ -57,8 +57,10 @@ def build_scene_cfg(*, nodes: Sequence[Mapping[str, Any]], assets: Mapping[str, 
             fields[node["node_id"]] = RigidObjectCfg(
                 prim_path=path, spawn=sim_utils.UsdFileCfg(usd_path=usd, rigid_props=rigid),
                 init_state=RigidObjectCfg.InitialStateCfg(pos=pos, rot=rot))
+    robot_usd = wrappers.get(robot_node["asset_id"])
     fields[robot_node["node_id"]] = robot_cfg.replace(
         prim_path="{ENV_REGEX_NS}/" + prim_name(robot_node["node_id"]),
+        **({"spawn": robot_cfg.spawn.replace(usd_path=robot_usd)} if robot_usd else {}),
         init_state=robot_cfg.init_state.replace(pos=tuple(robot_node["pose"]["position_m"]),
                                                 rot=tuple(robot_node["pose"]["quaternion_xyzw"])))
     keyed = {key.replace(".", "__"): value for key, value in fields.items()}
@@ -119,7 +121,10 @@ def contacts_with_coverage(node_ids: Sequence[str]) -> dict[str, Any]:
         for g in geom[k]:
             shape = int(geom_to_shape[int(world[k]), int(g)]) if g >= 0 else -1
             body = int(shape_body[shape]) if shape >= 0 else -1
-            ends.append((owners[body] if body >= 0 else None, labels[body] if body >= 0 else "world"))
+            # 刚体名只留 prim 路径最后一段：Newton 的 label 是绝对 prim 路径，写进证据会被 kernel 的可移植性
+            # 检查当成宿主路径拒收；节点归属由 `a` / `b` 已经说明。
+            ends.append((owners[body] if body >= 0 else None,
+                         labels[body].rsplit("/", 1)[-1] if body >= 0 else "world"))
         rows.append({"a": ends[0][0], "b": ends[1][0], "body_a": ends[0][1], "body_b": ends[1][1],
                      "dist_m": float(dist[k])})
     return {"rows": rows, "coverage": coverage, "detected": detected, "capacity": capacity}

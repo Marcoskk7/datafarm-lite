@@ -51,8 +51,12 @@ def prepare(args) -> int:
         report = usd_assets.prepare_collision(root, wrappers_dir, Path(args.cache) / '.hull-cache')
         wrapper = wrappers_dir / report['wrapper']
         if asset['body'] == 'articulation':
-            usd_assets.anchor_to_world(wrapper, asset['anchor_body'])
+            anchor = usd_assets.anchor_to_world(wrapper, asset['anchor_body'])
             report['world_anchor_body'] = asset['anchor_body']
+            if anchor['authored_articulation_root']:
+                report['authored_articulation_root'] = anchor['authored_articulation_root']
+                print(f"{asset['asset_id']}: source had no ArticulationRootAPI; authored it on "
+                      f"{anchor['authored_articulation_root'][0]}", flush=True)
         root_usd = root / inspection['root_usd']
         usd_ref = store.put_bytes('asset.usd', root_usd.read_bytes(), media_type=USD_MEDIA)
         wrapper_ref = store.put_bytes('asset.collision-wrapper', wrapper.read_bytes(), media_type=USDA_MEDIA)
@@ -90,9 +94,22 @@ def prepare(args) -> int:
         asset_id=robot['asset_id'], descriptor=descriptor, urdf_ref=urdf_ref, usd_ref=usd_ref, license='unknown',
         retrieved_at=args.robot_retrieved_at, uri=f"local:robot_assets_isaaclab3_validated_20261113/{robot['package_asset']}",
         base_collision=base_collision, mount=mount)
-    record_ref = store.put_json('ir.asset-record', record)
-    prepared['assets'][robot['asset_id']] = {'record': record_ref.to_dict(), 'body': 'robot',
+    prepared['assets'][robot['asset_id']] = {'record': None, 'body': 'robot',
                                              'package': str(package.resolve()), 'package_asset': robot['package_asset']}
+    hardware = list(record['collision'].get('hardware_collider_prims', []))
+    if hardware:
+        wrapper = wrappers_dir / f"{robot['package_asset']}.usda"
+        report = usd_assets.robot_collision_wrapper(usd, wrapper, hardware)
+        wrapper_ref = store.put_bytes('asset.collision-wrapper', wrapper.read_bytes(), media_type=USDA_MEDIA)
+        report['wrapper_sha256'] = wrapper_ref.sha256
+        record['collision']['artifact'] = store.put_json('asset.collision-prep', report).to_dict()
+        prepared['assets'][robot['asset_id']]['wrapper'] = str(wrapper.resolve())
+        prepared['bundle_files'].append({'asset_id': robot['asset_id'], 'role': 'wrapper',
+                                         'sha256': wrapper_ref.sha256})
+        print(f"{robot['asset_id']}: collision wrapper deactivates {hardware} "
+              f"({report['wrapper']}, sha {wrapper_ref.sha256[:12]})", flush=True)
+    record_ref = store.put_json('ir.asset-record', record)
+    prepared['assets'][robot['asset_id']]['record'] = record_ref.to_dict()
     for layer, digest in delivery.get('layer_sha256', {}).items():
         if f"/{robot['package_asset']}/" in layer:
             prepared['bundle_files'].append({'asset_id': robot['asset_id'], 'role': 'robot_layer',
@@ -148,13 +165,14 @@ def check(args) -> int:
     from datafarm.scene import asset_records, layout
 
     nodes = planned['nodes']
-    robot_node = {'node_id': robot_spec['node_id'], 'pose': planned['robot_base_pose']}
+    robot_node = {'node_id': robot_spec['node_id'], 'asset_id': robot_spec['asset_id'],
+                  'pose': planned['robot_base_pose']}
     sim_cfg = make_simulation_cfg(robot_spec['package_asset'], 'newton_mjwarp')
     sim_cfg.physics.solver_cfg.nconmax = args.nconmax
     sim_cfg.physics.solver_cfg.njmax = args.njmax
     launcher_args.physics = None
     by_asset = {k: v for k, v in prepared['assets'].items() if v['body'] != 'robot'}
-    wrappers = {k: v['wrapper'] for k, v in by_asset.items()}
+    wrappers = {k: v['wrapper'] for k, v in prepared['assets'].items() if 'wrapper' in v}
     with launch_simulation(sim_cfg, launcher_args):
         sim = sim_utils.SimulationContext(sim_cfg)
         cfg_cls = isaac_scene.build_scene_cfg(nodes=nodes, assets=by_asset, wrappers=wrappers,

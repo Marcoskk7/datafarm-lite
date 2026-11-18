@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -345,16 +346,78 @@ def fixed_base_collision_bbox(usd_path: Path) -> dict[str, Any]:
             "bbox_min_m": lo.round(5).tolist(), "bbox_max_m": hi.round(5).tolist()}
 
 
-def anchor_to_world(wrapper: Path, body: str, joint_name: str = "datafarm_world_anchor") -> None:
-    """给铰接资产的基座刚体（`body` 为 `prim_ref` 形式）加固定关节，body0 指向资产根 Xform（Newton 视为世界）。
+def robot_collision_wrapper(source: Path, target: Path, activate_off: Sequence[str]) -> dict[str, Any]:
+    """写机器人碰撞包装层：sublayer 原资产，把夹具五金的碰撞 prim `active = false`，视觉保持不变。
 
-    SimReady 的 ArticulationRootAPI 在 Xform 根上，Isaac Lab 的 `fix_root_link` 对非刚体根报错；
-    这里照搬已验收 AIRBOT 资产 `root_joint` 的写法，资产在场景中的位姿仍由 init_state 决定。
+    为什么需要它（2026-11-19 在 lab30 实测）：机器人包的安装板碰撞带 `physics:approximation = convexHull`，
+    C 型夹的开口被这一个凸包填实，基座刚体因此是一块 0.19×0.28×0.118 m 的实体；安装板一旦贴在桌面上，
+    这块实体就整块穿进桌面（实测 84.6 mm，并弹飞旁边 0.2 m 处的盘子）。反过来把夹具底面当支撑面，
+    就是“机械臂悬空 10.3 cm”。AIRBOT 的基座刚体已经用 `root_joint` 焊到世界，关掉五金碰撞不影响动力学。
+    """
+    _, _, Usd, UsdGeom, UsdPhysics, _ = _pxr()
+    stage = Usd.Stage.Open(str(source))
+    root = stage.GetDefaultPrim()
+    if root is None:
+        raise ValueError(f"{Path(source).name}: no default prim")
+    lines = ["#usda 1.0", "(", f'    defaultPrim = "{root.GetName()}"', "    subLayers = [", f"        @{source}@",
+             "    ]", ")", "", f'over "{root.GetName()}"', "{"]
+    for prim in activate_off:
+        segments = [segment for segment in prim.strip("/").split("/") if segment]
+        if not segments:
+            raise ValueError(f"{Path(source).name}: empty hardware collider prim")
+        full = root.GetPath().AppendPath("/".join(segments))
+        if not stage.GetPrimAtPath(full):
+            raise ValueError(f"{Path(source).name}: hardware collider prim {prim!r} does not exist")
+        for index, segment in enumerate(segments):
+            pad = "    " * (index + 1)
+            if index == len(segments) - 1:  # active 是 prim metadata，写在最深那一层的括号里
+                lines.extend([pad + 'over "' + segment + '" (', pad + "    active = false", pad + ")", pad + "{"])
+            else:
+                lines.extend([pad + 'over "' + segment + '"', pad + "{"])
+        for index in reversed(range(len(segments))):
+            lines.append("    " * (index + 1) + "}")
+    lines.append("}")
+    Path(target).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    removed = {}
+    for prim in activate_off:
+        subtree = stage.GetPrimAtPath(root.GetPath().AppendPath(prim.strip("/")))
+        removed[prim] = sum(1 for p in Usd.PrimRange(subtree, Usd.TraverseInstanceProxies())
+                            if p.HasAPI(UsdPhysics.CollisionAPI) and p.IsA(UsdGeom.Mesh))
+        check_stage = Usd.Stage.Open(str(target))
+        composed = check_stage.GetPrimAtPath(root.GetPath().AppendPath(prim.strip("/")))
+        if composed is None or composed.IsActive():
+            raise ValueError(f"{Path(target).name}: {prim!r} is still active after deactivation")
+    if not any(removed.values()):
+        raise ValueError(f"{Path(target).name}: {activate_off} carry no collision mesh")
+    return {"schema": WRAPPER_SCHEMA, "source_layer": Path(source).name, "wrapper": Path(target).name,
+            "deactivated": removed}
+
+
+def anchor_to_world(wrapper: Path, body: str, joint_name: str = "datafarm_world_anchor") -> dict[str, Any]:
+    """把铰接资产的基座刚体（`body`，`prim_ref` 形式）锚到世界，并补齐缺失的 articulation 根 API。
+
+    - 固定关节：body0 指向资产根 Xform（Newton 视为世界），照搬已验收 AIRBOT 资产 `root_joint` 的写法；
+      资产在场景中的位姿仍由 init_state 决定。
+    - 有些 SimReady 铰接资产只写了 `PhysicsPrismaticJoint` 和刚体，没有 `ArticulationRootAPI`
+      （实测 `cabinet_file_d04`）。Isaac Lab 3.0 + Newton 按 prim 路径解析铰接根，缺它的资产 spawn 时报
+      “No articulation-root targets matched …”。这里在基座刚体上补 `PhysicsArticulationRootAPI` 与
+      `NewtonArticulationRootAPI`，与已验证的 AIRBOT / fixture 资产写法一致；补过什么写进返回证据。
     """
     _, Sdf, Usd, _, UsdPhysics, _ = _pxr()
     stage = Usd.Stage.Open(str(wrapper))
     root = stage.GetDefaultPrim()
+    body_path = Sdf.Path("/" + body.lstrip("/"))
     joint = UsdPhysics.FixedJoint.Define(stage, root.GetPath().AppendChild(joint_name))
     joint.CreateBody0Rel().SetTargets([root.GetPath()])
-    joint.CreateBody1Rel().SetTargets([Sdf.Path("/" + body.lstrip("/"))])
+    joint.CreateBody1Rel().SetTargets([body_path])
+    authored = []
+    if not any(p.HasAPI(UsdPhysics.ArticulationRootAPI)
+               for p in Usd.PrimRange(stage.GetPseudoRoot(), Usd.TraverseInstanceProxies())):
+        prim = stage.GetPrimAtPath(body_path)
+        if not prim or not prim.IsValid():
+            raise ValueError(f"{Path(wrapper).name}: anchor body {body!r} does not exist")
+        UsdPhysics.ArticulationRootAPI.Apply(prim)
+        prim.AddAppliedSchema("NewtonArticulationRootAPI")
+        authored.append(prim_ref(body_path))
     stage.GetRootLayer().Save()
+    return {"world_anchor_body": prim_ref(body_path), "authored_articulation_root": authored}
