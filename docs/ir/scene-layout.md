@@ -55,7 +55,7 @@
 | --- | --- | --- |
 | `node_id` | 是 | 场景内唯一标识，如 `object.plate`；同时作为 Isaac Lab prim 名和 SceneGraph node id |
 | `asset_id` | 是 | 必须出现在 `assets[]`，且 `prepare` 已为它产出 AssetRecord |
-| `semantic_tag` | 是 | `table` / `drawer` / `plate` / `background` / `robot`；判定器和渲染按此查找 |
+| `semantic_tag` | 是 | 小写类别标识符（`^[a-z0-9][a-z0-9._:-]{0,127}$`），如 `table` / `block`；`robot` 保留。`table` / `drawer` / `plate` / `background` 仍是合法值 |
 | `xy_m` | 是 | 世界系水平位置 `[x, y]`，m；高度不在这里给 |
 | `yaw_deg` | 否 | 绕世界 +Z 的偏航角，度，默认 0；四元数固定 xyzw |
 | `on` | 否 | 支撑节点 id 或 `"floor"`，默认 `"floor"`；决定 z 和占地检查的支撑面 |

@@ -35,7 +35,7 @@
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
 | `material_id` | 是 | spec 内唯一，如 `plate.ceramic` |
-| `slot` | 是 | SceneGraph 节点的 `semantic_tag`（`table` / `drawer` / `plate` / `background` / `robot`），且场景里必须有该标签的节点 |
+| `slot` | 是 | SceneGraph 节点的 `semantic_tag`（小写类别标识符），且场景里必须有该标签的节点 |
 | `params` | 是 | `{base_color: [r,g,b] ∈ [0,1], metallic: 0..1, roughness: 0..1}`，绑定为 OmniPBR 并覆盖该槽下所有节点的全部网格 |
 
 保持资产原材质的写法是不把该槽放进变体的 `material_set`，所以没有 `mode` 字段。

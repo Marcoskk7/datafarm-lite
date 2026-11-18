@@ -87,6 +87,16 @@ class RenderSpecTest(unittest.TestCase):
         with self.assertRaisesRegex(IRError, "has no node in the scene graph"):
             render_spec.validate(document, no_drawer)
 
+    def test_material_slot_takes_any_identifier_that_the_scene_has_a_node_for(self):
+        document = spec()
+        block = graph()
+        next(n for n in block["nodes"] if n["semantic_tag"] == "plate")["semantic_tag"] = "block"
+        next(m for m in document["materials"] if m["slot"] == "plate")["slot"] = "block"
+        render_spec.validate(document, block)
+        document["materials"][0]["slot"] = "Block"
+        with self.assertRaisesRegex(IRError, "slot must match"):
+            render_spec.validate(document, block)
+
     def test_frames_sample_control_steps_every_120_over_fps_without_interpolation(self):
         self.assertEqual(render_spec.frame_steps(list(range(241)), 10), list(range(0, 241, 12)))
         with self.assertRaisesRegex(IRError, "without gaps"):

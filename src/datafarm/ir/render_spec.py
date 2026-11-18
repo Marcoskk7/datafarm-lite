@@ -9,7 +9,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from datafarm.ir.common import check, identifier, portable, pose, ref, require, vector
-from datafarm.ir.scene_graph import CONTROL_HZ, SEMANTIC_TAGS
+from datafarm.ir.scene_graph import CONTROL_HZ
 from datafarm.kernel.io import is_finite_number
 
 SCHEMA = "datafarm.render-spec/1"
@@ -83,7 +83,7 @@ def validate(document: Any, scene_graph: Mapping[str, Any] | None = None) -> Non
     materials = _unique(document["materials"], "material_id", "materials")
     for material_id, material in materials.items():
         where = f"materials.{material_id}"
-        check(material.get("slot") in SEMANTIC_TAGS, f"{where}.slot must be one of {list(SEMANTIC_TAGS)}")
+        identifier(material.get("slot"), f"{where}.slot")
         if tags is not None:
             check(material["slot"] in tags, f"{where}.slot {material['slot']!r} has no node in the scene graph")
         params = material.get("params")

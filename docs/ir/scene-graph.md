@@ -32,8 +32,10 @@
 | `parent` | 否 | 挂到另一个 node（如抽屉里的盘子）；null 表示直接挂 world |
 | `pose` | 是 | Pose，相对 parent |
 | `joint_state` | 否 | `{关节名: 值}`，铰接资产的**声明意图**（预先拉开的抽屉写 `{"joint.drawer.slide": 0.42}`）；不是物理事实。静置后的测量值在 `check.json` 的 `settle.measured_joint_state`，并成为 episode 的 `setup.initial_state` / `setup.articulations` |
-| `semantic_tag` | 是 | `table` / `drawer` / `plate` / `background` / `robot`；判定器和渲染按此查找，不按名字前缀 |
+| `semantic_tag` | 是 | 小写类别标识符（`^[a-z0-9][a-z0-9._:-]{0,127}$`），如 `table` / `block` / `microwave_oven`；`robot` 保留给机器人节点。渲染按它分组材质，不按名字前缀 |
 | `randomization` | 否 | `{position_jitter_m, yaw_range_deg}`；yaw 用度，`[-180, 180]` |
+
+`semantic_tag` 是开放词汇表：任何合法标识符都可以，新增类别不需要改代码。旧文档里的 `table` / `drawer` / `plate` / `background` 仍然合法，其中 `background` 不再承担"其他"的兜底语义。`robot` 是唯一保留值，只能用在 `robot.asset_id` 对应的节点上。
 
 `cameras[i]`：
 
