@@ -7,10 +7,12 @@ import unittest
 
 from datafarm.cap.io import read_json, write_json
 from datafarm.cap.library import SkillLibrary
-from datafarm.cap.search import SearchConfig, SearchRunner, checked_result
+from datafarm.cap.search import SearchConfig, SearchRunner, checked_episodes, checked_result
 
 TASK={'name':'route-fixture','instruction':'Go around a blocked approach and return home.',
       'api':{'move':'move(x,y)','observe':'observe()'},'program_contract':'A task-adapter-defined Python expert'}
+# The fixture self-check: success iff the measured move reached its target.
+CHECK='def check(episode):\n    return all(e.get("ok") is True for e in episode["trace"])\n'
 SKILL={'name':'approach from the open side','failure_signature':'direct approach blocked',
        'when_to_apply':'planner rejects direct approach','repair':'Use an open side before approaching',
        'limitations':'Only where the alternate side is reachable','requires':['move']}
@@ -25,7 +27,9 @@ class Engine:
             ok=code.startswith('repaired')
             self.records[eid]=[{'event_id':0,'api':'move','before':[0,0],
                                'after':[1,1] if ok else [0,0],'result':{'ok':ok,'reason':'' if ok else 'blocked'}}]
-            rows.append({'episode_id':eid,'seed':seed,'phase':phase,'success':ok,'score':float(ok),
+            # 'success' here is a forged engine claim; only the self-check may decide success.
+            rows.append({'episode_id':eid,'seed':seed,'phase':phase,'success':True,'score':1.0,
+                         'execution':{'expert_error':False,'execution_status':'completed','reason_code':None},
                          'trace':[{'event_id':0,'api':'move','ok':ok}]})
         return {'success_rate':1,'score':1,'episodes':rows}  # Intentionally false aggregate.
     def inspect(self,eid,ids):return [r for r in self.records[eid] if r['event_id'] in ids]
@@ -41,7 +45,8 @@ class Actor:
                     'hypothesis':'derive independently from guidance'}
         if not r['top_programs']:
             return {'action':'propose','code':'repaired from skill' if r['skills'] else 'bad',
-                    'hypothesis':'initial candidate'}
+                    'hypothesis':'initial candidate',
+                    'check':CHECK if r['self_check']['status']=='required' else None}
         if not r['inspected_evidence']:
             failed=next(c for c in r['top_programs'] if c['debug']['success_rate']<1)
             return {'action':'inspect','episode_id':failed['debug']['episodes'][0]['episode_id'],'event_ids':[0]}
@@ -94,12 +99,16 @@ class SearchTests(unittest.TestCase):
             SearchRunner(Intruder(),self.engine,self.library,self.config).run(TASK,self.root/'run')
 
     def test_result_aggregate_and_fake_return_do_not_create_success(self):
-        result=checked_result(self.engine.evaluate('return True',(0,),'debug'),(0,),'debug')
+        episodes=checked_episodes(self.engine.evaluate('return True',(0,),'debug'),(0,),'debug')
+        self.assertNotIn('success',episodes[0])
+        result=checked_result(episodes,[{'success':False,'score':0.0,'reason':''}],'debug')
         self.assertEqual(result['success_rate'],0)
+        self.assertEqual(result['success_basis'],'author_self_check')
 
     def test_duplicate_program_not_reexecuted(self):
         class Duplicate:
-            def decide(self,r):return {'action':'propose','code':'bad','hypothesis':'same source'}
+            def decide(self,r):return {'action':'propose','code':'bad','hypothesis':'same source',
+                                       'check':CHECK if r['self_check']['status']=='required' else None}
         result=SearchRunner(Duplicate(),self.engine,self.library,self.config).run(TASK,self.root/'run')
         self.assertEqual(result['candidates_evaluated'],1)
         self.assertEqual(sum(p=='debug' for _,_,p in self.engine.executions),2)
@@ -112,11 +121,52 @@ class SearchTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'integrity'):self.library.entries()
 
     def test_corrupt_score_and_missing_seed_fail_closed(self):
-        result=self.engine.evaluate('bad',(0,),'debug');result['episodes'][0]['score']=float('nan')
-        with self.assertRaises(ValueError):checked_result(result,(0,),'debug')
-        with self.assertRaises(ValueError):checked_result({'episodes':[]},(0,),'debug')
+        episodes=checked_episodes(self.engine.evaluate('bad',(0,),'debug'),(0,),'debug')
+        with self.assertRaises(ValueError):
+            checked_result(episodes,[{'success':True,'score':float('nan'),'reason':''}],'debug')
+        with self.assertRaises(ValueError):checked_episodes({'episodes':[]},(0,),'debug')
+        result=self.engine.evaluate('bad',(0,),'debug');del result['episodes'][0]['execution']
+        with self.assertRaises(ValueError):checked_episodes(result,(0,),'debug')
 
     def test_run_directory_never_overwritten(self):
         (self.root/'run').mkdir()
         with self.assertRaises(FileExistsError):
             SearchRunner(self.actor,self.engine,self.library,self.config).run(TASK,self.root/'run')
+
+
+class SelfCheckTests(unittest.TestCase):
+    """CaP iterates with its own frozen self-check; no Judge verdict is involved."""
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.root=Path(self.tmp.name)
+        self.config=SearchConfig(debug_seeds=(0,1),validation_seeds=(10,),verification_seeds=(30,),max_generations=1)
+
+    def test_first_proposal_must_carry_check_and_check_is_frozen(self):
+        class NoCheck:
+            def decide(self,r):return {'action':'propose','code':'bad','hypothesis':'h'}
+        with self.assertRaisesRegex(ValueError,'self-check'):
+            SearchRunner(NoCheck(),Engine(),SkillLibrary(self.root/'a'),self.config).run(TASK,self.root/'r1')
+        class Rewrite:
+            def decide(self,r):return {'action':'propose','code':'bad '+str(len(r['top_programs'])),
+                                       'hypothesis':'h','check':CHECK}
+        with self.assertRaisesRegex(ValueError,'frozen'):
+            SearchRunner(Rewrite(),Engine(),SkillLibrary(self.root/'b'),self.config).run(TASK,self.root/'r2')
+
+    def test_report_records_self_check_basis(self):
+        actor=Actor()
+        report=SearchRunner(actor,Engine(),SkillLibrary(self.root/'s'),self.config).run(TASK,self.root/'run')
+        self.assertEqual(report['success_basis'],'author_self_check')
+        self.assertEqual((self.root/'run'/'self_check.py').read_text(),CHECK)
+        later=[r for r in actor.requests if r['role']=='actor'][1:]
+        self.assertTrue(later and all(r['self_check']=={'status':'frozen','source':CHECK} for r in later))
+        self.assertTrue(all('self_check' not in r for r in actor.requests if r['role']!='actor'))
+
+    def test_expert_error_is_failure_whatever_the_check_says(self):
+        episodes=checked_episodes(Engine().evaluate('repaired',(0,),'debug'),(0,),'debug')
+        episodes[0]['execution']['expert_error']=True
+        result=checked_result(episodes,[{'success':True,'score':1.0,'reason':''}],'debug')
+        self.assertEqual(result['success_rate'],0)
+
+    def test_initial_program_needs_operator_check(self):
+        with self.assertRaisesRegex(ValueError,'self-check'):
+            SearchRunner(Actor(),Engine(),SkillLibrary(self.root/'s'),self.config).run(TASK,self.root/'run','repaired')

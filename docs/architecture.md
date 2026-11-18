@@ -108,8 +108,8 @@ the contracts are `[tool.importlinter]` in [`pyproject.toml`](../pyproject.toml)
 
 Known debt, **not** covered by `ignore_imports` (so `lint-imports` currently fails; CI only runs
 `tools/lint_standing_rules.py`): `judge` sits in the same independent-sibling layer as `expert` and `cap`, yet
-imports `cap.io`, `cap.public_task`, `expert.manifest` and `expert.episode`, while `expert/adapter.py` and
-`expert/rollout.py` import `judge.integration`. The design intent is that the Judge is independent and frozen and is
+imports `cap.io`, `cap.public_task`, `expert.manifest` and `expert.episode`, while `expert/adapter.py` imports `judge.integration`
+(`expert/rollout.py` no longer does: outcome classification moved to `ir/execution_outcome.py`). The design intent is that the Judge is independent and frozen and is
 joined to the expert harness only at the composition root (`entry`, via adapter/1). Planned fix: move result
 classification and adapter bundling to `entry`, move shared I/O and public-task/episode validators to `kernel`/`ir`,
 then add `lint-imports` to CI.

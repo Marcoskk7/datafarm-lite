@@ -4,11 +4,11 @@ This connects the workspace's reproduced ASPIRE robot-manipulation loop to the e
 
 ## Execution boundary
 
-`SearchRunner → CodexProvider.decide → structured Codex call (fresh CLI session) → JSON decision`. Code execution stays with the xh broker, the task adapter and the frozen judge. Codex does not drive the simulator and does not read hidden seeds or the judge. Actor, Distiller and Verifier each use a fresh CLI session and never `resume`; the host rebuilds context explicitly, and the Verifier does not receive the proposer's code or history.
+`SearchRunner → CodexProvider.decide → structured Codex call (fresh CLI session) → JSON decision`. Code execution stays with the xh broker and the task adapter. During development the actor's own self-check (`check` field, frozen after the first proposal, run by `cap/self_check.py`) decides candidate success; the frozen judge does not score development rollouts and runs only once, on hidden holdout seeds, after the final draft is submitted. Codex does not drive the simulator and does not read hidden seeds or the judge. Actor, Distiller and Verifier each use a fresh CLI session and never `resume`; the host rebuilds context explicitly, and the Verifier does not receive the proposer's code or history.
 
 The search uses ASPIRE's before/after state evidence, selective `inspect`, the top 3 candidates, different hypotheses within a generation, failure-to-repair skill distillation and fresh-context skill re-verification. `population_schedule=generation` ensures candidates of a generation only see the previous generation's scores; execution is still serial, and no parallel agent search is claimed. A skill enters the library only after verification with the Verifier attesting it applied the skill as written. Full curricula and cross-task revisits are not implemented.
 
-The default legacy protocol is unchanged. The new preset uses 50 generations, 3 candidates per generation and at most 400 provider decisions in total. This is a search ceiling close to the existing reproduction, not a promise that tests use it all, and not a hard limit on model tokens or dollars. Independent hidden evaluation remains the harness's job after the frozen program is submitted.
+The default legacy protocol is unchanged. The new preset uses 50 generations, 3 candidates per generation and at most 400 provider decisions in total. This is a search ceiling close to the existing reproduction, not a promise that tests use it all, and not a hard limit on model tokens or dollars. Independent hidden evaluation (the single frozen-Judge pass) remains the harness's job after the frozen program is submitted; its result never flows back into search.
 
 ## Layering
 

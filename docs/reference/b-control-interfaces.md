@@ -176,11 +176,11 @@ not treat `blocked` as an execution failure. The implemented result fields are t
 | `CAPABILITY_UNAVAILABLE` | Configuration or capability missing | Reject explicitly; unknown contact is never written as zero |
 
 **Outcome classification.** When the recorder terminates an episode with `error/failed/timeout`, the Judge runtime
-returns `reason_code = EXECUTION_<STATUS>:<termination.reason_code>`. `judge/integration.py::classify_result` maps
+returns `reason_code = EXECUTION_<STATUS>:<termination.reason_code>`. `ir/execution_outcome.py::classify_result` (re-exported by `judge/integration.py`) maps
 reasons in `EXPERT_EXECUTION_REASONS` (limits, IK/gripper non-convergence, wall/call/control budgets,
 `INVALID_ARGUMENT`, `UNKNOWN_FRAME`, `EXPERT_EXCEPTION`, `EXPERT_WALL_BUDGET`, `EXPERT_PROTOCOL_ERROR`,
 `EXPERT_AUDIT_REJECTED`) to `expert_error` (counted, `success=false`). Host-side reasons such as
-`HOST_REQUALIFICATION_REQUIRED`, `RUNTIME_ERROR`, `RUNTIME_BINDING_ERROR` remain `judge_failure` (not counted).
+`HOST_REQUALIFICATION_REQUIRED`, `RUNTIME_ERROR`, `RUNTIME_BINDING_ERROR` remain `judge_failure` (not counted). Development rollouts with `rollout.dev_outcome` skip the Judge; `classify_execution` maps the recorder summary to `executed` / `expert_error` / infra.
 
 Host recovery is recorded separately with `phase=recovery`. Runtime fallback recovery is kept apart from deliberate policy retreats; fallback recovery must not pass as policy success.
 
@@ -279,7 +279,7 @@ The Judge reads state and events only and cannot control the robot. `JudgeResult
 
 Normal success or task failure is terminated; reaching the total step budget is truncated; infrastructure errors and user cancellation are classified separately. Timed-out tasks count in the task-evaluation denominator; initialization/infrastructure errors are listed separately and kept; reports show planned, valid evaluated, error and cancelled counts, and unfavourable attempts must not be deleted.
 
-The Judge is frozen before expert search; any change to criteria, thresholds or scene physics configuration creates a new task version. Hidden evaluation runs only after the program is frozen, and its results must not flow back into repair. Independent review recomputes the key metrics separately.
+The Judge is frozen before expert search; any change to criteria, thresholds or scene physics configuration creates a new task version. During search CaP iterates on its own frozen self-check; the Judge does not score development rollouts. Hidden evaluation (one Judge pass) runs only after the program is frozen, and its results must not flow back into repair. Independent review recomputes the key metrics separately.
 
 ### 5.3 Criteria structure of the plate task
 

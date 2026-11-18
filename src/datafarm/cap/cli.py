@@ -28,14 +28,20 @@ def main(argv=None):
     p.add_argument('--output',required=True,type=Path)
     p.add_argument('--library',required=True,type=Path)
     p.add_argument('--initial-program',type=Path)
-    p.add_argument('--submit',action='store_true',help='Submit only after every development-selection check passes')
+    p.add_argument('--self-check',type=Path,
+                   help='Operator-supplied check(episode) source; required with --initial-program, '
+                        'otherwise the actor writes it with its first proposal')
+    p.add_argument('--submit',action='store_true',
+                   help='Submit the final draft only after the self-check passes every debug and validation seed; '
+                        'the frozen Judge then scores it once on hidden holdout seeds')
     args=p.parse_args(argv)
     try:
         config=SearchConfig(**read_json(args.config)).validate()
         engine=factory(args.engine_factory,read_json(args.engine_config))
         provider=factory(args.provider_factory,read_json(args.provider_config) if args.provider_config else {})
         initial=args.initial_program.read_text(encoding='utf-8') if args.initial_program else None
-        report=SearchRunner(provider,engine,SkillLibrary(args.library),config).run(read_json(args.task),args.output,initial)
+        check=args.self_check.read_text(encoding='utf-8') if args.self_check else None
+        report=SearchRunner(provider,engine,SkillLibrary(args.library),config).run(read_json(args.task),args.output,initial,check)
         if args.submit:
             if not report['ready_for_harness_submission']:
                 raise ValueError('Expert failed development selection; final submission refused')

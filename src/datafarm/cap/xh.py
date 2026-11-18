@@ -1,7 +1,10 @@
 """CaP execution over the existing author-visible xh file protocol.
 
-The broker still owns source audit, seed authorization, isolation, jobs and judge.
-This client never launches a simulator or opens the harness-private directory.
+The broker still owns source audit, seed authorization, isolation and jobs. Development
+rollouts return execution facts only; task success is decided by CaP's own self-check
+(``SearchRunner``), and the frozen Judge scores only the final submission on hidden
+holdout seeds. This client never launches a simulator or opens the harness-private
+directory, and never forwards a Judge verdict to the author.
 """
 from datetime import datetime, timezone
 import json
@@ -105,17 +108,25 @@ class XHEngine:
             if (raw.get('attempt_id') != reply['attempt_id'] or raw.get('seed') != seed
                     or raw.get('expert_sha256') != source_digest(code)):
                 raise ValueError('Broker outcome is not bound to the requested expert and seed')
-            if raw.get('counted') is not True or type(raw.get('success')) is not bool:
-                raise RuntimeError('Infrastructure outcome cannot be treated as a program failure: '+str(raw.get('outcome_class')))
+            cls=raw.get('outcome_class')
+            if raw.get('counted') is not True or cls not in ('executed','expert_error','judged'):
+                raise RuntimeError('Infrastructure outcome cannot be treated as a program failure: '+str(cls))
             trace=self._trace(raw)
-            episode={'episode_id':raw['attempt_id'],'phase':phase,'seed':seed,'success':raw['success'],
-                     'score':float(raw['success']), 'evaluation':{'reason':raw.get('detail','')},
+            fields=raw.get('fields') if cls=='executed' and isinstance(raw.get('fields'),dict) else {}
+            # Only execution facts reach the author. A legacy adapter that still judges
+            # development rollouts ('judged') is reduced to "executed": its verdict, reason
+            # and predicate results are withheld so the Judge cannot steer the search.
+            execution={'expert_error':cls=='expert_error',
+                       'execution_status':fields.get('execution_status'),
+                       'reason_code':(fields.get('reason_code') if cls=='executed'
+                                      else str(raw.get('detail',''))[:300] if cls=='expert_error' else None)}
+            episode={'episode_id':raw['attempt_id'],'phase':phase,'seed':seed,'execution':execution,
                      'trace':[{'event_id':r['event_id'],'api':r['api'],
                                'error':r.get('error'),'result':r.get('result')} for r in trace]}
             self.episodes[raw['attempt_id']]=trace;episodes.append(episode)
             if self.observation_mode == 'privileged_state':
                 from .state_feedback import feedback
-                episode['privileged_state'] = feedback(trace, raw.get('outcome_class')=='expert_error')
+                episode['privileged_state'] = feedback(trace, cls=='expert_error')
         return {'episodes':episodes}
 
     def inspect(self, episode_id, event_ids):
@@ -129,7 +140,7 @@ class XHEngine:
 
     def submit(self, code):
         return self._request('submit',{'file':self._source(code),'class':self.expert_class,
-                                        'note':'CaP development-selected frozen expert; hidden holdout remains pending',
+                                        'note':'CaP self-check-selected final draft; the frozen Judge scores it once on hidden holdout',
                                         'final':True})
 
 

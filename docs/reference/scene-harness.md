@@ -30,6 +30,10 @@ freeze anchor and trusted factory source hash; no scripted fixture can be bound
 through this production helper. The resulting simulator command runs
 `python -m datafarm.entry.scene_job`; the Judge command runs
 `python -m datafarm.entry.judge_cli evaluate-recorded` after simulator exit.
+The adapter also sets `rollout.dev_outcome = {schema: execution-summary/1, file:
+native-parent/native/episode-ref.json}`: development rollouts skip the Judge and are
+classified from the recorder summary (`executed` / `expert_error` / infra), and CaP's
+own self-check decides success. Holdout rollouts still run the Judge exactly once.
 The factory, deployment config and contract document join the adapter manifest.
 Those local locators are deployment configuration, not portable artifact fields.
 
@@ -53,7 +57,7 @@ launching, so a policy violation is reported as `EXPERT_AUDIT_REJECTED` instead 
 worker crash. Worker errors are sent as `{"method":"error"}` with
 `policy: line N: ...` or `exception: <Type>` (no traceback) and recorded as
 `EXPERT_EXCEPTION`. These expert-caused reasons are classified `expert_error`
-(counted) rather than `judge_failure`. `bind_scene_adapter` writes the matching
+(counted) rather than `judge_failure` (classification lives in `ir/execution_outcome.py`). `bind_scene_adapter` writes the matching
 brief (`configs/expert-harness/template-scene-brief.md`, `allowed_imports=[math]`,
 `max_bytes<=64000`). It starts without site initialization, with a memory limit, core dumps
 disabled and no credentials in its environment. Standard-library directories

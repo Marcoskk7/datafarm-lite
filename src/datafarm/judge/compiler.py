@@ -109,7 +109,8 @@ def runtime_dependencies():
         'expert/__init__.py', 'expert/manifest.py', 'expert/util.py', 'expert/state.py',
         'expert/layout.py', 'expert/adapter.py', 'expert/rollout.py', 'entry/__init__.py', 'entry/judge_cli.py', 'kernel/identifiers.py', 'kernel/schema.py', 'kernel/artifacts.py',
         'expert/episode.py', 'task/__init__.py', 'task/request_profile.py', 'cap/public_task.py', 'task/planning.py',
-        'kernel/store.py', 'ir/__init__.py', 'ir/common.py', 'ir/scene_graph.py', 'ir/asset_record.py')]
+        'kernel/store.py', 'ir/__init__.py', 'ir/common.py', 'ir/scene_graph.py', 'ir/asset_record.py',
+        'ir/execution_outcome.py')]
 
 
 def freeze(folder, candidate, contract, inputs, author, reviewer, reports, cases, dependencies):
