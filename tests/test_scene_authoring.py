@@ -486,3 +486,16 @@ def test_check_config_defaults_and_unknown_keys():
         check_config({"settle": 2.0})
     with pytest.raises(ValueError, match="positive number"):
         check_config({"timeout_s": -1})
+
+
+def test_check_interpreter_keeps_the_venv_entry_symlink(tmp_path):
+    """Linux venv 的 `bin/python` 是指向基础解释器的符号链接：入口一旦被 resolve，venv 的 site-packages 就丢了。"""
+    from datafarm.entry.scene_author_cli import resolve_check_interpreter
+    base = tmp_path / "cpython-3.12.16" / "bin" / "python3.12"
+    base.parent.mkdir(parents=True)
+    base.write_text("", encoding="utf-8")
+    base.chmod(0o755)
+    entry = tmp_path / "venv" / "bin" / "python"
+    entry.parent.mkdir(parents=True)
+    entry.symlink_to(base)
+    assert resolve_check_interpreter(str(entry)) == str(entry)
