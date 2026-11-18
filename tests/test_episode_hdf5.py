@@ -325,6 +325,15 @@ class ExportCliTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertTrue(any("interval_steps" in problem for problem in report["problems"]), report)
 
+    def test_accepts_the_reference_files_render_episode_writes(self):
+        """`tools/render_episode.py` takes `{"episode": ref}` and writes `{"render_manifest": ref}`; the exporter
+        must read those files as they are (lab30: KeyError 'kind' on the first real episode)."""
+        args = ["--store", str(self.store.root), "--episode-ref", json.dumps({"episode": self.reference.to_dict()})]
+        code, report = self.run_tool("export", *args, "--out", str(self.path))
+        self.assertEqual(code, 0, report)
+        code, report = self.run_tool("validate", "--file", str(self.path), *args)
+        self.assertEqual(code, 0, report)
+
     def test_validate_reports_json_on_a_missing_file(self):
         code, report = self.run_tool("validate", "--file", str(self.directory / "absent.h5"))
         self.assertEqual(code, 1)

@@ -64,13 +64,13 @@ def _provenance(reference, payload):
 
 def command_export(args):
     store = ArtifactStore(args.store)
-    reference = _reference(args.episode_ref, "episode_ref")
+    reference = _reference(args.episode_ref, "episode_ref", "episode")
     document = store.load(reference)
     payload = _document_payload(document)
     manifest = None
     if args.render_manifest_ref:
         manifest = _document_payload(store.load(_reference(args.render_manifest_ref, "render_manifest_ref",
-                                                           "episode_ref")))
+                                                           "render_manifest")))
     judge = _read_json(args.judge) if args.judge else None
     summary = export_episode(args.out, episode_document=document, judge_result=judge,
                              render_manifest=manifest, provenance=_provenance(reference, payload))
@@ -84,12 +84,12 @@ def command_validate(args):
         print(json.dumps({"ok": False, "error": "--store and --episode-ref must be given together"}))
         return 1
     if args.episode_ref:
-        reference = _reference(args.episode_ref, "episode_ref")
+        reference = _reference(args.episode_ref, "episode_ref", "episode")
         payload = _document_payload(ArtifactStore(args.store).load(reference))
     problems = validate_hdf5(args.file, payload)
     report = {"ok": not problems, "file": str(Path(args.file)), "problems": problems}
     if args.episode_ref:
-        report["episode_ref"] = _reference(args.episode_ref, "episode_ref").to_dict()
+        report["episode_ref"] = _reference(args.episode_ref, "episode_ref", "episode").to_dict()
     print(json.dumps(report, sort_keys=True, indent=2))
     return 0 if not problems else 1
 
