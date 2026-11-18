@@ -54,7 +54,11 @@ def open_stage(path: Path, physics_variant: str = "Newton"):
 
 
 def prim_ref(path) -> str:
-    """证据里的 prim 路径去掉开头 `/`（kernel 把 `/...` 当作宿主绝对路径拒收）；`RootNode/Geometry/...`。"""
+    """资产内 prim 路径去掉开头 `/`（kernel 把 `/...` 当作宿主绝对路径拒收）；`RootNode/Geometry/...`。
+
+    这是相对资产根的名字，不是合成场景里的 prim 引用——场景引用由 `isaac_scene.body_ref` 写成
+    `usd:/World/...`，两者不要互相转换。
+    """
     return str(path).lstrip("/")
 
 
