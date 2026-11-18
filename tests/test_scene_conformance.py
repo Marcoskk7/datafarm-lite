@@ -13,11 +13,12 @@ LAYOUT = json.loads((ROOT / "examples" / "scene" / "plate-drawer-airbot.json").r
 RULES = load_role_rules(ROOT / "configs" / "scene-roles.json")
 
 CABINET_ASSET = "object.cabinet_drawer"
+# Cabinet limits follow the example asset (cabinet_file_d04): upper drawer 0.26858 m of travel.
 CABINET_JOINTS = (
-    {"name": "joint_part_01_joint_00", "type": "prismatic",
-     "limits": {"lower": 0.0, "upper": 0.4}},
-    {"name": "joint_part_02_joint_00", "type": "prismatic",
-     "limits": {"lower": 0.0, "upper": 0.4}},
+    {"name": "joint_drawer_01_joint_01", "type": "prismatic",
+     "limits": {"lower": -0.001, "upper": 0.26857900619506836}},
+    {"name": "joint_drawer_02_joint_00", "type": "prismatic",
+     "limits": {"lower": -0.001, "upper": 0.2703458368778229}},
 )
 RECORDS = {CABINET_ASSET: {"joints": list(CABINET_JOINTS)}}
 
