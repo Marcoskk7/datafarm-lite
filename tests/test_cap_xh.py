@@ -14,7 +14,8 @@ class XHTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)
         for name in ('requests','responses','results'):(self.root/'broker'/name).mkdir(parents=True)
-        self.engine=XHEngine(self.root,'Expert','primitive.jsonl',timeout_s=.03,poll_s=.001)
+        # Shared CI file I/O must not race a 30 ms fixture budget.
+        self.engine=XHEngine(self.root,'Expert','primitive.jsonl',timeout_s=5,poll_s=.001)
         self.attempts=0
 
     def service(self,_):
@@ -47,7 +48,13 @@ class XHTests(unittest.TestCase):
         self.assertEqual(self.attempts,2)
 
     def test_timeout_persists_one_identity_and_can_resume(self):
-        with self.assertRaises(TimeoutError):self.engine.evaluate('class Expert: pass',[0],'debug')
+        # Exercise the real timeout branch with a deterministic clock.
+        clock = [0.0]
+        def advance(_):
+            clock[0] += self.engine.timeout_s
+        with patch('datafarm.cap.xh.time.monotonic', lambda: clock[0]), patch('datafarm.cap.xh.time.sleep', advance):
+            with self.assertRaises(TimeoutError):
+                self.engine.evaluate('class Expert: pass',[0],'debug')
         self.assertEqual(len(list((self.root/'broker/requests').glob('*.json'))),1)
         with patch('datafarm.cap.xh.time.sleep',self.service):
             self.engine.evaluate('class Expert: pass',[0],'debug')
