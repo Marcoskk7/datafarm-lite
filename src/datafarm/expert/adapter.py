@@ -27,7 +27,7 @@ HOLDOUT_SCHEMA = "datafarm.expert-harness.holdout-seeds/1"
 
 AGENT_BACKENDS = ("claude", "codex", "codex-metered", "fake")
 ROLLOUT_BACKENDS = ("command", "local", "fake")
-ISOLATION_MODES = ("bwrap", "unshare", "none")
+ISOLATION_MODES = ("bwrap", "unshare", "none", "proot")
 ISOLATION_BASES = ("allowlist", "root_ro")
 JUDGE_POINTS = ("release", "settled", "terminal", "any")
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
@@ -451,8 +451,14 @@ class TaskAdapter:
             raise ConfigError("rollout.submit.argv is required for the command backend")
         for which in ("agent", "rollout"):
             iso = self.isolation(which)
+            if iso.get("mode") == "proot":
+                if which != "rollout":
+                    raise ConfigError("PRoot is supported only for trusted scene rollout, not author CLI")
+                validate_proot_rollout(raw)
             if iso.get("mode") not in ISOLATION_MODES:
                 raise ConfigError(f"isolation.{which}.mode must be one of {ISOLATION_MODES}")
+            if iso.get("fallback") == "proot":
+                raise ConfigError("PRoot must be selected explicitly, never as an isolation fallback")
             if iso.get("fallback") not in (None, *ISOLATION_MODES):
                 raise ConfigError(f"isolation.{which}.fallback is invalid")
             if iso.get("base", "allowlist") not in ISOLATION_BASES:
@@ -487,3 +493,33 @@ def validate_holdout_against_dev(seeds: Sequence[HoldoutSeed], dev: SeedSet) -> 
     overlap = sorted(s.seed for s in seeds if s.seed in dev)
     if overlap:
         raise ConfigError(f"{len(overlap)} holdout seeds are also development seeds")
+
+
+def validate_proot_rollout(raw):
+    """PRoot routes a trusted scene host, never an arbitrary simulator or author."""
+    iso = raw.get('isolation', {}).get('rollout', {})
+    if (set(iso) != {'mode','acknowledge_weak_isolation'} or iso.get('mode') != 'proot'
+            or iso.get('acknowledge_weak_isolation') is not True):
+        raise ConfigError('PRoot rollout needs explicit weak isolation and no fallback/readonly options')
+    rollout = raw.get('rollout', {})
+    trusted = rollout.get('trusted_scene', {})
+    if (not isinstance(trusted,dict) or set(trusted) != {'entry','configuration_sha256','factory_sha256'}
+            or trusted.get('entry') != 'datafarm.entry.scene_job'
+            or any(not re.fullmatch('[0-9a-f]{64}',str(trusted.get(k,''))) for k in ('configuration_sha256','factory_sha256'))):
+        raise ConfigError('PRoot rollout requires pinned trusted scene entry/configuration')
+    argv = rollout.get('sim', {}).get('argv', [])
+    if not isinstance(argv,list) or len(argv) < 3 or argv[1:3] != ['-m','datafarm.entry.scene_job']:
+        raise ConfigError('PRoot cannot delegate an arbitrary simulator command')
+    expected = {'--factory':None,'--factory-sha256':trusted['factory_sha256'],
+                '--config':None,'--config-sha256':trusted['configuration_sha256'],
+                '--expert':None,'--seed':None,'--attempt-id':None,'--output':None}
+    if len(argv[3:]) != 2*len(expected):
+        raise ConfigError('PRoot scene argv has unexpected or missing options')
+    options = dict(zip(argv[3::2],argv[4::2]))
+    if set(options) != set(expected) or any(not isinstance(v,str) or not v for v in argv):
+        raise ConfigError('PRoot scene argv must contain exact trusted options')
+    if any(options[k] != v for k,v in expected.items() if v is not None):
+        raise ConfigError('PRoot scene config/factory pin mismatch')
+    if 'judge_bundle' not in raw.get('verifier', {}) or rollout.get('verdict',{}).get('schema') != 'judge-result/1':
+        raise ConfigError('PRoot scene rollout requires an independently frozen structured Judge')
+    return True

@@ -2,9 +2,10 @@
 
 PRoot is an **opt-in Linux userspace path-translation runner**, not an OS security
 boundary. It can launch a CLI in an explicit guest filesystem when ptrace is
-available. It does not replace the existing expert `bwrap`, `unshare` or `none`
-modes, does not change CaP's public-request whitelist, and does not alter Judge
-freeze formats or admission rules.
+available. The standalone launcher remains separate from general SandboxSpec modes.
+An explicit scene-expert integration is available through `scene_job` and
+`scene_execution`; see [scene harness](scene-harness.md). It does not change
+CaP's public-request whitelist or Judge freeze formats/admission rules.
 
 Implementation:
 - `datafarm.adapters.sandbox.proot`: explicit rootfs/binds, runtime preflight,
@@ -118,9 +119,9 @@ Judge source through a writable PRoot bind. The trusted host rejected the change
 bundle. No old frozen record was rewritten.
 
 This demonstrates tamper **detection**, not prevention, secrecy or a security
-signature. Production Judge generation, review and evaluation stay outside this
-experimental launcher unless a separate design establishes the required trust
-boundary. No claim that PRoot satisfies current expert isolation contracts is made.
+signature. Production Judge generation, review and evaluation stay outside the guest.
+The explicit scene integration verifies live freeze and source bindings around
+expert execution; this supplies tamper detection, not secrecy or containment. No claim that PRoot satisfies current expert isolation contracts is made.
 
 ## Validation policy
 
@@ -130,5 +131,6 @@ process-group cleanup are exercised by local-only validation scripts. Existing
 sandbox and Codex tests are run unchanged. These scripts, package downloads,
 model outputs and logs are excluded from this feature's source commit.
 
-Do not enable this experimental runtime by default or interpret the successful
-weak-isolation case as permission to bypass required production sandbox gates.
+Select scene PRoot only through acknowledged deployment configuration.
+Never silently fall back to it or interpret its successful functional probe as
+OS containment. The old native Codex sandbox behavior remains unchanged.

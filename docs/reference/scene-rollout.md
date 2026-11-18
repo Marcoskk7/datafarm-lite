@@ -74,8 +74,10 @@ expert returning normally. Task judgement stays unverified.
 
 This trusted in-process API is **not** a malicious-code sandbox. Python private
 attributes do not isolate untrusted experts; use the existing broker/OS boundary.
-PRoot is a separate opt-in path-translation runner and grants no production Judge
-secrecy/readonly guarantee or automatic sandbox bypass.
+PRoot is an explicit opt-in expert execution path through `scene_job`; it grants
+no Judge secrecy/readonly guarantee or automatic Codex sandbox bypass. The
+trusted host keeps scene/Judge out of IPC, verifies the live freeze before and
+after execution, and records `security_boundary=false`. See [scene harness](scene-harness.md).
 
 The recorder verifies an explicitly supplied source-bound Judge /1 contract
 before execution, keeps its ref in the Episode, and leaves judgement unverified.

@@ -100,10 +100,12 @@ def runtime_dependencies():
         'cap/__init__.py', 'cap/io.py', 'adapters/__init__.py', 'adapters/agent_harness/__init__.py',
         'adapters/agent_harness/codex/__init__.py', 'adapters/agent_harness/codex/structured.py',
         'adapters/agent_harness/codex/fyp_gateway.py', 'entry/codex_gateway.py',
+        'adapters/sandbox/__init__.py', 'adapters/sandbox/proot.py', 'adapters/sandbox/proot_exec.py',
+        'adapters/sandbox/scene_proot.py', 'adapters/sandbox/isolation.py',
         'adapters/agent_harness/scene_execution.py', 'adapters/agent_harness/scene_worker.py', 'entry/scene_job.py',
         'entry/scene_rollout.py',
         'expert/__init__.py', 'expert/manifest.py', 'expert/util.py', 'expert/state.py',
-        'expert/layout.py', 'entry/__init__.py', 'entry/judge_cli.py', 'kernel/identifiers.py', 'kernel/schema.py', 'kernel/artifacts.py',
+        'expert/layout.py', 'expert/adapter.py', 'expert/rollout.py', 'entry/__init__.py', 'entry/judge_cli.py', 'kernel/identifiers.py', 'kernel/schema.py', 'kernel/artifacts.py',
         'expert/episode.py', 'task/__init__.py', 'task/request_profile.py', 'cap/public_task.py', 'task/planning.py',
         'kernel/store.py', 'ir/__init__.py', 'ir/common.py', 'ir/scene_graph.py', 'ir/asset_record.py')]
 

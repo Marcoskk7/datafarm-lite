@@ -42,7 +42,7 @@ class SceneActions:
 def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
                          api, simulation, scene, control_profile, runtime_ref, expert_ref,
                          attempt_id, reset, settle_steps, expert, max_bytes,
-                         task_contract_ref=None, randomization=None, cancelled=None, contact_query=None, expert_executor=None):
+                         task_contract_ref=None, randomization=None, cancelled=None, contact_query=None, expert_executor=None, execution_runtime=None):
     """Use already initialized host resources and an explicitly supplied expert callable.
 
     Host must qualify reset/resources; Python attribute visibility is NOT an expert
@@ -116,7 +116,15 @@ def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
                    "datafarm.adapters.sim.isaac_ik", "datafarm.entry.robot_control", "datafarm.simulation.isaac_robot",
                    "datafarm.adapters.sim.isaac_scene", "datafarm.adapters.sim.usd_assets",
                    "datafarm.simulation.tcp_control", "datafarm.expert.episode",
-                   "datafarm.adapters.agent_harness.scene_execution", "datafarm.adapters.agent_harness.scene_worker")}}
+                   "datafarm.adapters.agent_harness.scene_execution", "datafarm.adapters.agent_harness.scene_worker",
+                   "datafarm.adapters.sandbox.proot", "datafarm.adapters.sandbox.proot_exec",
+                   "datafarm.adapters.sandbox.scene_proot")}}
+    if execution_runtime is not None:
+        if (not isinstance(execution_runtime,dict) or execution_runtime.get('mode') != 'proot'
+                or execution_runtime.get('security_boundary') is not False
+                or execution_runtime.get('acknowledge_weak_isolation') is not True):
+            raise ValueError('explicit weak PRoot execution metadata required')
+        setup['execution_runtime'] = deepcopy(execution_runtime)
     profile = control_profile.to_dict() if hasattr(control_profile, "to_dict") else control_profile
     recorder = EpisodeRecorder(setup, max_steps=profile["max_total_control_steps"], max_bytes=max_bytes)
     measurements = SceneMeasurements(scene, resolved["graph"], resolved["records"], api, contact_query=contact_query, rejected_sink=recorder.rejected_measurement)
