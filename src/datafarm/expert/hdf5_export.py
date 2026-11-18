@@ -316,7 +316,7 @@ def _write_frames(root: h5py.File, manifest: Mapping[str, Any], state_count: int
     counts: dict[str, dict[str, int]] = {}
     for (camera_id, variant_id), rows in sorted(groups.items()):
         rows = sorted(rows, key=lambda frame: frame["frame_index"])
-        group = frames.create_group(camera_id).create_group(variant_id)
+        group = frames.require_group(camera_id).create_group(variant_id)
         group.attrs["camera_id"] = camera_id
         group.attrs["variant_id"] = variant_id
         group.attrs["frame_count"] = np.int64(len(rows))

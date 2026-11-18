@@ -261,6 +261,18 @@ class EpisodeHdf5Test(unittest.TestCase):
         self.assertFalse(mask[1, column])
         self.assertEqual(validate_hdf5(self.path, partial), [])
 
+    def test_one_camera_with_several_variants(self):
+        """lab30 s2v8：每台相机有多个材质/光照 variant，第二个 variant 不能再建同名相机组。"""
+        doc = manifest()
+        second = deepcopy(doc["streams"][0])
+        second["variant_id"] = "warm"
+        doc["streams"].append(second)
+        doc["frame_map"] += [dict(row, variant_id="warm") for row in doc["frame_map"]]
+        self.export(render_manifest=doc)
+        with h5py.File(self.path, "r") as root:
+            self.assertEqual(sorted(root["frames/camera.head"]), ["base", "warm"])
+        self.assertEqual(validate_hdf5(self.path, payload()), [])
+
     def test_export_refuses_a_payload_that_is_not_a_recorded_episode(self):
         broken = payload()
         broken["judgement"] = "success"
