@@ -39,7 +39,7 @@
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `camera_id` | 是 | `camera.head` / `camera.left_wrist` / `camera.right_wrist` |
+| `camera_id` | 是 | 单臂 MVP：`camera.head` / `camera.left_wrist`；`camera.right_wrist` 只在双臂模型里出现 |
 | `kind` | 是 | `physical`（绑在机器人 link 上）或 `virtual`（渲染时自由加） |
 | `mount` | 是 | 挂载的 node 或 frame id；腕部相机填机器人 node |
 | `link` | 否 | 机器人 link 名，如 `left_end_link`。给出时 `mount` 必须是机器人 node，相机随该 link 运动 |
@@ -48,6 +48,15 @@
 | `optical_frame` | 是 | `{convention: "opencv" / "ros" / "opengl"}`：opencv 与 ros 同为 z 前、x 右、y 下；opengl 为 -z 前、y 上 |
 | `distortion` | 是 | `{model: "none" / "radtan", coefficients: [...]}`；MVP 用 `none` |
 | `fps` | 是 | 采样帧率，MVP 10；必须整除控制频率 120 |
+
+单臂 MVP（AIRBOT G2 左臂）只有两路物理相机，另加渲染用的虚拟视角 `third_person`（640x480，只在 RenderSpec 里声明，不进 SceneGraph）：
+
+| `camera_id` | 来源 | 分辨率 |
+| --- | --- | --- |
+| `camera.head` | ZED 2i 左目，`airbot_dual_description/config/layout.yaml` 的 `env_camera`；内参取 `calib/zed2i_39532546_intrinsics.json` 的 HD720（1280x720，fx 521.543）减半 | 640x360，fx 260.77 |
+| `camera.left_wrist` | D435i 彩色，挂 `left_end_link`；外参 `calib/wrist_d435i_handeye.json` 的 `T_flange_from_camera`，内参 `calib/wrist_d435i_intrinsics.json`；URDF `airbot_g2_left.urdf` 的 `left_camera_link` 只是相机外壳网格 | 640x480，fx 607.07 |
+
+单臂 URDF 没有右腕相机，也没有 head/ZED link。`right_camera_link` 只存在于双臂模型 `airbot_dual.urdf`，且 `layout.yaml` 里右腕暂时复用左腕手眼标定；上双臂前不得声明 `camera.right_wrist`。
 
 `robot`：
 
