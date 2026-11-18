@@ -60,7 +60,7 @@ def prepare(args) -> int:
         record = asset_records.build_record(
             asset_id=asset['asset_id'], role=asset['role'], fetch=fetch, inspection=inspection, usd_ref=usd_ref,
             inspection_ref=inspection_ref, collision_ref=collision_ref,
-            collision_bbox=(report['hull_bbox_min_m'], report['hull_bbox_max_m']),
+            collision_bbox=(report['hull_bbox_min_m'], report['hull_bbox_max_m']), physical=report['bodies'],
             notes=f"collision: CoACD convex hulls {report['coacd']} replace the upstream meshes for MuJoCo Warp")
         record_ref = store.put_json('ir.asset-record', record)
         prepared['assets'][asset['asset_id']] = {
