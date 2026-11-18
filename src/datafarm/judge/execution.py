@@ -73,10 +73,12 @@ def run_source(source, episode, contract, scene, *, timeout_s=10, memory_mb=256)
     try:
         audit_source(source)
         finite_tree(episode)
-        reason = episode.get('termination', {}).get('reason')
+        validate_episode(episode, contract)
+        reason = episode['termination']['reason']
         if reason == 'aborted':
             return dict(error_result('aborted'), outcome='aborted')
-        validate_episode(episode, contract)
+        if episode.get('schema_version') == 'judge-episode/1' and reason in ('error', 'timeout', 'failed'):
+            return error_result('EXECUTION_' + reason.upper())
         payload = canonical(dict(source=source, episode=episode, contract=contract, scene=scene,
                                  timeout_s=timeout_s, memory_mb=memory_mb))
         check(len(payload) <= 32*1024*1024, 'Episode exceeds 32 MiB worker input limit')
@@ -90,9 +92,6 @@ def run_source(source, episode, contract, scene, *, timeout_s=10, memory_mb=256)
         response = json.loads(proc.stdout)
         check(response.get('ok') is True, 'Judge worker error: ' + str(response.get('error')))
         value = validate_result(response['result'], contract)
-        if reason == 'timeout' and value['outcome'] != 'error':
-            value = {**value, 'outcome': 'failure', 'success': False, 'reason_code': 'motion_timeout',
-                     'terminated': False, 'truncated': True}
         return value
     except (JudgeError, ValueError, TypeError, KeyError, AttributeError, OSError, subprocess.TimeoutExpired) as exc:
         return error_result(type(exc).__name__ + ': ' + str(exc)[:500])

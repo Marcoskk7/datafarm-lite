@@ -42,14 +42,14 @@ class SceneActions:
 def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
                          api, simulation, scene, control_profile, runtime_ref, expert_ref,
                          attempt_id, reset, settle_steps, expert, max_bytes,
-                         task_contract_ref=None, randomization=None, cancelled=None, contact_query=None):
+                         task_contract_ref=None, randomization=None, cancelled=None, contact_query=None, expert_executor=None):
     """Use already initialized host resources and an explicitly supplied expert callable.
 
     Host must qualify reset/resources; Python attribute visibility is NOT an expert
     sandbox. A broker/OS boundary remains required for untrusted programs. This
     API neither launches a model nor certifies task success or replay.
     """
-    if not callable(expert) or api._tcp_motion_service is not None:
+    if (callable(expert) == callable(expert_executor)) or api._tcp_motion_service is not None:
         raise ValueError("fresh API binding and explicit expert callable required")
     resolved = load_scene(store, scene_ref, prepared, asset_roots=asset_roots)
     task = store.load(ArtifactRef.from_dict(task_ref))
@@ -72,13 +72,15 @@ def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
         raise ValueError("runtime differs from source scene or physics clock")
     expert_bytes = store.load_bytes(ArtifactRef.from_dict(expert_ref))
     import inspect
-    if not inspect.isfunction(expert) or Path(inspect.getfile(expert)).read_bytes() != expert_bytes:
+    if expert_executor is None and (not inspect.isfunction(expert) or Path(inspect.getfile(expert)).read_bytes() != expert_bytes):
         raise ValueError("expert callable must come from the exact pinned source file")
     if task["schema"] != "datafarm.task-ir" or task["artifact_id"] != payload["task_revision"] or scene_ref not in task["evidence"]:
         raise ValueError("task revision or scene digest mismatch")
     known = {n["node_id"] for n in resolved["graph"]["nodes"]}
     if any(r["node_id"] not in known for r in payload["roles"]):
         raise ValueError("task role is not in the bound scene")
+    if len(task["predecessors"]) != 1 or task["predecessors"][0]["kind"] != "task-request":
+        raise ValueError("one normalized request predecessor required")
     request_ref = task["predecessors"][0]
     from datafarm.task.request_profile import validate_request
     request = validate_request(store.load(ArtifactRef.from_dict(request_ref)))
@@ -86,7 +88,8 @@ def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
     if request["request_id"] != payload["request_id"]:
         raise ValueError("request identity differs from task")
     if task_contract_ref is not None:
-        raise ValueError("TaskContract binding requires the separate Judge/Episode contract implementation")
+        from datafarm.judge.contract_binding import verify_contract
+        verify_contract(store, task_contract_ref, task_ref=task_ref, scene_ref=scene_ref)
     from datafarm.kernel.identifiers import logical_id
     from datafarm.kernel.schema import canonical_json_bytes
     logical_id(attempt_id, label="attempt_id")
@@ -112,7 +115,8 @@ def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
                    "datafarm.adapters.sim.scene_measurements", "datafarm.adapters.sim.isaac_control",
                    "datafarm.adapters.sim.isaac_ik", "datafarm.entry.robot_control", "datafarm.simulation.isaac_robot",
                    "datafarm.adapters.sim.isaac_scene", "datafarm.adapters.sim.usd_assets",
-                   "datafarm.simulation.tcp_control", "datafarm.expert.episode")}}
+                   "datafarm.simulation.tcp_control", "datafarm.expert.episode",
+                   "datafarm.adapters.agent_harness.scene_execution", "datafarm.adapters.agent_harness.scene_worker")}}
     profile = control_profile.to_dict() if hasattr(control_profile, "to_dict") else control_profile
     recorder = EpisodeRecorder(setup, max_steps=profile["max_total_control_steps"], max_bytes=max_bytes)
     measurements = SceneMeasurements(scene, resolved["graph"], resolved["records"], api, contact_query=contact_query, rejected_sink=recorder.rejected_measurement)
@@ -149,7 +153,7 @@ def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
             event_sink=recorder.event, cancelled=cancelled)
         actions = SceneActions(api, measurements, service.host)
         status, reason = "completed", "EXPERT_RETURNED"
-        expert(actions)
+        expert_executor(actions, expert_bytes) if expert_executor is not None else expert(actions)
         unsuccessful = next((v for v in actions.results if v["status"] != "completed"), None)
         if unsuccessful is not None:
             status = unsuccessful["status"] if unsuccessful["status"] in ("error", "aborted", "timeout") else "failed"
@@ -158,6 +162,10 @@ def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
             status, reason = "error", "HOST_REQUALIFICATION_REQUIRED"
         elif cancelled is not None and service.host.cancelled():
             status, reason = "aborted", "CANCELLED"
+    except TimeoutError:
+        status, reason = "timeout", "EXPERT_WALL_BUDGET"
+        if actions is not None and (service.host.step_outcome_unknown or not service.host.healthy):
+            status, reason = "error", "HOST_REQUALIFICATION_REQUIRED"
     except Exception:
         status, reason = "error", "EXPERT_OR_RUNTIME_ERROR" if actions is not None else "RUNTIME_BINDING_ERROR"
         # Private traceback data must not enter portable evidence.

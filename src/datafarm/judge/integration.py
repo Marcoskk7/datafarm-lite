@@ -55,6 +55,9 @@ def classify_result(value):
         return 'judge_failure', None, 'Missing or invalid generated JudgeResult'
     outcome, success = value.get('outcome'), value.get('success')
     if outcome in ('success', 'failure') and type(success) is bool and success == (outcome == 'success'):
+        predicates = value.get('predicate_results')
+        if predicates is not None and (not isinstance(predicates, dict) or not predicates or any(type(v) is not bool for v in predicates.values()) or all(predicates.values()) != success):
+            return 'judge_failure', None, 'Judge predicates contradict success'
         return 'judged', success, str(value.get('reason_code', outcome))
     if outcome == 'aborted' and success is None:
         return 'aborted', None, str(value.get('reason_code', 'aborted'))

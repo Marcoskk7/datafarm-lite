@@ -416,6 +416,14 @@ class TaskAdapter:
             except (ValueError, OSError, KeyError) as exc:
                 raise ConfigError("Frozen judge preflight failed: " + str(exc)) from exc
         task_ir = raw.get("task_ir")
+        if isinstance(task_ir, Mapping) and task_ir.get('profile') == 'request-task/1':
+            from datafarm.task.request_profile import validate_task_payload
+            try:
+                validate_task_payload(task_ir)
+                if task_ir['task_id'] != self.task_id:
+                    raise ValueError('adapter task identity differs from request task')
+            except ValueError as exc:
+                raise ConfigError(str(exc)) from exc
         if isinstance(task_ir, Mapping) and task_ir.get("profile") == STAGE_GRAPH_PROFILE:
             # 有类型标注的 task contract 必须在准备任何轮次之前结构正确，并映射到冻结的 judge 上；
             # summary 形式的 task_ir（较旧的 adapter）保持不变。

@@ -26,16 +26,9 @@ def immutable_json(path, value):
 
 
 def public_task(inputs):
-    """显式投影可公开任务信息，不把带 Judge 的完整契约交给 CaP。"""
-    original = inputs['task']['original'].get('payload', inputs['task']['original'])
-    keys = ('name', 'instruction', 'demand', 'api', 'program_contract', 'joint_index', 'joint_names',
-            'roles', 'goal_predicates', 'constraints', 'units')
-    value = {k: deepcopy(original[k]) for k in keys if k in original}
-    value['requirements'] = [{'id': r['id'], 'text': r['text']} for r in inputs['task']['requirements']]
-    # 上游公开给定的目标参数不能因私有 Judge 的隔离而从专家任务说明中消失。
-    value['provided_thresholds'] = deepcopy(inputs['task']['provided_thresholds'])
-    private_fields(value)
-    return value
+    """Only the validated public projection may enter CaP context."""
+    from datafarm.cap.public_task import validate_public_task
+    return validate_public_task(inputs['observations']['public_task'])
 
 
 def model_inputs(inputs):
@@ -48,13 +41,15 @@ def model_inputs(inputs):
 
 
 def contract_for(candidate, inputs, identity):
-    return dict(schema_version=CONTRACT_SCHEMA, task_id=inputs['task']['task_id'],
+    contract = dict(schema_version=CONTRACT_SCHEMA, task_id=inputs['task']['task_id'],
                 task_version=inputs['task']['task_version'], freeze_id=identity,
                 requirements=deepcopy(inputs['task']['requirements']), conditions=deepcopy(candidate['conditions']),
                 thresholds={t['id']: deepcopy(t) for t in candidate['thresholds']},
                 required_capabilities=candidate['required_capabilities'][:],
                 observations=deepcopy(inputs['observations']), scene_sha256=sha(inputs['scene']),
                 public_task=public_task(inputs))
+    contract['source_binding'] = deepcopy(inputs['observations']['source_binding'])
+    return contract
 
 
 def test_cases(source, contract, scene, cases):
@@ -104,8 +99,13 @@ def runtime_dependencies():
         '__init__.py', 'kernel/__init__.py', 'kernel/io.py', 'kernel/file_lock.py',
         'cap/__init__.py', 'cap/io.py', 'adapters/__init__.py', 'adapters/agent_harness/__init__.py',
         'adapters/agent_harness/codex/__init__.py', 'adapters/agent_harness/codex/structured.py',
+        'adapters/agent_harness/codex/fyp_gateway.py', 'entry/codex_gateway.py',
+        'adapters/agent_harness/scene_execution.py', 'adapters/agent_harness/scene_worker.py', 'entry/scene_job.py',
+        'entry/scene_rollout.py',
         'expert/__init__.py', 'expert/manifest.py', 'expert/util.py', 'expert/state.py',
-        'expert/layout.py', 'entry/__init__.py', 'entry/judge_cli.py')]
+        'expert/layout.py', 'entry/__init__.py', 'entry/judge_cli.py', 'kernel/identifiers.py', 'kernel/schema.py', 'kernel/artifacts.py',
+        'expert/episode.py', 'task/__init__.py', 'task/request_profile.py', 'cap/public_task.py', 'task/planning.py',
+        'kernel/store.py', 'ir/__init__.py', 'ir/common.py', 'ir/scene_graph.py', 'ir/asset_record.py')]
 
 
 def freeze(folder, candidate, contract, inputs, author, reviewer, reports, cases, dependencies):
@@ -175,6 +175,22 @@ def verify_bundle(bundle, expected_sha256=None, *, allow_fixture=False):
     check(not diff_manifests(baseline, current) and current['digest'] == baseline['digest'], 'Frozen judge dependency changed')
     contract = read_json(bundle / 'task-contract.json')
     check(contract['schema_version'] == CONTRACT_SCHEMA and contract['freeze_id'] == frozen['freeze_id'], 'Contract mismatch')
+    from .episode_input import validate_observation_spec
+    validate_observation_spec(contract['observations'])
+    check(contract.get('source_binding') == contract['observations']['source_binding'], 'Contract source binding differs')
+    from .protocol import build_input
+    inputs = read_json(bundle / 'input.json')
+    check(build_input(inputs['task']['original'], inputs['scene'], inputs['observations'], inputs['development_cases']) == inputs,
+          'Frozen input uses an obsolete or invalid /1 layout')
+    check(contract['task_id'] == inputs['task']['task_id'] and contract['task_version'] == inputs['task']['task_version'],
+          'Frozen task identity differs')
+    candidate = dict(source=(bundle / 'judge.py').read_text(encoding='utf-8'),
+                     conditions=contract['conditions'], thresholds=list(contract['thresholds'].values()),
+                     required_capabilities=contract['required_capabilities'], missing_inputs=[])
+    check(not validate_candidate(candidate, inputs), 'Frozen Judge has unsupported capabilities')
+    expected = contract_for(candidate, inputs, frozen['freeze_id'])
+    check(all(contract.get(k) == v for k, v in expected.items()), 'Frozen contract semantics differ from input')
+    check(contract.get('ready_for_cap') is frozen['ready_for_cap'], 'Frozen readiness differs')
     check(file_sha(bundle / 'task-contract.json') == frozen['task_contract_ref']['sha256'], 'TaskContract changed')
     check(file_sha(bundle / 'judge.py') == contract['judge_ref']['sha256'], 'Judge source changed')
     return contract
@@ -219,6 +235,9 @@ class JudgeCompiler:
     def build(self, inputs, work, dependencies=None):
         dependencies = {k: Path(v).resolve(strict=True) for k, v in (dependencies or {}).items()}
         check(inputs.get('schema_version') == BUILD_SCHEMA, 'Unsupported build input version')
+        from .protocol import build_input
+        check(build_input(inputs['task']['original'], inputs['scene'], inputs['observations'], inputs['development_cases']) == inputs,
+              'Build input normalization changed or missing')
         private_fields(inputs)
         identity = sha(dict(inputs=inputs, policy={'max_candidates': self.max_candidates},
                             provider=getattr(self.provider, 'fingerprint', type(self.provider).__qualname__),
