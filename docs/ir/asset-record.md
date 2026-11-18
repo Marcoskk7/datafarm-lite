@@ -53,6 +53,11 @@
 
 `assumed` / `unknown` 的量会被写进 TaskContract 的随机化清单，采样结果记入 `Episode.payload.setup`。
 
+刚体还会带 `<body>.inertia_diagonal`（`kg*m^2`）和 `<body>.center_of_mass`（`m`）：来自资产作者的
+MassAPI（老资产是 Isaac 的 `pxr:usd:physics_*`），刚体没有时按平行轴定理从碰撞体合成。两者都是
+`assumed` + `not_randomized_reason`——作者数据没有任务证据，交付也不采样惯量。没有可用惯量的刚体
+不写这两项，由引擎按几何估计。
+
 ## 示例：带帮浅盘
 
 ```json
