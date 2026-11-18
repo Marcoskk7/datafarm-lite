@@ -17,6 +17,29 @@ COLLISION_KINDS = ("mesh", "convex_hull", "convex_decomposition", "primitive")
 JOINT_TYPES = ("revolute", "prismatic", "fixed")
 REQUIRED = ("schema", "asset_id", "role", "source", "files", "bbox_m", "collision", "joints", "frames",
             "physical_quantities")
+MOUNT_AXES = ("+x", "-x", "+y", "-y")
+
+
+def _robot_base_collision(collision: Mapping[str, Any], label: str) -> None:
+    """机器人必须在 Record 里带摆位标定：支撑面高度、占地矩形、安装方式（平放 / 桌沿夹装）。
+
+    没有这些字段就没有可信的“贴桌面”算法——基座刚体的碰撞包围盒里含 C 型夹，直接用它的底面会让整机悬空。
+    """
+    require(collision, ("base_support_z_m", "base_footprint_min_m", "base_footprint_max_m", "base_mount"),
+            f"{label}.collision")
+    check(is_finite_number(collision["base_support_z_m"]), f"{label}.collision.base_support_z_m must be finite")
+    low = vector(collision["base_footprint_min_m"], 2, f"{label}.collision.base_footprint_min_m")
+    high = vector(collision["base_footprint_max_m"], 2, f"{label}.collision.base_footprint_max_m")
+    check(low[0] < high[0] and low[1] < high[1], f"{label}.collision.base_footprint_* min must be below max")
+    mount = collision["base_mount"]
+    check(isinstance(mount, Mapping) and mount.get("kind") in ("surface", "edge_clamp"),
+          f"{label}.collision.base_mount.kind must be 'surface' or 'edge_clamp'")
+    if mount["kind"] != "edge_clamp":
+        return
+    check(mount.get("axis") in MOUNT_AXES, f"{label}.collision.base_mount.axis must be one of {list(MOUNT_AXES)}")
+    check(is_finite_number(mount.get("edge_plane_m")), f"{label}.collision.base_mount.edge_plane_m must be finite")
+    check(is_finite_number(mount.get("overhang_m")) and float(mount["overhang_m"]) >= 0.0,
+          f"{label}.collision.base_mount.overhang_m must be a finite non-negative number")
 
 
 def validate(document: Any) -> dict[str, int]:
@@ -54,6 +77,8 @@ def validate(document: Any) -> dict[str, int]:
           f"{label}.collision.kind must be one of {list(COLLISION_KINDS)}")
     if "artifact" in collision:
         ref(collision["artifact"], f"{label}.collision.artifact")
+    if document["role"] == "robot":
+        _robot_base_collision(collision, label)
 
     joints = document["joints"]
     check(isinstance(joints, list), f"{label}.joints must be a list")

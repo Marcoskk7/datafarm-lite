@@ -1,0 +1,20 @@
+{
+  "schema": "datafarm.robot-mounts/1",
+  "description": "机器人包每个资产的安装几何，基座坐标系（URDF 根 link）、米。support_face_z_m 是压在支撑面上的那块板的下表面；footprint_m 是它的 xy 占地矩形。edge_clamp 表示基座靠 C 型夹夹住支撑边：axis 是夹具朝外的基座轴，edge_plane_m 是支撑边必须落到的基座坐标（夹具竖臂内侧）。数值由碰撞网格实测（tools/scene_assemble.py prepare 会拿实测包围盒复核），换机器人包必须重量。",
+  "assets": {
+    "airbot_single": {
+      "support_face_z_m": -0.0049,
+      "footprint_m": [[-0.13325, -0.1385], [0.05625, 0.1385]],
+      "edge_clamp": {"axis": "-x", "edge_plane_m": -0.121}
+    },
+    "airbot_dual": {
+      "support_face_z_m": 0.0,
+      "footprint_m": [[-0.13325, -0.417], [0.05625, 0.417]],
+      "edge_clamp": {"axis": "-x", "edge_plane_m": -0.121}
+    },
+    "dualxarm": {
+      "support_face_z_m": 0.0,
+      "footprint_m": [[-0.5, -0.75], [0.5, 0.75]]
+    }
+  }
+}

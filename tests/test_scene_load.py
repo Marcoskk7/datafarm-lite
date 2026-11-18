@@ -69,7 +69,8 @@ def build_work(root: Path) -> tuple[Path, ArtifactStore, dict, dict]:
         urdf_ref=store.put_bytes("robot.urdf", urdf.read_bytes(), media_type="application/urdf+xml"),
         usd_ref=store.put_bytes("robot.usd", robot_usd.read_bytes(), media_type=USDA), license="unknown",
         retrieved_at="2026-11-15T00:00:00Z", uri="local:toy",
-        base_collision={"bbox_min_m": [-0.1, -0.1, -0.02], "bbox_max_m": [0.1, 0.1, 0.1]})
+        base_collision={"bbox_min_m": [-0.1, -0.1, -0.02], "bbox_max_m": [0.1, 0.1, 0.1]},
+        mount={"support_face_z_m": -0.02, "footprint_m": [[-0.1, -0.1], [0.1, 0.1]]})
     records["robot.toy"] = robot
     prepared["assets"]["robot.toy"] = {"record": store.put_json("ir.asset-record", robot).to_dict(), "body": "robot",
                                        "package": str(package.resolve()), "package_asset": "toy"}

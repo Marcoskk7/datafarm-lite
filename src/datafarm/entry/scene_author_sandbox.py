@@ -43,7 +43,8 @@ MODES = ("bwrap", "proot", "none")
 FALLBACK_MODES = ("bwrap", "proot")  # unshare 会把 allowlist 退化成 root_ro denylist（整个仓库可见），不接受
 DEFAULTS: dict[str, Any] = {"mode": "bwrap", "fallback": ["proot"], "proot": None, "python": None, "extra_ro": []}
 # 角色允许读的仓库文件（相对仓库根）：两份 IR 文档、闸门规则表、`tools/simready.py` 及其 import 闭包。
-REPO_READABLE = ("docs/ir/request.md", "docs/ir/scene-layout.md", "configs/scene-roles.json", "tools/simready.py",
+REPO_READABLE = ("docs/ir/request.md", "docs/ir/scene-layout.md", "configs/scene-roles.json",
+                 "configs/robot-mounts.json", "tools/simready.py",
                  "src/datafarm/__init__.py", "src/datafarm/adapters/__init__.py", "src/datafarm/adapters/assets",
                  "src/datafarm/kernel")
 # 探针逐项确认 guest 里不存在的仓库路径（仓库本体整个不 bind，这里列最要紧的几项）。

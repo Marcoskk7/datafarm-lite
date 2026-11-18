@@ -18,7 +18,7 @@ import numpy as np
 from datafarm.ir import scene_graph
 from datafarm.ir.common import IRError, check, identifier
 from datafarm.kernel.schema import is_absolute_filesystem_path
-from datafarm.scene import kinematics
+from datafarm.scene import kinematics, mounts
 
 LAYOUT_SCHEMA = "datafarm.scene-layout/1"
 SUPPORT_CLEARANCE_M = 0.001
@@ -213,6 +213,8 @@ def footprint_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
 
     占地取包围盒底面矩形（按偏航旋转，不取外包框）。这是 settle 之前的静态检查：
     越出桌沿的基座在固定根仿真里不会掉，但不是可复现的摆放。
+    机器人占地用 Record 里标定的安装板矩形；桌沿夹装的基座允许板越过夹持边 `overhang_m` —
+    那是夹具挂到桌面外的那点板宽，其余三边仍必须落在支撑顶面内。
     """
     entries = {n["node_id"]: n for n in spec["nodes"]}
     corners: dict[str, np.ndarray] = {}
@@ -222,11 +224,18 @@ def footprint_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
         corners[node["node_id"]] = _xy_corners(lo, hi, node["pose"])
         supports[node["node_id"]] = entries[node["node_id"]].get("on", "floor")
     robot = spec["robot"]
+    clamped: dict[str, tuple[str, float]] = {}
     if "base_pose" not in robot:
         collision = records[robot["asset_id"]]["collision"]
-        corners[robot["node_id"]] = _xy_corners(collision["base_bbox_min_m"], collision["base_bbox_max_m"],
-                                                robot_base_pose(spec, nodes, records))
+        if "base_footprint_min_m" not in collision or "base_mount" not in collision:
+            mounts.raise_without_calibration(robot["asset_id"])
+        lo = [*collision["base_footprint_min_m"], 0.0]
+        hi = [*collision["base_footprint_max_m"], 0.0]
+        pose = robot_base_pose(spec, nodes, records)
+        corners[robot["node_id"]] = _xy_corners(lo, hi, pose)
         supports[robot["node_id"]] = robot["on"]
+        if collision["base_mount"]["kind"] == "edge_clamp":
+            clamped[robot["node_id"]] = (robot["mount"]["edge"], mounts.overhang_m(collision))
     by_id = {n["node_id"]: n for n in nodes}
     problems = []
     for node_id, support in supports.items():
@@ -235,6 +244,20 @@ def footprint_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
         slo, shi = _record_bbox(records[by_id[support]["asset_id"]])
         inv = np.linalg.inv(kinematics.pose_matrix(by_id[support]["pose"]))
         local = (np.c_[corners[node_id], np.zeros(4), np.ones(4)] @ inv.T)[:, :2]
+        if node_id in clamped:
+            edge, overhang = clamped[node_id]
+            axis = 0 if edge.endswith("x") else 1
+            sign = 1.0 if edge[0] == "+" else -1.0
+            edge_coord = float(shi[axis] if sign > 0 else slo[axis])
+            beyond = (local[:, axis] - edge_coord) * sign
+            along = 1 - axis
+            fits = ((beyond <= overhang + 1e-9)
+                    & ((beyond > 0) | ((local[:, axis] >= slo[axis] - 1e-9) & (local[:, axis] <= shi[axis] + 1e-9)))
+                    & (local[:, along] >= slo[along] - 1e-9) & (local[:, along] <= shi[along] + 1e-9))
+            if not bool(fits.all()):
+                problems.append(f"{node_id} mounting plate does not fit the {edge} edge of {support} "
+                                f"(allowed overhang {overhang:g} m)")
+            continue
         if np.any(local < slo[:2] - 1e-9) or np.any(local > shi[:2] + 1e-9):
             problems.append(f"{node_id} overhangs {support}")
     placed = sorted(supports)
@@ -244,10 +267,14 @@ def footprint_check(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
                 problems.append(f"{a} overlaps {b} on {supports[a]}")
     sweep = joint_sweep_check(spec, nodes, records)
     problems = problems + sweep["problems"]
-    return {"ok": not problems,
-            "problems": problems,
-            "xy_corners_m": {k: np.round(v, 4).tolist() for k, v in corners.items()},
-            "joint_sweep": {"ok": sweep["ok"], "checked": sweep["checked"], "skipped": sweep["skipped"]}}
+    result = {"ok": not problems,
+              "problems": problems,
+              "xy_corners_m": {k: np.round(v, 4).tolist() for k, v in corners.items()},
+              "joint_sweep": {"ok": sweep["ok"], "checked": sweep["checked"], "skipped": sweep["skipped"]}}
+    if clamped:
+        result["edge_clamp"] = {node: {"edge": edge, "overhang_m": round(overhang, 6)}
+                                for node, (edge, overhang) in clamped.items()}
+    return result
 
 
 def target_world(target: Mapping[str, Any], nodes: Mapping[str, Mapping[str, Any]],
@@ -263,20 +290,65 @@ def target_world(target: Mapping[str, Any], nodes: Mapping[str, Mapping[str, Any
 
 def robot_base_pose(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
                      records: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
-    """机器人基座：给 `on` 时让基座刚体碰撞体的底面贴在支撑节点顶面，否则用显式 `base_pose`。
+    """机器人基座位姿：高度让标定的安装面贴在支撑顶面（+`SUPPORT_CLEARANCE_M`）。
 
-    基座碰撞包围盒来自机器人 AssetRecord 的 `collision.base_bbox_min_m`；缺失时报错，不假设基座原点就是底面。
+    平放（`collision.base_mount.kind == "surface"`）：`on` + `xy_m` + `yaw_deg`。
+    桌沿夹装（`edge_clamp`）：`on` + `mount.edge` + `mount.along_m`，xy 与偏航从标定推导——
+    夹具竖臂内侧那条平面与支撑边重合，安装板压在支撑顶面上，越过夹持边的那点板宽是标定的 `overhang_m`。
+    显式 `base_pose` 仍然原样使用（验证/回放等手写场景）。
     """
     robot = spec["robot"]
     if "base_pose" in robot:
         return dict(robot["base_pose"])
+    check("on" in robot, f"{robot['node_id']}: give `on` (support node) or an explicit `base_pose`")
     collision = records[robot["asset_id"]]["collision"]
-    check("base_bbox_min_m" in collision,
-          f"{robot['asset_id']}: record has no collision.base_bbox_min_m; give robot.base_pose explicitly")
-    z = support_tops(nodes, records)[robot["on"]] + SUPPORT_CLEARANCE_M - float(collision["base_bbox_min_m"][2])
-    x, y = (float(v) for v in robot["xy_m"])
+    if "base_support_z_m" not in collision or "base_mount" not in collision:
+        mounts.raise_without_calibration(robot["asset_id"])
+    z = support_tops(nodes, records)[robot["on"]] + SUPPORT_CLEARANCE_M - float(collision["base_support_z_m"])
+    if collision["base_mount"]["kind"] == "edge_clamp":
+        x, y, yaw = _edge_clamp_xy(robot, nodes, records, collision)
+    else:
+        check("mount" not in robot,
+              f"{robot['node_id']}: its record mounts flat on a support; give xy_m/yaw_deg, not mount")
+        check("xy_m" in robot, f"{robot['node_id']}: give xy_m (and optional yaw_deg)")
+        x, y = (float(v) for v in robot["xy_m"])
+        yaw = float(robot.get("yaw_deg", 0.0))
     return {"frame_id": "world", "position_m": [round(x, 6), round(y, 6), round(z, 6)],
-            "quaternion_xyzw": yaw_quaternion(float(robot.get("yaw_deg", 0.0)))}
+            "quaternion_xyzw": yaw_quaternion(yaw)}
+
+
+def _edge_clamp_xy(robot: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],
+                   records: Mapping[str, Mapping[str, Any]], collision: Mapping[str, Any]) -> tuple[float, float, float]:
+    """桌沿夹装的基座 xy 与偏航：把标定的夹持面钉到支撑边，板向内压住支撑顶面。"""
+    label = robot["node_id"]
+    spec_mount = robot.get("mount")
+    check(isinstance(spec_mount, Mapping), f"{label}: record clamps to a support edge; "
+                                          "give mount = {\"edge\": \"+x|-x|+y|-y\", \"along_m\": m}")
+    edge = spec_mount.get("edge")
+    check(edge in mounts.AXES, f"{label}.mount.edge must be one of {list(mounts.AXES)}")
+    along = spec_mount.get("along_m")
+    check(isinstance(along, (int, float)) and not isinstance(along, bool) and math.isfinite(float(along)),
+          f"{label}.mount.along_m must be a finite number (support-local coordinate along the edge)")
+    support_id = robot["on"]
+    check(support_id != "floor", f"{label}: an edge clamp needs a support with a top face, not 'floor'")
+    support = {n["node_id"]: n for n in nodes}.get(support_id)
+    check(support is not None, f"{label}: unknown support {support_id!r}")
+    mount = collision["base_mount"]
+    axis = 0 if edge.endswith("x") else 1
+    sign = 1.0 if edge[0] == "+" else -1.0
+    clamp = np.asarray(mounts.AXES[mount["axis"]], float)
+    lo, hi = _record_bbox(records[support["asset_id"]])
+    pose = kinematics.pose_matrix(support["pose"])
+    corner = np.zeros(4)
+    corner[3] = 1.0
+    corner[axis] = float(hi[axis] if sign > 0 else lo[axis])
+    corner[1 - axis] = float(along)
+    edge_world = (pose @ corner)[:2]
+    normal = pose[:2, :2] @ np.asarray(mounts.AXES[edge], float)
+    yaw = math.degrees(math.atan2(float(normal[1]), float(normal[0]))
+                       - math.atan2(float(clamp[1]), float(clamp[0])))
+    xy = edge_world + float(mount["edge_plane_m"]) * normal
+    return float(xy[0]), float(xy[1]), yaw
 
 
 def reachability(spec: Mapping[str, Any], nodes: Sequence[Mapping[str, Any]],

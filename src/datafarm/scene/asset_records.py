@@ -12,6 +12,7 @@ from typing import Any
 
 from datafarm.ir import asset_record
 from datafarm.kernel.artifacts import ArtifactRef
+from datafarm.scene import mounts
 
 FRICTION_RANGE = (0.5, 1.5)   # 相对 USD 名义值的比例
 MASS_RANGE = (0.7, 1.3)
@@ -113,10 +114,12 @@ def build_record(*, asset_id: str, role: str, fetch: Mapping[str, Any], inspecti
 
 def robot_record(*, asset_id: str, descriptor: Mapping[str, Any], urdf_ref: ArtifactRef, usd_ref: ArtifactRef,
                  license: str, retrieved_at: str, uri: str,
-                 base_collision: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                 base_collision: Mapping[str, Any], mount: Mapping[str, Any]) -> dict[str, Any]:
     """机器人 AssetRecord：关节与限位直接来自 URDF 描述（robot-descriptor/2）。
 
-    `base_collision` 是基座刚体碰撞体在基座坐标系的包围盒（`fixed_base_collision_bbox`），布局据此把基座放上支撑面。
+    `base_collision` 是基座刚体碰撞体在基座坐标系的包围盒（`fixed_base_collision_bbox`），只作实测证据；
+    摆位用 `mount` 的显式标定（`configs/robot-mounts.json`，经 `scene.mounts.collision_fields` 复核）：
+    支撑面高度、占地矩形、是否靠 C 型夹夹住支撑边。
     """
     joints = []
     for joint in descriptor["joints"]:
@@ -129,6 +132,7 @@ def robot_record(*, asset_id: str, descriptor: Mapping[str, Any], urdf_ref: Arti
             entry["mimic"] = {"joint": joint["mimic"]["joint"], "multiplier": joint["mimic"]["multiplier"],
                               "offset": joint["mimic"].get("offset", 0.0)}
         joints.append(entry)
+    collision = mounts.collision_fields(asset_id, mount, base_collision)
     record = {
         "schema": asset_record.SCHEMA,
         "asset_id": asset_id,
@@ -137,9 +141,7 @@ def robot_record(*, asset_id: str, descriptor: Mapping[str, Any], urdf_ref: Arti
                    "upstream_id": descriptor["robot_name"]},
         "files": [{"artifact": urdf_ref.to_dict(), "format": "urdf"}, {"artifact": usd_ref.to_dict(), "format": "usd"}],
         "bbox_m": [0.8, 0.8, 0.8],
-        "collision": {"kind": "mesh", **({"base_bbox_min_m": list(base_collision["bbox_min_m"]),
-                                          "base_bbox_max_m": list(base_collision["bbox_max_m"])}
-                                         if base_collision else {})},
+        "collision": collision,
         "joints": joints,
         "frames": {"up_axis": "Z", "root_frame_id": asset_id,
                    "link_frame_ids": {name: f"{asset_id}.{name}" for name in descriptor["links"]}},

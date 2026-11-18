@@ -9,7 +9,7 @@ import numpy as np
 from datafarm.ir import scene_graph
 from datafarm.ir.common import IRError
 from datafarm.kernel.artifacts import ArtifactRef
-from datafarm.scene import asset_records, kinematics, layout, planning
+from datafarm.scene import asset_records, kinematics, layout, mounts, planning
 from datafarm.simulation.robot_binding import discover_urdf
 
 
@@ -70,7 +70,8 @@ def records() -> dict:
     robot = asset_records.robot_record(
         asset_id="robot.toy", descriptor=discover_urdf(URDF), urdf_ref=ref("robot.urdf", "8"),
         usd_ref=ref("robot.usd", "9"), license="unknown", retrieved_at="2026-11-15T00:00:00Z", uri="local:toy",
-        base_collision={"bbox_min_m": [-0.1, -0.1, -0.02], "bbox_max_m": [0.1, 0.1, 0.1]})
+        base_collision={"bbox_min_m": [-0.1, -0.1, -0.02], "bbox_max_m": [0.1, 0.1, 0.1]},
+        mount={"support_face_z_m": -0.02, "footprint_m": [[-0.1, -0.1], [0.1, 0.1]]})
     return {r["asset_id"]: r for r in (table, cabinet, plate, robot)}
 
 
@@ -97,6 +98,29 @@ SPEC = {
 }
 
 
+# C-clamp base measured on the AIRBOT G2 left arm: plate underside at z=-0.0049, hardware down to -0.108,
+# clamp spine inner face at x=-0.121 (configs/robot-mounts.json airbot_single).
+CLAMP_MOUNT = {"support_face_z_m": -0.0049, "footprint_m": [[-0.13325, -0.1385], [0.05625, 0.1385]],
+               "edge_clamp": {"axis": "-x", "edge_plane_m": -0.121}}
+CLAMP_BASE = {"bbox_min_m": [-0.13325, -0.1385, -0.108], "bbox_max_m": [0.05625, 0.1385, 0.073]}
+
+
+def clamp_records() -> dict:
+    built = records()
+    built["robot.clamp"] = asset_records.robot_record(
+        asset_id="robot.clamp", descriptor=discover_urdf(URDF), urdf_ref=ref("robot.urdf", "a"),
+        usd_ref=ref("robot.usd", "b"), license="unknown", retrieved_at="2026-11-15T00:00:00Z", uri="local:clamp",
+        base_collision=CLAMP_BASE, mount=CLAMP_MOUNT)
+    return built
+
+
+CLAMP_ROBOT = {**deepcopy(SPEC["robot"]), "asset_id": "robot.clamp", "mount": {"edge": "+x", "along_m": 0.1}}
+CLAMP_ROBOT.pop("xy_m")
+CLAMP_NODES = deepcopy(SPEC["nodes"])
+CLAMP_NODES[1]["xy_m"] = [0.0, -0.25]  # clear of the mounting plate, which now reaches 56 mm in from the edge
+CLAMP_SPEC = {**deepcopy(SPEC), "robot": CLAMP_ROBOT, "nodes": CLAMP_NODES}
+
+
 class LayoutTests(unittest.TestCase):
     def setUp(self):
         self.records = records()
@@ -114,10 +138,74 @@ class LayoutTests(unittest.TestCase):
         base = layout.robot_base_pose(SPEC, list(nodes.values()), self.records)
         self.assertAlmostEqual(base["position_m"][2], table_z + 0.05 + layout.SUPPORT_CLEARANCE_M + 0.02)
 
-    def test_robot_on_support_without_base_collision_is_an_error(self):
+    def test_robot_on_support_without_mount_calibration_is_an_error(self):
         self.records["robot.toy"]["collision"] = {"kind": "mesh"}
-        with self.assertRaisesRegex(IRError, "base_bbox_min_m"):
+        with self.assertRaisesRegex(IRError, "base_support_z_m"):
             layout.robot_base_pose(SPEC, list(self.nodes().values()), self.records)
+
+    def test_edge_clamp_puts_the_calibrated_clamp_plane_on_the_support_edge(self):
+        records = clamp_records()
+        spec = CLAMP_SPEC
+        nodes = {n["node_id"]: n for n in layout.resolve_nodes(spec, records)}
+        base = layout.robot_base_pose(spec, list(nodes.values()), records)
+        table_top = nodes["object.table"]["pose"]["position_m"][2] + 0.05
+        # clamp spine inner face (base x=-0.121) sits on the table's +x edge at 0.5 and the plate rests on top
+        self.assertAlmostEqual(base["position_m"][0], 0.5 - 0.121, places=6)
+        self.assertAlmostEqual(base["position_m"][1], 0.1, places=6)
+        self.assertAlmostEqual(base["position_m"][2], table_top + layout.SUPPORT_CLEARANCE_M + 0.0049, places=6)
+        np.testing.assert_allclose(base["quaternion_xyzw"], [0.0, 0.0, -1.0, 0.0], atol=1e-9)  # yaw -180: arm faces the table
+        footprint = layout.footprint_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertTrue(footprint["ok"], footprint["problems"])
+        self.assertEqual(footprint["edge_clamp"]["robot.arm"]["edge"], "+x")
+        self.assertAlmostEqual(footprint["edge_clamp"]["robot.arm"]["overhang_m"], 0.01225, places=6)
+
+    def test_edge_clamp_record_requires_mount_in_the_layout(self):
+        records = clamp_records()
+        flat = deepcopy(CLAMP_SPEC)
+        flat["robot"].pop("mount")
+        flat["robot"]["xy_m"] = [0.3, 0.1]
+        with self.assertRaisesRegex(IRError, "clamps to a support edge"):
+            layout.robot_base_pose(flat, layout.resolve_nodes(flat, records), records)
+
+    def test_edge_clamp_along_the_edge_must_keep_the_plate_on_the_support(self):
+        records = clamp_records()
+        spec = deepcopy(CLAMP_SPEC)
+        spec["robot"]["mount"] = {"edge": "+x", "along_m": 0.35}  # plate half-width 0.1385 > remaining 0.05
+        result = layout.footprint_check(spec, layout.resolve_nodes(spec, records), records)
+        self.assertEqual(result["problems"], ["robot.arm mounting plate does not fit the +x edge of object.table "
+                                              "(allowed overhang 0.01225 m)"])
+
+    def test_surface_mount_record_rejects_a_mount_field(self):
+        spec = deepcopy(SPEC)
+        spec["robot"]["mount"] = {"edge": "+x", "along_m": 0.0}
+        with self.assertRaisesRegex(IRError, "mounts flat on a support"):
+            layout.robot_base_pose(spec, layout.resolve_nodes(spec, self.records), self.records)
+
+    def test_calibration_is_checked_against_the_measured_base_bbox(self):
+        fields = mounts.collision_fields("robot.airbot", CLAMP_MOUNT, CLAMP_BASE)
+        self.assertEqual(fields["base_support_z_m"], -0.0049)
+        self.assertEqual(fields["base_mount"]["kind"], "edge_clamp")
+        self.assertAlmostEqual(fields["base_mount"]["overhang_m"], 0.01225, places=6)
+        surface = mounts.collision_fields("robot.stand", {"support_face_z_m": 0.0,
+                                                          "footprint_m": [[-0.5, -0.75], [0.5, 0.75]]},
+                                          {"bbox_min_m": [-0.5, -0.75, 0.0], "bbox_max_m": [0.5, 0.75, 0.7]})
+        self.assertEqual(surface["base_mount"], {"kind": "surface"})
+        drifted = deepcopy(CLAMP_MOUNT)
+        drifted["support_face_z_m"] = 0.2  # a stand's calibration pasted onto the clamp base
+        with self.assertRaisesRegex(IRError, "support_face_z_m"):
+            mounts.collision_fields("robot.airbot", drifted, CLAMP_BASE)
+        wide = deepcopy(CLAMP_MOUNT)
+        wide["footprint_m"] = [[-0.2, -0.1385], [0.05625, 0.1385]]
+        with self.assertRaisesRegex(IRError, "footprint_m"):
+            mounts.collision_fields("robot.airbot", wide, CLAMP_BASE)
+
+    def test_shipped_calibration_covers_every_robot_package_asset(self):
+        config = Path(__file__).resolve().parents[1] / "configs" / "robot-mounts.json"
+        document = json.loads(config.read_text(encoding="utf-8"))
+        self.assertEqual(document["schema"], mounts.SCHEMA)
+        for package_asset in ("airbot_single", "airbot_dual", "dualxarm"):
+            entry = mounts.load(config, package_asset)
+            self.assertIn("support_face_z_m", entry)
 
     def test_footprint_rejects_overhang_and_overlap_using_rotated_rectangles(self):
         self.assertTrue(layout.footprint_check(SPEC, layout.resolve_nodes(SPEC, self.records), self.records)["ok"])

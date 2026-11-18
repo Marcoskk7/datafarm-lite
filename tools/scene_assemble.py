@@ -26,6 +26,8 @@ from datafarm.kernel.io import atomic_write_json, sha256_file  # noqa: E402
 from datafarm.kernel.store import ArtifactStore  # noqa: E402
 from datafarm.entry.scene_files import load_prepared as _records, robot_descriptor  # noqa: E402
 
+ROOT = Path(__file__).resolve().parents[1]
+ROBOT_MOUNTS = ROOT / 'configs' / 'robot-mounts.json'
 USD_MEDIA = 'model/vnd.usd'
 USDA_MEDIA = 'model/vnd.usda'
 
@@ -36,7 +38,7 @@ def load_json(path: Path) -> dict:
 
 def prepare(args) -> int:
     from datafarm.adapters.sim import usd_assets
-    from datafarm.scene import asset_records
+    from datafarm.scene import asset_records, mounts
     spec = load_json(args.spec)
     work = Path(args.work)
     store = ArtifactStore(work / 'store')
@@ -80,12 +82,14 @@ def prepare(args) -> int:
     urdf_ref = store.put_bytes('robot.urdf', urdf.read_bytes(), media_type='application/urdf+xml')
     usd_ref = store.put_bytes('robot.usd', usd.read_bytes(), media_type=USDA_MEDIA)
     base_collision = usd_assets.fixed_base_collision_bbox(usd)
-    print(f"{robot['asset_id']}: base collision bbox {base_collision['bbox_min_m']} {base_collision['bbox_max_m']}",
-          flush=True)
+    mount = mounts.load(ROBOT_MOUNTS, robot['package_asset'])
+    print(f"{robot['asset_id']}: base collision bbox {base_collision['bbox_min_m']} {base_collision['bbox_max_m']}; "
+          f"mount {mount['edge_clamp'] if mount.get('edge_clamp') else 'surface'} "
+          f"support face z {mount['support_face_z_m']}", flush=True)
     record = asset_records.robot_record(
         asset_id=robot['asset_id'], descriptor=descriptor, urdf_ref=urdf_ref, usd_ref=usd_ref, license='unknown',
         retrieved_at=args.robot_retrieved_at, uri=f"local:robot_assets_isaaclab3_validated_20261113/{robot['package_asset']}",
-        base_collision=base_collision)
+        base_collision=base_collision, mount=mount)
     record_ref = store.put_json('ir.asset-record', record)
     prepared['assets'][robot['asset_id']] = {'record': record_ref.to_dict(), 'body': 'robot',
                                              'package': str(package.resolve()), 'package_asset': robot['package_asset']}
