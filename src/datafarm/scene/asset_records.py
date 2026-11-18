@@ -36,7 +36,8 @@ def body_masses(inspection: Mapping[str, Any]) -> dict[str, float]:
 
 def build_record(*, asset_id: str, role: str, fetch: Mapping[str, Any], inspection: Mapping[str, Any],
                  usd_ref: ArtifactRef, inspection_ref: ArtifactRef, collision_ref: ArtifactRef | None,
-                 collision_bbox: tuple[list[float], list[float]] | None = None, notes: str = "") -> dict[str, Any]:
+                 collision_bbox: tuple[list[float], list[float]] | None = None,
+                 physical: Mapping[str, Mapping[str, Any]] | None = None, notes: str = "") -> dict[str, Any]:
     """关节名保持上游 USD 里的名字，场景 `joint_state` 与 Isaac Lab 绑定都按这个名字查。
 
     `collision_bbox` 是替换后碰撞几何（凸包）的包围盒；凸包会比渲染网格外扩几毫米，布局按它算支撑高度。
@@ -76,6 +77,20 @@ def build_record(*, asset_id: str, role: str, fetch: Mapping[str, Any], inspecti
             quantities.append({"name": "restitution", "label": "assumed", "unit": "", "value": restitution,
                                "not_randomized_reason": "not a MuJoCo contact parameter; bounce follows solref",
                                "evidence": evidence})
+    physical_evidence = [(collision_ref or inspection_ref).to_dict()]
+    for body, info in sorted((physical or {}).items()):
+        if info.get("diagonal_inertia_kg_m2") is None:
+            continue
+        name = body.rsplit("/", 1)[-1]
+        quantities += [
+            {"name": f"{name}.inertia_diagonal", "label": "assumed", "unit": "kg*m^2",
+             "value": [round(float(v), 9) for v in info["diagonal_inertia_kg_m2"]],
+             "not_randomized_reason": "authored by the asset; the deliverable does not sample inertia",
+             "evidence": physical_evidence},
+            {"name": f"{name}.center_of_mass", "label": "assumed", "unit": "m",
+             "value": [round(float(v), 9) for v in info["center_of_mass_m"]],
+             "not_randomized_reason": "authored by the asset; the deliverable does not sample inertia",
+             "evidence": physical_evidence}]
     for joint in joints:
         if joint["type"] == "prismatic":
             quantities.append({"name": f"{joint['name']}.damping", "label": "assumed", "unit": "N*s/m",

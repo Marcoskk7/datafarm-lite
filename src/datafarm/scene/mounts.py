@@ -47,6 +47,10 @@ def validate(label: str, entry: Any) -> None:
                       for v in corner), f"{label}.footprint_m[{index}] must be two finite numbers")
     check(footprint[0][0] < footprint[1][0] and footprint[0][1] < footprint[1][1],
           f"{label}.footprint_m min must be below max on both axes")
+    hardware = entry.get("hardware_collider_prims", [])
+    check(isinstance(hardware, list) and all(isinstance(item, str) and item and not item.startswith("/")
+                                             for item in hardware),
+          f"{label}.hardware_collider_prims must be a list of prim paths relative to the asset root")
     clamp = entry.get("edge_clamp")
     if clamp is None:
         return
@@ -82,6 +86,9 @@ def collision_fields(label: str, entry: Mapping[str, Any], measured: Mapping[str
                  "base_support_z_m": z,
                  "base_footprint_min_m": [float(fx0), float(fy0)],
                  "base_footprint_max_m": [float(fx1), float(fy1)]}
+    hardware = list(entry.get("hardware_collider_prims", []))
+    if hardware:
+        collision["hardware_collider_prims"] = hardware
     clamp = entry.get("edge_clamp")
     if clamp is None:
         collision["base_mount"] = {"kind": "surface"}

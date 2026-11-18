@@ -74,7 +74,8 @@ def resolve_check_interpreter(python: str | None) -> str | None:
         return None
     path = Path(python).expanduser()
     if path.is_file() and os.access(path, os.X_OK):
-        return str(path.resolve())
+        # 保留 symlink 入口：Linux venv 的 bin/python 指向基础解释器，resolve 后 CPython 找不到 pyvenv.cfg。
+        return os.path.abspath(os.fspath(path))
     if os.sep not in python:
         found = shutil.which(python)
         if found:

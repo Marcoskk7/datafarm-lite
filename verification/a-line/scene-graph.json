@@ -2,7 +2,7 @@
   "asset_bundle": {
     "kind": "scene.asset-bundle",
     "media_type": "application/json",
-    "sha256": "e50edcf431d28a4019a24ae3d248b3f124431370f7262c14792bab2fd877ac6f"
+    "sha256": "a8303e231ea5d1fa72dd148bfcb50939ebd24c46f0008437c83ad7f8fccef819"
   },
   "assets": [
     {
@@ -10,7 +10,7 @@
       "record": {
         "kind": "ir.asset-record",
         "media_type": "application/json",
-        "sha256": "75931f6565a253a1bd6fb01c7bc297f1ef720738687510cadca42e33a03ffa76"
+        "sha256": "cf3c4431d6201f0e72a00edb575413d23437e8d04b53e3d845e4d48fa714fbc4"
       }
     },
     {
@@ -18,7 +18,7 @@
       "record": {
         "kind": "ir.asset-record",
         "media_type": "application/json",
-        "sha256": "fc9685367139a74511e9ea665a11fb4b287338b8a56544c7fa26ed21c95bc377"
+        "sha256": "ec166a4a41b5729fab1edc08b7065030860c5b370b70e91dc2280eee21950edd"
       }
     },
     {
@@ -26,7 +26,7 @@
       "record": {
         "kind": "ir.asset-record",
         "media_type": "application/json",
-        "sha256": "7fec427008e3ea1c5f619ce9c19280eb17885be9be2e3f090a52cbf42ff39a3e"
+        "sha256": "c352fcfa2c9d9fcd7a23651440d728d873f47a97fbaec513c193b3a0081a0a6f"
       }
     },
     {
@@ -118,7 +118,7 @@
   ],
   "checks": {
     "penetration": {
-      "max_depth_m": 0.00018,
+      "max_depth_m": 5.8e-05,
       "ok": true,
       "ran": true
     },
@@ -128,7 +128,7 @@
       "ok": true
     },
     "settle": {
-      "max_drift_m": 0.001109,
+      "max_drift_m": 0.001046,
       "ran": true,
       "stable": true,
       "steps": 240
@@ -297,7 +297,7 @@
   "physics_parameter_ledger": {
     "kind": "ir.physics-ledger",
     "media_type": "application/json",
-    "sha256": "a636e948b106c8b953cc54a73bd0ccca35362d7a7a6b03332d5ae4905ced56b9"
+    "sha256": "1db8193487a62bad05d767bd09ad647e749ca3b6aeeaebbb7c74f1cc5a2320fe"
   },
   "robot": {
     "arms": [

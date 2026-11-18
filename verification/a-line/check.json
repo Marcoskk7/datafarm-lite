@@ -2,7 +2,7 @@
   "evidence": {
     "kind": "scene.check-evidence",
     "media_type": "application/json",
-    "sha256": "d4e71f9815929d21fec9a0c2e309abf2f310ef89fd0f65917accd06022e1a3ea"
+    "sha256": "834fabf2bc61c91d97ccde6496682b21d3f2c6e06c4ae4d0757745ea011b66bc"
   },
   "initial_joint_state": {
     "object.cabinet": [
@@ -25,7 +25,7 @@
             "world"
           ],
           "body_a": "world",
-          "body_b": "sm_table_metal_stainless_a03_obj_00",
+          "body_b": "usd:/World/envs/env_0/ObjectTable/Geometry/sm_table_metal_stainless_a03_obj_00",
           "depth_m": -0.001
         },
         "object.cabinet | object.table": {
@@ -35,8 +35,8 @@
             "body_01_obj_00",
             "sm_table_metal_stainless_a03_obj_00"
           ],
-          "body_a": "sm_table_metal_stainless_a03_obj_00",
-          "body_b": "body_01_obj_00",
+          "body_a": "usd:/World/envs/env_0/ObjectTable/Geometry/sm_table_metal_stainless_a03_obj_00",
+          "body_b": "usd:/World/envs/env_0/ObjectCabinet/Geometry/body_01_obj_00",
           "depth_m": -0.004346
         },
         "object.plate | object.table": {
@@ -46,8 +46,8 @@
             "body_01_obj_00",
             "sm_table_metal_stainless_a03_obj_00"
           ],
-          "body_a": "sm_table_metal_stainless_a03_obj_00",
-          "body_b": "body_01_obj_00",
+          "body_a": "usd:/World/envs/env_0/ObjectTable/Geometry/sm_table_metal_stainless_a03_obj_00",
+          "body_b": "usd:/World/envs/env_0/ObjectPlate/Geometry/body_01_obj_00",
           "depth_m": -0.001009
         },
         "object.table | robot.airbot": {
@@ -57,15 +57,15 @@
             "left_base_link",
             "sm_table_metal_stainless_a03_obj_00"
           ],
-          "body_a": "sm_table_metal_stainless_a03_obj_00",
-          "body_b": "left_base_link",
+          "body_a": "usd:/World/envs/env_0/ObjectTable/Geometry/sm_table_metal_stainless_a03_obj_00",
+          "body_b": "usd:/World/envs/env_0/RobotAirbot/Geometry/left_base_link",
           "depth_m": -0.00591
         }
       },
       "ran": true,
       "tolerance_m": 0.003
     },
-    "max_depth_m": 0.00018,
+    "max_depth_m": 5.8e-05,
     "ok": true,
     "pairs": {
       "None | object.cabinet": {
@@ -76,7 +76,7 @@
           "world"
         ],
         "body_a": "world",
-        "body_b": "body_01_obj_00",
+        "body_b": "usd:/World/envs/env_0/ObjectCabinet/Geometry/body_01_obj_00",
         "depth_m": -0.000998
       },
       "None | object.table": {
@@ -87,7 +87,7 @@
           "world"
         ],
         "body_a": "world",
-        "body_b": "sm_table_metal_stainless_a03_obj_00",
+        "body_b": "usd:/World/envs/env_0/ObjectTable/Geometry/sm_table_metal_stainless_a03_obj_00",
         "depth_m": -0.001
       },
       "object.cabinet | object.table": {
@@ -97,8 +97,8 @@
           "body_01_obj_00",
           "sm_table_metal_stainless_a03_obj_00"
         ],
-        "body_a": "sm_table_metal_stainless_a03_obj_00",
-        "body_b": "body_01_obj_00",
+        "body_a": "usd:/World/envs/env_0/ObjectTable/Geometry/sm_table_metal_stainless_a03_obj_00",
+        "body_b": "usd:/World/envs/env_0/ObjectCabinet/Geometry/body_01_obj_00",
         "depth_m": -0.004346
       },
       "object.plate | object.table": {
@@ -108,9 +108,9 @@
           "body_01_obj_00",
           "sm_table_metal_stainless_a03_obj_00"
         ],
-        "body_a": "sm_table_metal_stainless_a03_obj_00",
-        "body_b": "body_01_obj_00",
-        "depth_m": 0.00018
+        "body_a": "usd:/World/envs/env_0/ObjectTable/Geometry/sm_table_metal_stainless_a03_obj_00",
+        "body_b": "usd:/World/envs/env_0/ObjectPlate/Geometry/body_01_obj_00",
+        "depth_m": 5.8e-05
       },
       "object.table | robot.airbot": {
         "a": "object.table",
@@ -119,8 +119,8 @@
           "left_base_link",
           "sm_table_metal_stainless_a03_obj_00"
         ],
-        "body_a": "sm_table_metal_stainless_a03_obj_00",
-        "body_b": "left_base_link",
+        "body_a": "usd:/World/envs/env_0/ObjectTable/Geometry/sm_table_metal_stainless_a03_obj_00",
+        "body_b": "usd:/World/envs/env_0/RobotAirbot/Geometry/left_base_link",
         "depth_m": -0.00591
       }
     },
@@ -129,7 +129,7 @@
   },
   "probes": [
     {
-      "end_speed_mps": 0.001427,
+      "end_speed_mps": 0.00057,
       "expected_rest_z_m": [
         0.45,
         0.52
@@ -143,9 +143,9 @@
         0.62582
       ],
       "rest_m": [
-        0.659296,
-        -0.629684,
-        0.472346
+        0.659094,
+        -0.629676,
+        0.472301
       ],
       "support_node": "object.cabinet",
       "touching": [
@@ -157,11 +157,11 @@
   "scene_graph": {
     "kind": "ir.scene-graph",
     "media_type": "application/json",
-    "sha256": "9c5713024d9c1c88850c227e01e44554c7814a7988055a1cb2b2c4d294f1b263"
+    "sha256": "5fd7f704a7c9cf459afab48c355a295efe8d651f6d6bad50f3d84e58396e489d"
   },
   "settle": {
-    "max_drift_m": 0.001109,
-    "max_end_speed_mps": 0.001506,
+    "max_drift_m": 0.001046,
+    "max_end_speed_mps": 0.000673,
     "max_joint_drift": 0.012745,
     "max_passive_joint_drift": 0.0,
     "measured_joint_state": {
@@ -173,7 +173,7 @@
         "left_g2_joint": 0.0,
         "left_g2_left_joint": 0.0,
         "left_g2_right_joint": 0.0,
-        "left_joint1": 0.0,
+        "left_joint1": -0.0,
         "left_joint2": 0.000879,
         "left_joint3": -0.012745,
         "left_joint4": -2e-06,
@@ -190,7 +190,7 @@
           "world"
         ],
         "body_a": "world",
-        "body_b": "body_01_obj_00",
+        "body_b": "usd:/World/envs/env_0/ObjectCabinet/Geometry/body_01_obj_00",
         "depth_m": -0.000998
       }
     },
@@ -223,7 +223,7 @@
                   "world"
                 ],
                 "body_a": "world",
-                "body_b": "body_01_obj_00",
+                "body_b": "usd:/World/envs/env_0/ObjectCabinet/Geometry/body_01_obj_00",
                 "depth_m": -0.000998
               }
             },
@@ -251,7 +251,7 @@
                   "world"
                 ],
                 "body_a": "world",
-                "body_b": "body_01_obj_00",
+                "body_b": "usd:/World/envs/env_0/ObjectCabinet/Geometry/body_01_obj_00",
                 "depth_m": -0.000998
               }
             },
@@ -282,7 +282,7 @@
               "world"
             ],
             "body_a": "world",
-            "body_b": "body_01_obj_00",
+            "body_b": "usd:/World/envs/env_0/ObjectCabinet/Geometry/body_01_obj_00",
             "depth_m": -0.000998
           }
         },
@@ -293,13 +293,13 @@
         ]
       },
       "object.plate": {
-        "drift_m": 0.001109,
+        "drift_m": 0.001046,
         "end_m": [
-          0.599995,
-          -0.099992,
-          0.869929
+          0.600001,
+          -0.099997,
+          0.869992
         ],
-        "end_speed_mps": 0.001506,
+        "end_speed_mps": 0.000673,
         "start_m": [
           0.6,
           -0.1,
@@ -325,7 +325,7 @@
             "actuated": true,
             "declared": null,
             "drift_m": 0.0,
-            "measured": 0.0,
+            "measured": -0.0,
             "name": "left_joint1",
             "ok": true,
             "start": 0.0,
@@ -414,7 +414,7 @@
         ],
         "joint_drift": 0.012745,
         "joint_end": [
-          0.0,
+          -0.0,
           0.000879,
           -0.012745,
           -2e-06,

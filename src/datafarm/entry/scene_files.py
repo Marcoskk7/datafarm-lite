@@ -11,9 +11,19 @@ from datafarm.simulation.robot_binding import discover_urdf
 from datafarm.simulation.robot_semantics import file_mesh_resolver
 
 
+def robot_delivery(package: Path, asset: str) -> dict:
+    """机器人包 `delivery_manifest.json` 中被选中资产的完整交付记录（含 `layer_sha256`）。"""
+    return json.loads((Path(package) / "delivery_manifest.json").read_text(encoding="utf-8"))["assets"][asset]
+
+
+def robot_layer_files(package: Path, asset: str) -> dict[str, str]:
+    """该资产自己的 USD 层 `{member: sha256}`；顶层的 `layer_sha256` 不属于任何资产。"""
+    return dict(robot_delivery(package, asset).get("layer_sha256") or {})
+
+
 def robot_descriptor(package: Path, asset: str) -> tuple[dict, Path]:
     """机器人包 `delivery_manifest.json` 中 `asset` 的 URDF 描述符（robot-descriptor/2）与 URDF 路径。"""
-    delivery = json.loads((Path(package) / "delivery_manifest.json").read_text(encoding="utf-8"))["assets"][asset]
+    delivery = robot_delivery(package, asset)
     urdf = Path(package) / delivery["urdf"]
     return discover_urdf(urdf.read_bytes(), mesh_resolver=file_mesh_resolver(urdf)), urdf
 

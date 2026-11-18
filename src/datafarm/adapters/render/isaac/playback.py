@@ -1,6 +1,6 @@
 """在 Isaac Lab 3.0 场景里回放 `state_trace` 并用 RTX 相机出图。只能在 `launch_simulation` 上下文内调用。
 
-回放只写状态、不步进物理：每帧写入机器人关节 q（补全 mimic）、`entities` 根位姿和 `articulations` 关节，
+回放只写状态、不步进物理：每帧写入机器人关节 q（补全 mimic）、`entities` 根位姿和每个实体自己的关节，
 `sim.forward()` 刷新运动学后只做渲染更新，再从仿真读回同一批量与 `state_trace` 比较。
 
 实测（lab30，Isaac Sim 6.2 / Lab 3.0）得出的约束：
@@ -70,15 +70,16 @@ class Playback:
             camera = cameras[view["camera_id"]]
             body, link_offset = plan.link_mount(self.descriptor, camera["link"], self.robot_bodies)
             self.mounts[view["view_id"]] = (self.robot_bodies.index(body), link_offset @ plan.optical_offset(camera))
-        # 非机器人铰接体：关节名 -> (节点, 关节下标)，名字必须全场唯一
-        self.joint_owner: dict[str, tuple[str, int]] = {}
+        # 非机器人实体：根位姿与关节都按节点定位；关节名只在同一节点内要求唯一，跨实体同名不影响。
+        self.entity_ids: list[str] = []
+        self.joint_index: dict[str, dict[str, int]] = {}
         for node in self.graph["nodes"]:
             if node["semantic_tag"] == "robot":
                 continue
             handle = entity(self.scene, node["node_id"])
-            for index, name in enumerate(getattr(handle, "joint_names", None) or []):
-                check(name not in self.joint_owner, f"joint name {name!r} is not unique across the scene")
-                self.joint_owner[name] = (node["node_id"], index)
+            self.entity_ids.append(node["node_id"])
+            self.joint_index[node["node_id"]] = {
+                name: index for index, name in enumerate(getattr(handle, "joint_names", None) or [])}
         self.sim.render()
         for camera in self.cameras.values():
             camera.update(0.0, force_recompute=True)
@@ -126,56 +127,62 @@ class Playback:
                                   orientation=tuple(light["pose"]["quaternion_xyzw"]))
 
     # ---- 状态 ----
-    def write_state(self, state: Mapping[str, Any], joint_names: Sequence[str]) -> None:
+    def write_state(self, state: Mapping[str, Any], step: int) -> None:
         import torch
 
         robot = entity(self.scene, self.robot_id)
-        values = plan.full_joint_positions(self.descriptor["joints"], joint_names, state["q"],
+        joint_names, q = plan.state_robot(state, step)
+        values = plan.full_joint_positions(self.descriptor["joints"], joint_names, q,
                                            simulated=self.robot_joints)
         position = robot.data.joint_pos.torch.clone()
         position[0] = torch.tensor([values[n] for n in self.robot_joints], device=position.device)
         robot.write_joint_position_to_sim_index(position=position)
         robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(position))
 
-        for node_id, entry in (state.get("entities") or {}).items():
-            check(entry["pose"]["frame_id"] == "world", f"state_trace entity {node_id} pose must be in world frame")
+        root_positions: dict[str, list[float]] = {}
+        joint_targets: dict[tuple[str, str], float] = {}
+        for node_id in self.entity_ids:
             handle = entity(self.scene, node_id)
-            pose = torch.tensor([list(entry["pose"]["position_m"]) + list(entry["pose"]["quaternion_xyzw"])],
-                                dtype=torch.float32, device=position.device)
-            handle.write_root_pose_to_sim_index(root_pose=pose)
+            pose = plan.state_entity_pose(state, node_id, step)
+            row = torch.tensor([pose["position_m"] + pose["quaternion_xyzw"]],
+                               dtype=torch.float32, device=position.device)
+            handle.write_root_pose_to_sim_index(root_pose=row)
             handle.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=position.device))
+            root_positions[node_id] = pose["position_m"]
 
-        by_node: dict[str, dict[int, float]] = {}
-        for name, value in (state.get("articulations") or {}).items():
-            check(name in self.joint_owner, f"state_trace articulation joint {name!r} is not in the scene")
-            node_id, index = self.joint_owner[name]
-            by_node.setdefault(node_id, {})[index] = float(value)
-        for node_id, joints in by_node.items():
-            handle = entity(self.scene, node_id)
+            index = self.joint_index[node_id]
+            measured = plan.state_entity_joints(state, node_id, step)
+            unknown = sorted(set(measured) - set(index))
+            check(not unknown, f"state_trace[{step}].entities.{node_id}.joints names {unknown}, "
+                               f"which are not simulated joints of that node")
+            if not measured:
+                continue
             target = handle.data.joint_pos.torch.clone()
-            for index, value in joints.items():
-                target[0, index] = value
+            for name, value in measured.items():
+                target[0, index[name]] = value
+                joint_targets[(node_id, name)] = value
             handle.write_joint_position_to_sim_index(position=target)
             handle.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(target))
 
         self.scene.write_data_to_sim()
         self.sim.forward()
         self.scene.update(0.0)
-        self._expected = (values, state)
+        self._expected = (values, root_positions, joint_targets)
 
     def readback_error(self) -> tuple[float, float]:
-        """返回 (最大实体位置误差 m, 最大关节误差)：仿真读回值对写入值，覆盖机器人、实体和铰接关节。"""
-        values, state = self._expected
+        """返回 (最大实体位置误差 m, 最大关节误差)：仿真读回值对写入值，覆盖机器人、实体根位姿和实体关节。"""
+        values, root_positions, joint_targets = self._expected
         robot = entity(self.scene, self.robot_id)
         got = robot.data.joint_pos.torch[0].tolist()
         joint_error = max(abs(got[i] - values[n]) for i, n in enumerate(self.robot_joints))
         position_error = 0.0
-        for node_id, entry in (state.get("entities") or {}).items():
+        for node_id, position in root_positions.items():
             root = entity(self.scene, node_id).data.root_pose_w.torch[0, :3].tolist()
-            position_error = max(position_error, float(np.linalg.norm(np.subtract(root, entry["pose"]["position_m"]))))
-        for name, value in (state.get("articulations") or {}).items():
-            node_id, index = self.joint_owner[name]
-            joint_error = max(joint_error, abs(float(entity(self.scene, node_id).data.joint_pos.torch[0, index]) - value))
+            position_error = max(position_error, float(np.linalg.norm(np.subtract(root, position))))
+        for (node_id, name), value in joint_targets.items():
+            index = self.joint_index[node_id][name]
+            actual = entity(self.scene, node_id).data.joint_pos.torch[0, index]
+            joint_error = max(joint_error, abs(float(actual) - value))
         return position_error, joint_error
 
     # ---- 相机 ----

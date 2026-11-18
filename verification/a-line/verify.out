@@ -11,9 +11,9 @@ A-line verification: examples/scene/plate-drawer-airbot.json -> /opt/data/privat
 PASS env       python 3.12.16 at /home/isaac/IsaacLab30/.venv/bin/python; pxr=True coacd=True isaaclab=True
 PASS cache     table_metal_stainless_a03 ok; cabinet_file_d04 ok; dishware_plastic_bigPlate_a01 ok
 PASS index     revision 21b045a878e1; table_metal_stainless_a03 0j CC-BY-4.0; cabinet_file_d04 2j CC-BY-4.0; dishware_plastic_bigPlate_a01 0j CC-BY-4.0
-PASS prepare   object.cabinet_drawer=articulation, object.plate=rigid, object.table_stainless=kinematic, robot.airbot_g2_left=robot; records reload from store; 106 bundle files
+PASS prepare   object.cabinet_drawer=articulation, object.plate=rigid, object.table_stainless=kinematic, robot.airbot_g2_left=robot; records reload from store; 115 bundle files
 PASS plan      10/10 targets reachable, footprint ok
-PASS check     drift 0.001109 m, penetration 0.00018 m, probes ok
+PASS check     drift 0.00105 m, penetration 6.1e-05 m, probes ok
 PASS graph     datafarm.scene-graph/1 4 nodes, backend isaaclab 3.0.0
 PASS source    table_metal_stainless_a03 ok; cabinet_file_d04 ok; dishware_plastic_bigPlate_a01 ok
 SKIP tests     --skip-tests
