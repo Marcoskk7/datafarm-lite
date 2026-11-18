@@ -190,7 +190,7 @@ lab30run（n001，RTX 4090，驱动 580.95.05，Isaac Sim 6.2 / Isaac Lab 3.0）
 | CaP | 两轮共 39 次 rollout，0 成功；第二轮 10 次里 9 次首个失败是带载抬升的 `SPEED_LIMIT`（抓取前的运动已能走通） |
 | 本机证据 | `runs/integration-20261118/lab30-runs/`（chain + cap-01 含 `search-5/`、`failure-taxonomy.json`、`final/`） |
 | lab30 上的东西 | 随实例销毁；重建后需按 `Next` 重做：仓库 worktree、`.venv`、Isaac 缓存 warmup、judge 重冻结、round 重配 |
-| 下一步（未执行） | 写 `expert_s2v10.py`：按 `dz ∈ [0.024, 0.020, 0.016, 0.012, 0.008, 0.004]` 逐层"下探→闭爪→小抬升→读盘高"，只有盘高抬升 >8 mm 才继续搬运；成功后再跑 5 个不同 seed |
+| 下一步（已写好，未在 GPU 上跑） | `runs/integration-20261118/chain-src/expert_s2v10.py`（本机，`runs/` 被 gitignore，属运行产物不进仓库）：增量闭爪到受阻宽度、压力只取受阻宽度减 2.5 mm；**高度梯 × 夹持姿态梯**（水平径向 / 绕径向轴转 90° 竖直夹上沿）逐层试；每次闭爪后小抬升 30 mm 并读盘高，只有盘高抬升 ≥8 mm 才继续搬运；否则开爪换下一个组合，全部失败时抛出带 `attempts` 表的异常（每个组合的 engaged/final/rise/outcome 都留在录制里）。控制流已用假机器人跑通三个分支（抓住即搬运、受阻但滑脱、完全无接触）。原计划写 `expert_s2v10.py`：按 `dz ∈ [0.024, 0.020, 0.016, 0.012, 0.008, 0.004]` 逐层"下探→闭爪→小抬升→读盘高"，只有盘高抬升 >8 mm 才继续搬运；成功后再跑 5 个不同 seed |
 
 ### 5.2 admission 独立审查（本次新增，任务产出）
 
