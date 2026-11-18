@@ -133,9 +133,11 @@ def build_spec(*, render: Mapping[str, Any], scene_graph: Mapping[str, Any], sce
     material_sets = config["material_sets"][:render["materials"]]
     light_sets = config["light_sets"][:render["lights"]]
     check(len(material_sets) == render["materials"],
-          f"request asks for {render['materials']} material variants; the table has {len(config['material_sets'])}")
+          f"request asks for {render['materials']} material variants; the table has "
+          f"{len(config['material_sets'])}. Pass --variants with this task's appearance table")
     check(len(light_sets) == render["lights"],
-          f"request asks for {render['lights']} light variants; the table has {len(config['light_sets'])}")
+          f"request asks for {render['lights']} light variants; the table has "
+          f"{len(config['light_sets'])}. Pass --variants with this task's appearance table")
 
     views = []
     for view_id in render["views"]:
