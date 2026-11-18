@@ -20,6 +20,21 @@ def _local(root, member):
     return path
 
 
+def asset_roots(prepared):
+    """`asset_roots` for `load_scene`: the SimReady fetch directory `prepare` recorded for each non-robot asset.
+
+    The collision wrapper already references the source USD by this absolute path, so the cache cannot move
+    independently of `prepared.json`; reading it from there keeps a single host-path index.
+    """
+    roots = {}
+    for asset, spec in prepared["assets"].items():
+        if spec["body"] != "robot":
+            if "source_root" not in spec:
+                raise ValueError(f"prepared.json lacks source_root for {asset}; rerun `scene_assemble.py prepare`")
+            roots[asset] = spec["source_root"]
+    return roots
+
+
 def load_scene(store, scene_ref, prepared, *, asset_roots):
     if scene_ref.get("kind") != "ir.scene-graph":
         raise ValueError("expected A SceneGraph reference")

@@ -9,7 +9,8 @@ input, video-model observations, photographic or real-ready claim.
 `datafarm.entry.scene_rollout.record_scene_episode(...)` is a trusted Python
 composition API, not a task registry or a script copied from tools. Supply an
 ArtifactStore, task/scene/runtime/expert refs, A's deployment-local prepared
-bundle and explicit asset roots, an already initialized scene/simulator/RobotAPI,
+bundle and explicit asset roots (`scene_runtime.asset_roots(prepared)` reads them from
+`prepared.json`; see [scene-assembly](scene-assembly.md#加载已组装的场景)), an already initialized scene/simulator/RobotAPI,
 an owned reset callback, settle count, control profile, attempt ID, byte budget
 and the expert function from its exact pinned source file.
 

@@ -37,6 +37,28 @@ python tools/scene_assemble.py check --spec ... --work WORK --headless  # Isaac 
 
 退出码为 0 当且仅当静置、穿透、探针、可达性、占地全部通过。`WORK/store/` 是内容寻址的证据；主机路径只出现在 `prepared.json`，不会进入 IR。
 
+## 加载已组装的场景
+
+`check` 之后，任何要在 Isaac 里重建这个场景的地方（B 录 episode、A 渲染回放）都走同一个函数 `datafarm.adapters.sim.scene_runtime.load_scene(store, scene_ref, prepared, *, asset_roots)`，不各自拼 `build_scene_cfg` 的参数。需要的输入只有：
+
+| 输入 | 来自 | 作用 |
+|---|---|---|
+| `WORK/store/` | `prepare` + `check` | SceneGraph、AssetRecord、asset bundle、runtime profile、physics ledger、碰撞报告，全部按 sha256 取 |
+| SceneGraph 的 ArtifactRef | `check.json` 的 `scene_graph`，或 Episode/RenderSpec 里引用的那一个 | 节点、位姿、`joint_state`、机器人节点与基座位姿、`runtime_profile` 引用 |
+| `prepared.json` | `prepare` | 每个 `asset_id` 的主机路径：`wrapper`（碰撞包装层）、`source_root`（SimReady 取回目录）、机器人 `package`/`package_asset`；以及 `body` 和 `record` 引用 |
+
+不需要 `plan.json`：它的 `nodes` 与 `robot_base_pose` 在 `check` 时原样写进了 SceneGraph（节点位姿、`joint_state`、`semantic_tag: robot` 节点），`plan.json` 只服务于组装过程本身（可达性、占地）。`check` 自己仍从 `plan.json` 加载，因为那时 SceneGraph 还不存在，它是 `check` 的产物。
+
+`load_scene` 是纯 CPU 的解析与校验：SceneGraph 过 IR 校验；`prepared.json` 的资产集合与每个 `record` 引用必须和 SceneGraph 一致；asset bundle 里每个文件（SimReady 成员、碰撞包装层、机器人层）按 sha256 重新哈希；碰撞包装层必须是 AssetRecord 的碰撞报告绑定的那一份；机器人 URDF/USD 必须是 AssetRecord 里的字节。任何不一致都抛 `ValueError`，不回退。它返回 `graph`、`records`、`specs`（`body`）、`wrappers`、`asset_refs`。之后：
+
+- `scene_runtime.scene_config(resolved, robot_cfg, drawer_damping=...)` 生成 `InteractiveSceneCfg`（机器人节点取 SceneGraph 里的位姿）；`robot_cfg` 由机器人包的 `robot_profiles.make_robot_cfg(runtime_profile['robot_profile'], 'newton_mjwarp')` 给出，`drawer_damping` 取 `runtime_profile['articulated_fixture_drive']['damping']`。
+- `scene_runtime.initialize(...)` 在调用方的 reset 之后调用 `isaac_scene.apply_initial_state` 写入 `joint_state` 并按给定步数静置（B 录制用）；渲染回放逐帧写状态、不步进物理，因此只 `sim.reset()` + `scene.reset()`，不调用它。
+- `scene_runtime.asset_roots(prepared)` 给出 `load_scene` 要的 `asset_roots`（取 `prepared.json` 的 `source_root`）。没有 `source_root` 的旧 `prepared.json` 会被拒绝，重跑 `prepare` 即可。
+
+主机路径不进 IR：IR 要能在另一台机器、另一个缓存目录下按内容校验，路径既不可移植，也证明不了字节（`portable` 校验会拒绝路径字段）。所以路径只在部署本地的 `prepared.json`，正确性由 IR 里的 sha256 保证。
+
+调用方：`tools/render_episode.py render`（渲染回放）、`datafarm.entry.scene_rollout.record_scene_episode`（B 录制，见 [scene-rollout](scene-rollout.md)）。
+
 ## 一条命令验证全链路
 
 `tools/verify_a_line.py` 把上面三段和检索、校验串起来，逐关给结论，报告写进 `WORK/verify-a-line.json`：
