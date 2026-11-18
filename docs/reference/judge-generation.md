@@ -41,7 +41,10 @@ rlimit on POSIX and a Job Object on Windows. Execution is refused if the resourc
 restricted Python subset, not a general sandbox for arbitrary Python.
 
 Missing data, non-finite values, clock inconsistencies and execution exceptions produce `error` / `success=null`;
-cancellation produces `aborted` / `success=null`; execution timeout/errors are not ordinary judged task failures. The host checks
+cancellation produces `aborted` / `success=null`; execution timeout/errors are not ordinary judged task failures.
+When the recorded Episode itself ended in `error/failed/timeout`, the result's `reason_code` is
+`EXECUTION_<STATUS>:<termination.reason_code>`; the harness counts expert-caused reasons as `expert_error`
+(see `judge/integration.py::EXPERT_EXECUTION_REASONS`) and leaves host faults as uncounted `judge_failure`. The host checks
 condition coverage and result consistency, and runs every test case twice to confirm determinism. Every condition
 needs a failure case that actually triggers it, and the independent review must supply its own positive and negative
 cases rather than repeating the author's claim of success.

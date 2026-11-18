@@ -60,16 +60,24 @@ rounded into summaries before recording. Missing state fails capture.
 
 A contact rows supply endpoint IDs, USD body labels and signed distance, not force
 or normal. Labels use `usd:` to distinguish USD prim identifiers from host paths.
-Contacts are cycle-end snapshots, not substep-complete. A's bounded buffer does not
-supply truncation proof, so coverage stays `unknown`, including successful empty
-queries. Missing/failed query is `unavailable` with `rows=null`, never `[]`.
+Contacts are cycle-end snapshots, not substep-complete. The default query
+`isaac_scene.contacts_with_coverage` compares the solver's raw contact count `nacon`
+with buffer capacity `naconmax`: `complete` when `nacon <= naconmax` (every detected
+contact of that snapshot is reported, so an empty list is a real "no contact"),
+`truncated` otherwise. An injected legacy query returning only a list keeps
+coverage `unknown`. `complete` says nothing about transients between snapshots,
+force or normal. Missing/failed query is `unavailable` with `rows=null`, never `[]`.
 
 Step/refresh/logger exceptions mark the host unhealthy; unknown physics outcomes
 are not retried. The last valid state and any applied unmatched input remain in
 the partial episode. Invalid finite/nonfinite measurement snapshots are retained
 as separate raw failure evidence when available, never repaired into valid states.
 Failing, rejected, timed-out and aborted primitive results cannot be hidden by an
-expert returning normally. Task judgement stays unverified.
+expert returning normally. A gripper `blocked` result (`GRIPPER_BLOCKED`) is not an
+execution failure; the Judge decides from width/contact evidence whether it is a grasp.
+Expert-caused exceptions are recorded with fixed reasons (`EXPERT_EXCEPTION`,
+`EXPERT_AUDIT_REJECTED`, `EXPERT_PROTOCOL_ERROR`, `INVALID_ARGUMENT`, `UNKNOWN_FRAME`);
+other exceptions are `RUNTIME_ERROR`. Task judgement stays unverified.
 
 ## Boundaries
 

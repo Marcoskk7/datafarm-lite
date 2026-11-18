@@ -44,3 +44,12 @@ The interface review is based on the [B-line interface design](reference/b-contr
 4. Once hidden evaluation reaches 80%, first collect one Episode for integration with the A line, complete the replay check (position error at most 1 cm) and HDF5 export, then scale to 20.
 
 The workspace `DataFarm-MVP` and `aspire-agent` are reference implementations, not a new baseline for this branch. Earlier pass records for push-plate-into-drawer and non-contact tasks do not replace full pick-and-place acceptance.
+
+## Status update 2026-11-18 (branch `fix/b-line-review`)
+
+- Expert-caused execution failures are now classified `expert_error` (counted) via `EXECUTION_<STATUS>:<REASON>`.
+- Scene worker policy relaxed and shared with a host pre-check; scene brief template added.
+- Contact snapshots carry `complete`/`truncated` coverage from `nacon`/`naconmax` (still no force/normal, no substeps).
+- `move_gripper` reports `blocked` / `GRIPPER_BLOCKED`.
+- HDF5 export implemented (`adapters/export/hdf5_episode.py`, `entry/episode_export.py`).
+- Open: import-layer debt between `judge`, `expert` and `cap` (see architecture.md); real Isaac Lab 3.0 runs not yet executed for these changes.
