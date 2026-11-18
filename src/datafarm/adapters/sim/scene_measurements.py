@@ -23,7 +23,8 @@ class SceneMeasurements:
     def __init__(self, scene, graph, records, api, *, contact_query=None, rejected_sink=None):
         self.scene, self.graph, self.records, self.api = scene, deepcopy(graph), deepcopy(records), api
         self.nodes = [n["node_id"] for n in graph["nodes"]]
-        self.contact_query = contact_query or isaac_scene.contacts
+        # 默认查询带覆盖度证明；注入的旧式查询若只返回 list，则覆盖度记 unknown。
+        self.contact_query = contact_query or isaac_scene.contacts_with_coverage
         self.rejected_sink = rejected_sink
         self.robot_node = next(n["node_id"] for n in graph["nodes"] if n["semantic_tag"] == "robot")
 
@@ -57,7 +58,14 @@ class SceneMeasurements:
                                   for i, n in enumerate(body_names)}
             entities[node["node_id"]] = entry
         try:
-            rows = self.contact_query(self.nodes)
+            reply = self.contact_query(self.nodes)
+            coverage = "unknown"
+            if isinstance(reply, dict):
+                rows, coverage = reply.get("rows"), reply.get("coverage")
+                if coverage not in ("complete", "truncated"):
+                    raise ValueError("contact coverage proof missing")
+            else:
+                rows = reply
             if not isinstance(rows, list):
                 raise ValueError("contact query did not return rows")
             for item in rows:
@@ -65,8 +73,8 @@ class SceneMeasurements:
                     raise ValueError("invalid contact row")
                 if any(item[end] is not None and item[end] not in self.nodes for end in ("a", "b")):
                     raise ValueError("unknown contact endpoint")
-            # A truncates its solver buffer; absent a raw count proof, coverage is unknown.
-            contact = {"availability": "available", "rows": [{**i, **{k: "usd:"+i[k] if i[k].startswith("/") else i[k] for k in ("body_a", "body_b")}} for i in rows], "coverage": "unknown",
+            # complete 仅当求解器原始计数 nacon <= naconmax；缓冲区溢出记 truncated，无计数证明记 unknown。
+            contact = {"availability": "available", "rows": [{**i, **{k: "usd:"+i[k] if i[k].startswith("/") else i[k] for k in ("body_a", "body_b")}} for i in rows], "coverage": coverage,
                        "force_availability": "unavailable", "normal_availability": "unavailable"}
         except Exception:
             contact = {"availability": "unavailable", "rows": None, "coverage": "unknown",

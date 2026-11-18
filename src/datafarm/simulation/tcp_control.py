@@ -398,7 +398,11 @@ class TCPMotionService:
         if not self.host.acquire():
             raise ControlFault("CONTROL_BUSY")
         self.calls += 1
-        stable = 0
+        stable = stuck = 0
+        width = None
+        # 夹爪被物体挡住：实测开度不在容差内，且开度与关节速度都已停止变化。
+        stall_width_m = max(1e-5, 0.05*speed*cfg.dt_s)
+        stall_joint_speed = 0.05*max_joint_speed
         status, reason = "timeout", "GRIPPER_NONCONVERGENCE"
         try:
             if self.calls > cfg.max_calls:
@@ -426,7 +430,14 @@ class TCPMotionService:
                         raise ControlFault("SPEED_LIMIT")
                     if abs(current["gripper"]["width_m"]-previous["gripper"]["width_m"]) > speed*cfg.dt_s+1e-6:
                         raise ControlFault("SPEED_LIMIT")
-                    stable = stable+1 if abs(current["gripper"]["width_m"]-request["width_m"]) <= tolerance else 0
+                    width = current["gripper"]["width_m"]
+                    reached = abs(width-request["width_m"]) <= tolerance
+                    stable = stable+1 if reached else 0
+                    # 只在指令参考已到达目标后判定，避免加速起步阶段误判为 blocked。
+                    stalled = (not reached and abs(reference-target[name]) <= 1e-9
+                               and abs(width-previous["gripper"]["width_m"]) <= stall_width_m
+                               and abs(current["dq"][i]) <= stall_joint_speed)
+                    stuck = stuck+1 if stalled else 0
                     previous = current
                     if self.host.cancelled():
                         status, reason = "aborted", "CANCELLED"
@@ -434,14 +445,19 @@ class TCPMotionService:
                     if stable >= settle:
                         status, reason = "completed", "SETTLED"
                         break
+                    if stuck >= settle:
+                        # 不是执行错误：是否构成有效抓取由任务 Judge 依据开度/接触证据判断。
+                        status, reason = "blocked", "GRIPPER_BLOCKED"
+                        break
         except ControlFault as exc:
             status, reason = ("failed" if exc.code in ("SPEED_LIMIT", "JOINT_LIMIT") else "error"), exc.code
         except Exception:
             status, reason = "error", "GRIPPER_CONTROL_ERROR"
         finally:
-            if status != "completed":
+            if status not in ("completed", "blocked"):
                 self.host.hold([name])
             self.host.release()
         return {"schema_version": "gripper-motion-result/1", "status": status, "reason_code": reason,
-                "settled_steps": stable, "control_step": self.host.control_step,
+                "settled_steps": stable, "stalled_steps": stuck, "width_m": width,
+                "control_step": self.host.control_step,
                 "step_outcome_unknown": self.host.step_outcome_unknown}

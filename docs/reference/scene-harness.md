@@ -42,8 +42,20 @@ IPC alone; the outer broker's process-group wall timeout remains necessary.
 The factory must qualify seed initialization; the entry does not invent a sampler.
 
 Only the exact snapshotted expert bytes run. The standalone worker accepts either
-`run(actions)` or a named class with `run(self, actions)` and a restricted math
-subset. It starts without site initialization, with a memory limit, core dumps
+`run(actions)` or a named class with `run(self, actions)` (an `__init__` is allowed).
+Policy (`scene_worker.check_source`, shared with the host pre-check
+`scene_execution.precheck_expert`): only `import math`; top-level constants,
+helper functions, lambdas and constant defaults are allowed; attribute access is
+allowed except names starting with `_` and a small deny list (`format`, `mro`,
+frame/code attributes); constructs listed in `FORBIDDEN_SYNTAX` are rejected;
+`print` is a no-op. The host runs `audit_expert_source` plus this check before
+launching, so a policy violation is reported as `EXPERT_AUDIT_REJECTED` instead of a
+worker crash. Worker errors are sent as `{"method":"error"}` with
+`policy: line N: ...` or `exception: <Type>` (no traceback) and recorded as
+`EXPERT_EXCEPTION`. These expert-caused reasons are classified `expert_error`
+(counted) rather than `judge_failure`. `bind_scene_adapter` writes the matching
+brief (`configs/expert-harness/template-scene-brief.md`, `allowed_imports=[math]`,
+`max_bytes<=64000`). It starts without site initialization, with a memory limit, core dumps
 disabled and no credentials in its environment. Standard-library directories
 and the interpreter are mounted, not the entire deployment virtual environment.
 Protocol EOF, malformed requests, excess calls, timeout, extra output or a failed

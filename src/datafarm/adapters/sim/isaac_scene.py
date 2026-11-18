@@ -86,13 +86,26 @@ def _body_owner(labels: Sequence[str], node_ids: Sequence[str]) -> list[str | No
 
 def contacts(node_ids: Sequence[str]) -> list[dict[str, Any]]:
     """当前 MJWarp 接触：每条 `{a, b, body_a, body_b, dist_m}`；a/b 是节点 id（world/ground 记 None）。"""
+    return contacts_with_coverage(node_ids)["rows"]
+
+
+def contacts_with_coverage(node_ids: Sequence[str]) -> dict[str, Any]:
+    """接触行加覆盖度证明：``nacon <= naconmax`` 时为 complete，溢出缓冲区时为 truncated。
+
+    只证明“本控制周期末快照里求解器检测到的接触都已列出”；不提供力/法向，也不覆盖
+    子步之间出现又消失的瞬时接触。
+    """
     from isaaclab_newton.physics import NewtonManager
     solver = NewtonManager._solver
     model = NewtonManager.get_model()
     data = solver.mjw_data
-    count = min(int(data.nacon.numpy()[0]), int(data.naconmax))
+    detected, capacity = int(data.nacon.numpy()[0]), int(data.naconmax)
+    if detected < 0 or capacity < 0:
+        raise ValueError("invalid contact counters")
+    coverage = "complete" if detected <= capacity else "truncated"
+    count = min(detected, capacity)
     if count == 0:
-        return []
+        return {"rows": [], "coverage": coverage, "detected": detected, "capacity": capacity}
     dist = data.contact.dist.numpy()[:count]
     geom = data.contact.geom.numpy()[:count]
     world = data.contact.worldid.numpy()[:count]
@@ -109,7 +122,7 @@ def contacts(node_ids: Sequence[str]) -> list[dict[str, Any]]:
             ends.append((owners[body] if body >= 0 else None, labels[body] if body >= 0 else "world"))
         rows.append({"a": ends[0][0], "b": ends[1][0], "body_a": ends[0][1], "body_b": ends[1][1],
                      "dist_m": float(dist[k])})
-    return rows
+    return {"rows": rows, "coverage": coverage, "detected": detected, "capacity": capacity}
 
 
 def penetration_summary(rows: Sequence[Mapping[str, Any]], tolerance_m: float) -> dict[str, Any]:

@@ -126,6 +126,17 @@ The default control mode is fixed to `position`: B sends joint position targets,
 
 ### 4.2 Expert interface: restricted, synchronous, bounded steps
 
+> **Implementation status (2026-11-18).** The sketch below is the original design. The implemented scene expert
+> surface (`entry/scene_rollout.py::SceneActions`, `simulation/tcp_control.py`) is:
+>
+> - `observe()` – public observation dictionary.
+> - `move_tcp(request)` – `tcp-motion-request/1` (`target_frame`, pose, limits and completion live inside the request).
+> - `move_gripper(request)` – `gripper-motion-request/1` with exactly `schema_version`, `width_m`, `speed_m_s`,
+>   `tolerance_m`, `settle_steps`, `max_control_steps`.
+>
+> There is no `robot_id` argument (single robot), `set_gripper` is named `move_gripper`, and `wait` is **not
+> implemented**. The worker brief that experts actually see is `configs/expert-harness/template-scene-brief.md`.
+
 ```python
 class RobotPrimitives:
     def observe(self) -> PublicObservation: ...
@@ -147,17 +158,29 @@ class RobotPrimitives:
 
 ### 4.3 Return values and failures
 
-`PrimitiveResult` contains `call_id`, `status`, `start_step`, `end_step`, `requested`, `resolved_target`, `before`, `after`, `error`. Status values: `completed | rejected | failed | timeout | aborted | blocked`. When rejected before advancing, start=end; a failure mid-way keeps all states already advanced.
+`PrimitiveResult` contains `call_id`, `status`, `start_step`, `end_step`, `requested`, `resolved_target`, `before`, `after`, `error`. Status values: `completed | rejected | failed | timeout | aborted | error | blocked`. In the current code `blocked`
+is produced only by `move_gripper` (`GRIPPER_BLOCKED`: width outside tolerance while the commanded reference has
+reached the target and both width change and joint speed have stalled for `settle_steps` consecutive steps). The
+result then also carries `width_m` and `stalled_steps`; the gripper keeps its target (no hold) and the recorder does
+not treat `blocked` as an execution failure. The implemented result fields are those of `tcp-motion-result/1` and
+`gripper-motion-result/1`, not the generic `PrimitiveResult` listed above. When rejected before advancing, start=end; a failure mid-way keeps all states already advanced.
 
 | Error code | Category | Handling |
 |---|---|---|
 | `INVALID_ARGUMENT` / `UNKNOWN_FRAME` | Expert call error | Return a public diagnostic, do not advance |
 | `LOCAL_IK_NONCONVERGENCE` | Local control timeout | Preserve partial trajectory; this does not prove global unreachability |
-| `JOINT_LIMIT` / `SPEED_LIMIT` / `FORBIDDEN_CONTACT` | Execution-constraint violation | Terminate the current action; the frozen policy decides whether the episode ends |
-| `MOTION_TIMEOUT` | Control failure | Keep the partial trajectory; do not replay the action automatically |
+| `JOINT_LIMIT` / `SPEED_LIMIT` / `TRACKING_ERROR` | Execution-constraint violation | Terminate the current action; the frozen policy decides whether the episode ends. `FORBIDDEN_CONTACT` is **not implemented** |
+| `WALL_TIME_LIMIT` / `GRIPPER_NONCONVERGENCE` / `CONTROL_BUDGET` / `CALL_BUDGET` | Control timeout or budget | Keep the partial trajectory; do not replay the action automatically. (The design name `MOTION_TIMEOUT` is not used by the code) |
 | `GRIPPER_BLOCKED` | Motion blocked | Return the opening and available contact evidence; the Judge decides the task relation |
 | `NONFINITE_STATE` / `SIMULATION_ERROR` / `ASSET_MISMATCH` | Runtime error | Terminate and mark as error; not reported as an ordinary task failure |
 | `CAPABILITY_UNAVAILABLE` | Configuration or capability missing | Reject explicitly; unknown contact is never written as zero |
+
+**Outcome classification.** When the recorder terminates an episode with `error/failed/timeout`, the Judge runtime
+returns `reason_code = EXECUTION_<STATUS>:<termination.reason_code>`. `judge/integration.py::classify_result` maps
+reasons in `EXPERT_EXECUTION_REASONS` (limits, IK/gripper non-convergence, wall/call/control budgets,
+`INVALID_ARGUMENT`, `UNKNOWN_FRAME`, `EXPERT_EXCEPTION`, `EXPERT_WALL_BUDGET`, `EXPERT_PROTOCOL_ERROR`,
+`EXPERT_AUDIT_REJECTED`) to `expert_error` (counted, `success=false`). Host-side reasons such as
+`HOST_REQUALIFICATION_REQUIRED`, `RUNTIME_ERROR`, `RUNTIME_BINDING_ERROR` remain `judge_failure` (not counted).
 
 Host recovery is recorded separately with `phase=recovery`. Runtime fallback recovery is kept apart from deliberate policy retreats; fallback recovery must not pass as policy success.
 
@@ -334,6 +357,15 @@ One logical group per episode; it may span several files, but the manifest lists
 /events/records                 variable-length UTF-8 JSON
 /frames/<camera>/<variant>/...  raw images or ArtifactRef, with control_step mapping
 ```
+
+**Implemented by** `adapters/export/hdf5_episode.py` and the CLI `python -m datafarm.entry.episode_export --store <dir>
+--episode-ref <ref> --output <file.h5> [--verdict <judge-result.json>] [--manifest <out.json>]`. It writes one file per
+episode atomically (`.partial` then rename, never overwrites) and returns a manifest with the sha256. Differences from
+the layout above: additional datasets `state/time_s`, `state/robots/<id>/{tcp_pose_xyzw,gripper_width_m}`,
+`state/entities/<id>/{linear_velocity,angular_velocity,joint_q,joint_dq}` and `action/command`; `requested/applied`
+columns are the union of commanded joint names (`control_names` attribute) with NaN where a step did not command that
+joint; `/frames` is not written (camera evidence stays as ArtifactRef in the source episode). h5py/numpy are optional
+dependencies imported only on export.
 
 J is the number of observed joints and U the number of actual control channels; joint_names, joint_types and control_names are stored separately, and usually J≠U. Raw streams and dtypes are kept; resampled results never replace raw evidence. Failure and recovery phases can still be archived, but training export selects them through an explicit phase mask without changing the time semantics of actions.
 

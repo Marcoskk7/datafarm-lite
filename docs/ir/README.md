@@ -27,7 +27,7 @@ A 线三份是普通文档：有 `schema`，引用一律 ArtifactRef，但不套
 - `frame_id` 必填，`world` 是场景根。Pose 表示 `T_frame_entity`，即实体局部系到 `frame_id` 的变换。
 - 右手系、Z 向上、单位 m / rad。相机单独声明光学轴约定及其到 `frame_id` 的变换。
 - 四元数顺序固定 **xyzw**（单位四元数）；比较旋转时 q 与 -q 等价。
-- USD / Isaac 原生是 wxyz，转换只在导入层做一次，IR 里不出现 `quat_wxyz`。
+- Isaac Lab 3.0（Newton/MJWarp 后端）的 root/body 位姿 API 原生即 **xyzw**，与 IR 一致，读写时**不做交换**。只有直接调用 USD/`Gf.Quat*`（实部在前，wxyz）的代码需要在该边界转换一次；IR 里不出现 `quat_wxyz`。
 - 一个字段不能混装单位：revolute 关节 rad、prismatic 关节 m，必须在 `joint_types` 里分别声明。
 
 ## 3. 引用外部文件
@@ -109,7 +109,7 @@ camera.head         robot.airbot
 
 ## 9. 落地
 
-validator 放 `src/datafarm/ir/`，照 kernel 风格：模块级 `SCHEMA` 常量 + `validate()`，错误信息给人读。A 线文档的校验器除了调 `validate_quantities(bind=...)` 还要复用 kernel 的可移植性检查（`canonical_json_bytes`）。这个目录尚未创建。
+validator 放 `src/datafarm/ir/`，照 kernel 风格：模块级 `SCHEMA` 常量 + `validate()`，错误信息给人读。A 线文档的校验器除了调 `validate_quantities(bind=...)` 还要复用 kernel 的可移植性检查（`canonical_json_bytes`）。该目录已存在（AssetRecord、SceneGraph 校验器已实现）；其余文档的校验器尚未实现。
 
 ## 10. 文档
 

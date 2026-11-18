@@ -21,7 +21,7 @@ One note per component. Each states what the code guarantees and what it does no
 | Task contract, frozen judge, expert harness | [expert-harness](reference/expert-harness.md) | `src/datafarm/expert/` |
 | CaP repair search, action evidence and verified repair skills | [cap-search](reference/cap-search.md) | `src/datafarm/cap/`, `tools/cap_search.py` |
 | Codex CLI agent, ASPIRE-style search and privileged-state iteration | [cap-codex-aspire](reference/cap-codex-aspire.md) | `cap/codex_provider.py`, `entry/cap_provider.py`, `adapters/agent_harness/codex/structured.py`, `cap/state_feedback.py` |
-| B-line interface design: Isaac Lab 3.0, robot API, judge and episode (draft) | [b-control-interfaces](reference/b-control-interfaces.md) | Not implemented yet; reuses the existing CaP and core IR |
+| B-line interface design: Isaac Lab 3.0, robot API, judge and episode (draft) | [b-control-interfaces](reference/b-control-interfaces.md) | Implemented for the scene path: `simulation/tcp_control.py`, `entry/scene_rollout.py`, `judge/`, `adapters/export/hdf5_episode.py`; §4.2–4.3 and §8 note where code differs from the draft |
 | A/B interface IR: asset record, scene graph, task contract, episode, render spec | [ir](ir/README.md) | AssetRecord and SceneGraph validators in `src/datafarm/ir/`; the other documents are not implemented yet |
 | A line 1a: one sentence → `request.yaml` via one structured LLM call, defaults and provenance | [request-drafting](reference/request-drafting.md) | `tools/request_draft.py`, `src/datafarm/request/`, `src/datafarm/adapters/llm/` |
 | A line: SimReady retrieval, collision prep, layout, reachability, Isaac Lab scene checks, agent-authored layouts | [scene-assembly](reference/scene-assembly.md) | `tools/simready.py`, `tools/scene_assemble.py`, `tools/scene_author.py`, `src/datafarm/scene/`, `src/datafarm/adapters/assets/` |
@@ -31,6 +31,7 @@ One note per component. Each states what the code guarantees and what it does no
 | Source-bound full-state action replay | [action-replay](reference/action-replay.md) | `expert/replay.py`, `adapters/sim/isaac_replay.py`, `entry/episode_replay.py` |
 | Request-bound Judge Episode contract | [judge-episode-contract](reference/judge-episode-contract.md) | Full measured Episode evaluation with frozen source/1 |
 | Isolated scene expert execution and broker handoff | [scene-harness](reference/scene-harness.md) | Narrow IPC and source-pinned scene job entry |
+| Episode HDF5 export | [b-control-interfaces §8](reference/b-control-interfaces.md#8-hdf5-export-conventions) | `adapters/export/hdf5_episode.py`, `entry/episode_export.py` |
 | Render contract | [render-contract](reference/render-contract.md) | `src/datafarm/render/policy.py` |
 | H3 control hybrid and Seedance | [rendering](reference/rendering.md) | `src/datafarm/adapters/render/h3/`, `src/datafarm/adapters/render/seedance/` |
 | Render verifier | [render-verifier](reference/render-verifier.md) | `src/datafarm/render/verify/` |

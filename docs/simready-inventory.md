@@ -1,6 +1,6 @@
 # SimReady 资产盘点（A 线第 1 天）
 
-> 2026-11-15。目标：核实 `docs/mvp-design.md` §7 风险 2「SimReady 里有没有带关节的抽屉柜」。
+> 2026-11-15。目标：核实 `docs/mvp-design.md`（该文件未入库，引用仅作历史记录）§7 风险 2「SimReady 里有没有带关节的抽屉柜」。
 > 结论：**有**，而且带 Newton payload（对上固定的 Isaac Lab 3.0 + Newton/MJWarp 后端）。
 > 下文所有关节、质量、摩擦、许可数字都来自实际拉取的资产文件，不是记忆或文档转述。
 

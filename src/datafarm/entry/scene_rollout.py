@@ -39,6 +39,23 @@ class SceneActions:
         return value
 
 
+def _expert_failure_reason(exc):
+    """把执行期异常归类为 expert 责任或宿主责任；只输出固定原因码，不泄露 traceback。"""
+    from datafarm.adapters.agent_harness.scene_execution import ExpertAuditRejected, ExpertRaised
+    if isinstance(exc, ExpertRaised):
+        return "EXPERT_EXCEPTION"
+    if isinstance(exc, ExpertAuditRejected):
+        return "EXPERT_AUDIT_REJECTED"
+    from datafarm.simulation.tcp_control import ControlFault
+    if isinstance(exc, ControlFault) and exc.code in ("INVALID_ARGUMENT", "UNKNOWN_FRAME"):
+        # move_gripper 对非法请求直接抛出，而不是返回 rejected 结果；仍归 expert 责任。
+        return exc.code
+    text = str(exc)
+    if text.startswith("SCENE_EXPERT_") and text != "SCENE_EXPERT_ISOLATION_UNAVAILABLE":
+        return "EXPERT_PROTOCOL_ERROR"
+    return "RUNTIME_ERROR"
+
+
 def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
                          api, simulation, scene, control_profile, runtime_ref, expert_ref,
                          attempt_id, reset, settle_steps, expert, max_bytes,
@@ -164,7 +181,8 @@ def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
         actions = SceneActions(api, measurements, service.host)
         status, reason = "completed", "EXPERT_RETURNED"
         expert_executor(actions, expert_bytes) if expert_executor is not None else expert(actions)
-        unsuccessful = next((v for v in actions.results if v["status"] != "completed"), None)
+        # blocked（夹爪被物体挡住）不是执行失败，交给 Judge 依据证据判定。
+        unsuccessful = next((v for v in actions.results if v["status"] not in ("completed", "blocked")), None)
         if unsuccessful is not None:
             status = unsuccessful["status"] if unsuccessful["status"] in ("error", "aborted", "timeout") else "failed"
             reason = unsuccessful["reason_code"]
@@ -176,8 +194,8 @@ def record_scene_episode(*, store, task_ref, scene_ref, prepared, asset_roots,
         status, reason = "timeout", "EXPERT_WALL_BUDGET"
         if actions is not None and (service.host.step_outcome_unknown or not service.host.healthy):
             status, reason = "error", "HOST_REQUALIFICATION_REQUIRED"
-    except Exception:
-        status, reason = "error", "EXPERT_OR_RUNTIME_ERROR" if actions is not None else "RUNTIME_BINDING_ERROR"
+    except Exception as exc:
+        status, reason = "error", _expert_failure_reason(exc) if actions is not None else "RUNTIME_BINDING_ERROR"
         # Private traceback data must not enter portable evidence.
     try:
         recorder.event({"kind": "expert_execution_end", "primitive_results": actions.results if actions is not None else [],

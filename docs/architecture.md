@@ -83,7 +83,10 @@ manifest exists, and a launch without a verified certificate is refused. Operato
 | `orchestration` | Prepare and drive task workspaces (`orchestration/driver.py`), run and resume agent sessions, phases, progress, the task cost ledger, and the batch supervisor (`orchestration/batch.py`: bounded per-item launch, poll, verify and retry) |
 | `entry` | Composition roots: the `datafarm` command (`entry/cli.py`), prerequisite checks (`entry/doctor.py`), expert-harness command and dry run (`entry/expert_cli.py`, `entry/expert_dryrun.py`), run-ledger command (`entry/runs_cli.py`), CaP Codex provider factory (`entry/cap_provider.py`), request drafting command (`entry/request_cli.py`) |
 | `cap` | CaP skill search and library (B-line) |
-| `adapters` | Outer technology: agent CLIs split by vendor (`agent_harness`: vendor-neutral `session`, `claude_code`, `codex/` with the exec backend, native runner, metered gateway and structured role call (`structured.py`), `fake`), credentials and call log; OpenAI-compatible structured LLM for request drafting (`llm`); OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); SAPIEN white replay and USDCraft (`sim`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
+| `judge` | Model-generated task Judge: compiler, independent review, freeze, restricted runtime, adapter/1 binding (B-line) |
+| `scene` | Scene assembly, layout and SceneGraph authoring (A-line) |
+| `ir` | A/B interface IR validators (AssetRecord, SceneGraph) |
+| `adapters` | Outer technology: agent CLIs split by vendor (`agent_harness`: vendor-neutral `session`, `claude_code`, `codex/` with the exec backend, native runner, metered gateway and structured role call (`structured.py`), `fake`), credentials and call log; OpenAI-compatible structured LLM for request drafting (`llm`); OS sandbox (`sandbox`); batch and ledger subprocess wrappers (`process`); H3 and Seedance renderers (`render`); Isaac Lab scene binding, measurements, contacts with coverage and action replay plus legacy SAPIEN white replay and USDCraft (`sim`); episode HDF5 export (`export`); certificate-gated openpi launcher (`trainer/openpi`); LeRobot episode import (`inputs`); scripted test doubles (`fakes`) |
 | `instructions.py`, `config.py` | Role context compiler; environment/runtime path bindings |
 | `batch_protocol.py` | Contract shared by the batch supervisor and its task implementations: policy, poll and verdict results, `BatchTask`, launch exceptions |
 
@@ -93,7 +96,7 @@ Imports point downward only. `make lint` enforces this with [import-linter](http
 the contracts are `[tool.importlinter]` in [`pyproject.toml`](../pyproject.toml).
 
 1. Layers, top to bottom: `entry` > `orchestration` > `adapters` > (`training`, `expert`, `evolution`, `simulation`,
-   `ledger`, `cap`, `scene`) > `render` > `task` > `request` > `ir` > `grounding` > (`instructions`, `config`,
+   `ledger`, `cap`, `scene`, `judge`; independent siblings that must not import each other) > `render` > `task` > `request` > `ir` > `grounding` > (`instructions`, `config`,
    `batch_protocol`) > `kernel`.
    A module may import its own layer or any layer below it.
 2. `adapters` never import `orchestration` or `entry`.
@@ -102,6 +105,14 @@ the contracts are `[tool.importlinter]` in [`pyproject.toml`](../pyproject.toml)
 4. One-way business chain `training` -> `render` -> `task` -> `grounding`: `task` does not import `render`,
    `training` or `expert`; `render` does not import `training`; `grounding` does not import `task`, `render` or
    `training`. `kernel` imports nothing else in `datafarm`.
+
+Known debt, **not** covered by `ignore_imports` (so `lint-imports` currently fails; CI only runs
+`tools/lint_standing_rules.py`): `judge` sits in the same independent-sibling layer as `expert` and `cap`, yet
+imports `cap.io`, `cap.public_task`, `expert.manifest` and `expert.episode`, while `expert/adapter.py` and
+`expert/rollout.py` import `judge.integration`. The design intent is that the Judge is independent and frozen and is
+joined to the expert harness only at the composition root (`entry`, via adapter/1). Planned fix: move result
+classification and adapter bundling to `entry`, move shared I/O and public-task/episode validators to `kernel`/`ir`,
+then add `lint-imports` to CI.
 
 Known debt, listed in `ignore_imports` with exact module pairs: the expert harness (`expert/round.py`,
 `expert/handoff.py`, `expert/rollout.py`) still imports the agent-session and sandbox adapters directly.
