@@ -486,3 +486,21 @@ def test_check_config_defaults_and_unknown_keys():
         check_config({"settle": 2.0})
     with pytest.raises(ValueError, match="positive number"):
         check_config({"timeout_s": -1})
+
+
+def test_contact_body_labels_are_portable_scene_refs(tmp_path):
+    """接触行两端要能落盘：Newton 的 `/World/...` 刚体标签必须编码成场景引用 `usd:/World/...`。"""
+    from datafarm.adapters.sim.isaac_scene import body_ref, penetration_summary
+    from datafarm.kernel.schema import SchemaError
+    from datafarm.kernel.store import ArtifactStore
+    table = "/World/envs/env_0/ObjectTable/Geometry/sm_table_metal_stainless_a03_obj_00"
+    block = "/World/envs/env_0/ObjectBlock0/Geometry/primitives_block_blue_a01_obj_00"
+    assert body_ref(table) == "usd:" + table
+    assert body_ref("world") == "world"
+    row = {"a": "object.table", "b": "object.block.0", "body_a": table, "body_b": block, "dist_m": -0.004}
+    store = ArtifactStore(tmp_path / "store")
+    with pytest.raises(SchemaError, match="absolute filesystem path"):
+        store.put_json("scene.check-evidence", {"penetration": penetration_summary([row], 0.003)})
+    stored = store.put_json("scene.check-evidence", {"penetration": penetration_summary(
+        [{**row, "body_a": body_ref(table), "body_b": body_ref(block)}], 0.003)})
+    assert store.load(stored)["penetration"]["max_depth_m"] == 0.004

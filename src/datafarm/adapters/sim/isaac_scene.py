@@ -84,8 +84,19 @@ def _body_owner(labels: Sequence[str], node_ids: Sequence[str]) -> list[str | No
     return out
 
 
+def body_ref(label: str) -> str:
+    """Newton 刚体标签 → 可持久化的场景 prim 引用 `usd:/World/...`；`world` 这类非 prim 标签原样返回。
+
+    这是合成场景里的引用，和 `usd_assets.prim_ref` 的资产内相对路径不是一个命名空间。
+    """
+    return f"usd:{label}" if label.startswith("/") else label
+
+
 def contacts(node_ids: Sequence[str]) -> list[dict[str, Any]]:
-    """当前 MJWarp 接触：每条 `{a, b, body_a, body_b, dist_m}`；a/b 是节点 id（world/ground 记 None）。"""
+    """当前 MJWarp 接触：每条 `{a, b, body_a, body_b, dist_m}`；a/b 是节点 id（world/ground 记 None）。
+
+    `body_a`/`body_b` 是 `usd:/World/...` 场景引用，可以直接进可移植证据，不是磁盘路径。
+    """
     return contacts_with_coverage(node_ids)["rows"]
 
 
@@ -119,7 +130,8 @@ def contacts_with_coverage(node_ids: Sequence[str]) -> dict[str, Any]:
         for g in geom[k]:
             shape = int(geom_to_shape[int(world[k]), int(g)]) if g >= 0 else -1
             body = int(shape_body[shape]) if shape >= 0 else -1
-            ends.append((owners[body] if body >= 0 else None, labels[body] if body >= 0 else "world"))
+            ends.append((owners[body] if body >= 0 else None,
+                         body_ref(labels[body]) if body >= 0 else "world"))
         rows.append({"a": ends[0][0], "b": ends[1][0], "body_a": ends[0][1], "body_b": ends[1][1],
                      "dist_m": float(dist[k])})
     return {"rows": rows, "coverage": coverage, "detected": detected, "capacity": capacity}
