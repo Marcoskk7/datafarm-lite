@@ -78,7 +78,12 @@ def run_source(source, episode, contract, scene, *, timeout_s=10, memory_mb=256)
         if reason == 'aborted':
             return dict(error_result('aborted'), outcome='aborted')
         if episode.get('schema_version') == 'judge-episode/1' and reason in ('error', 'timeout', 'failed'):
-            return error_result('EXECUTION_' + reason.upper())
+            # 保留记录器的具体原因，供 harness 区分 expert 责任与宿主/基础设施故障。
+            detail = episode['termination'].get('reason_code')
+            value = error_result('EXECUTION_' + reason.upper())
+            if isinstance(detail, str) and detail:
+                value['reason_code'] = 'EXECUTION_' + reason.upper() + ':' + detail[:120]
+            return value
         payload = canonical(dict(source=source, episode=episode, contract=contract, scene=scene,
                                  timeout_s=timeout_s, memory_mb=memory_mb))
         check(len(payload) <= 32*1024*1024, 'Episode exceeds 32 MiB worker input limit')

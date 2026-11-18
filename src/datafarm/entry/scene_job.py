@@ -121,6 +121,29 @@ def main(argv=None):
 
 
 
+SCENE_INTERFACE_FACT = (
+    "Requests are plain JSON objects. move_tcp takes tcp-motion-request/1 (target_pose in a registered frame, "
+    "speeds, tolerances, settle_steps, max_control_steps, max_wall_time_s); move_gripper takes "
+    "gripper-motion-request/1 {schema_version, width_m, speed_m_s, tolerance_m, settle_steps, max_control_steps}. "
+    "Results report status completed|rejected|failed|timeout|aborted|error (gripper also blocked) and reason_code. "
+    "There is no wait/reset/step primitive; the host owns physics, measurement and persistence.")
+
+
+def _bind_scene_brief(result):
+    """Scene experts use the worker protocol, not the legacy next_plan/execute_joint_plan port."""
+    from datafarm.adapters.agent_harness.scene_execution import SCENE_EXPERT_POLICY
+    expert = result.setdefault('expert', {})
+    expert['allowed_imports'] = list(SCENE_EXPERT_POLICY['allowed_imports'])
+    expert['max_bytes'] = min(int(expert.get('max_bytes', SCENE_EXPERT_POLICY['max_bytes'])), SCENE_EXPERT_POLICY['max_bytes'])
+    brief = result.setdefault('brief', {})
+    facts = brief.setdefault('facts', {})
+    facts['allowed_imports'] = '`math` only'
+    facts['scene_interface'] = SCENE_INTERFACE_FACT
+    template = Path(__file__).resolve().parents[3] / 'configs' / 'expert-harness' / 'template-scene-brief.md'
+    if Path(str(brief.get('template', ''))).name == 'template-brief.md' and template.is_file():
+        brief['template'] = str(template)
+
+
 def bind_scene_adapter(raw, *, factory, factory_sha256, config, store_root, contract_ref_document, bundle, anchor):
     """Build a new adapter/1 deployment config; never mutate the input adapter."""
     from copy import deepcopy
@@ -163,6 +186,7 @@ def bind_scene_adapter(raw, *, factory, factory_sha256, config, store_root, cont
         if result.get('isolation', {}).get('rollout', {}).get('mode') == 'proot':
             raise ValueError('PRoot rollout requires matching expert_runtime configuration')
     result['task_ir']=dict(store.document(ArtifactRef.from_dict(authority['task_ref'])).payload)
+    _bind_scene_brief(result)
     result['verifier'].update(version=contract['freeze_id'],criterion_ids=[c['id'] for c in contract['conditions']],
         criteria=[c['description'] for c in contract['conditions']],criteria_tokens=[c['description'] for c in contract['conditions']],
         judge_bundle={'directory':str(Path(bundle).resolve()),'sha256':anchor})

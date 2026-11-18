@@ -15,6 +15,28 @@ import time
 
 from datafarm.adapters.sandbox import SandboxSpec, probe_available, wrap
 from datafarm.expert.audit import audit_expert_source
+from datafarm.adapters.agent_harness.scene_worker import ExpertPolicyError, check_source
+
+SCENE_EXPERT_POLICY = {'allowed_imports': ['math'], 'max_bytes': 64000}
+
+
+class ExpertRaised(RuntimeError):
+    """The guest expert itself raised or violated the shared policy (expert-attributable)."""
+
+
+class ExpertAuditRejected(ValueError):
+    """Host pre-check rejected the source before launch; message carries the short reason."""
+
+
+def precheck_expert(source, class_name=None):
+    """Run the same rules as the guest worker on the host, with a readable reason."""
+    report = audit_expert_source(source, class_name, SCENE_EXPERT_POLICY)
+    if not report.ok:
+        raise ExpertAuditRejected('expert source audit rejected: ' + report.summary()[:300])
+    try:
+        check_source(source.decode('utf-8') if isinstance(source, bytes) else source, class_name)
+    except (ExpertPolicyError, UnicodeDecodeError) as exc:
+        raise ExpertAuditRejected('expert source audit rejected: ' + str(exc)[:300]) from None
 
 
 def run_expert(expert_file, actions, *, timeout_s, max_calls, max_bytes=1048576, class_name=None, runtime=None, expected_source=None):
@@ -29,9 +51,7 @@ def run_expert(expert_file, actions, *, timeout_s, max_calls, max_bytes=1048576,
     source = expert_file.read_bytes()
     if expected_source is not None and source != expected_source:
         raise ValueError('expert source differs from host snapshot')
-    report = audit_expert_source(source, class_name, {'allowed_imports':['math'], 'max_bytes':64000})
-    if not report.ok:
-        raise ValueError('expert source audit rejected')
+    precheck_expert(source, class_name)
     worker = Path(__file__).with_name('scene_worker.py').resolve()
     if runtime is not None:
         from datafarm.adapters.sandbox.scene_proot import expert_command
@@ -80,6 +100,9 @@ def run_expert(expert_file, actions, *, timeout_s, max_calls, max_bytes=1048576,
                 if set(request) != {'method','argument'}:
                     raise ValueError('unsupported expert request fields')
                 method = request['method']
+                if method == 'error':
+                    reason = request['argument']
+                    raise ExpertRaised(reason[:300] if isinstance(reason, str) else 'expert raised')
                 if method == 'complete' and request['argument'] is None:
                     try:
                         code = proc.wait(timeout=max(.001, deadline-time.monotonic()))
