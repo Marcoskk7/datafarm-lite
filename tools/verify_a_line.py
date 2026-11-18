@@ -150,7 +150,9 @@ def gate_prepare(report: Report, work: Path) -> bool:
         try:
             record = store.load(ArtifactRef.from_dict(asset['record']))
             deltas[asset_id] = {'joints': len(record.get('joints', [])),
-                                'collision': 'base_bbox_min_m' in record['collision']}
+                                'base_mount': record['collision'].get('base_mount', {}).get('kind')
+                                if record.get('role') == 'robot' else None,
+                                'support_z_m': record['collision'].get('base_support_z_m')}
         except Exception as error:  # a record that cannot be reloaded is a prepare failure
             deltas[asset_id] = {'error': f'{type(error).__name__}: {error}'}
             ok = False

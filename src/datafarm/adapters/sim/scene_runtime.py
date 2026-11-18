@@ -72,7 +72,7 @@ def load_scene(store, scene_ref, prepared, *, asset_roots):
         if (record["role"] == "robot") != (spec["body"] == "robot"):
             raise ValueError("robot body/record mismatch")
         records[asset], specs[asset] = record, {"body": spec["body"]}
-        if spec["body"] != "robot":
+        if "wrapper" in spec:  # 机器人只在关掉夹具五金碰撞时才有包装层
             wrappers[asset] = str(Path(spec["wrapper"]).resolve(strict=True))
         for item in [i for i in bundle["files"] if i["asset_id"] == asset]:
             if item["role"] == "wrapper":
@@ -92,6 +92,14 @@ def load_scene(store, scene_ref, prepared, *, asset_roots):
                 local = _local(spec["package"], delivery[file["format"]])
                 if sha256_file(local) != file["artifact"]["sha256"]:
                     raise ValueError("robot source bytes changed")
+            collision = record.get("collision", {})
+            if "artifact" in collision:
+                matches = [i for i in bundle["files"] if i["asset_id"] == asset and i["role"] == "wrapper"]
+                if len(matches) != 1 or sha256_file(Path(wrappers[asset])) != matches[0]["sha256"]:
+                    raise ValueError("unbound robot collision wrapper")
+                report = store.load(ArtifactRef.from_dict(collision["artifact"]))
+                if report.get("wrapper_sha256") != matches[0]["sha256"]:
+                    raise ValueError("robot collision wrapper not bound to AssetRecord")
         if spec["body"] != "robot":
             wrapper = Path(wrappers[asset])
             matches = [i for i in bundle["files"] if i["asset_id"] == asset and i["role"] == "wrapper"]

@@ -57,8 +57,10 @@ def build_scene_cfg(*, nodes: Sequence[Mapping[str, Any]], assets: Mapping[str, 
             fields[node["node_id"]] = RigidObjectCfg(
                 prim_path=path, spawn=sim_utils.UsdFileCfg(usd_path=usd, rigid_props=rigid),
                 init_state=RigidObjectCfg.InitialStateCfg(pos=pos, rot=rot))
+    robot_usd = wrappers.get(robot_node["asset_id"])
     fields[robot_node["node_id"]] = robot_cfg.replace(
         prim_path="{ENV_REGEX_NS}/" + prim_name(robot_node["node_id"]),
+        **({"spawn": robot_cfg.spawn.replace(usd_path=robot_usd)} if robot_usd else {}),
         init_state=robot_cfg.init_state.replace(pos=tuple(robot_node["pose"]["position_m"]),
                                                 rot=tuple(robot_node["pose"]["quaternion_xyzw"])))
     keyed = {key.replace(".", "__"): value for key, value in fields.items()}

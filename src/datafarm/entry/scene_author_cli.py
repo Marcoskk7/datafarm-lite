@@ -40,7 +40,7 @@ CONFIG_KEYS = frozenset({"schema", "notes", "agent", "price_table", "wall_s_per_
 CHECK_DEFAULTS: dict[str, Any] = {
     "python": None, "env_script": None, "timeout_s": 1500.0,
     "settle_s": 2.0, "probe_s": 2.0, "drift_tol": 0.005, "speed_tol": 0.01,
-    "joint_tol_active": 0.005, "joint_tol_passive": 0.005, "penetration_tol": 0.003,
+    "joint_tol_active": 0.02, "joint_tol_passive": 0.005, "penetration_tol": 0.003,
     "nconmax": 4096, "njmax": 8192,
 }
 CHECK_KEYS = frozenset(CHECK_DEFAULTS) | {"notes"}

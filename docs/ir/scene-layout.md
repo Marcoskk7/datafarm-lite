@@ -85,9 +85,10 @@
 | `asset_id` | 是 | 机器人 AssetRecord 的 id，`prepare` 用 `package_asset` 生成它 |
 | `package_asset` | 是 | 机器人包 `delivery_manifest.json` 里的资产名（如 `airbot_single`）；`plan`/`check` 用它重新解析 URDF |
 | `on` | 无 `base_pose` 时是 | 支撑节点 id 或 `"floor"` |
-| `xy_m` | 无 `base_pose` 时是 | 世界系水平位置 `[x, y]`，m |
-| `yaw_deg` | 否 | 偏航角，度，默认 0 |
-| `base_pose` | 否 | 显式基座位姿；给了就原样使用，忽略 `on`/`xy_m`/`yaw_deg` |
+| `xy_m` | 平放安装时是 | 世界系水平位置 `[x, y]`，m；桌沿夹装的机器人不写，由 `mount` 推导 |
+| `yaw_deg` | 否 | 平放安装的偏航角，度，默认 0 |
+| `mount` | 桌沿夹装时是 | `{"edge": "+x" \| "-x" \| "+y" \| "-y", "along_m": m}`：夹住支撑的哪条边、沿边位置（支撑局部系） |
+| `base_pose` | 否 | 显式基座位姿；给了就原样使用，忽略 `on`/`xy_m`/`mount` |
 | `arms` | 是 | 数组，MVP 写 `["left"]`，允许 `left`/`right` 的非空子集 |
 | `gripper` | 是 | 固定 `"g2"` |
 | `tcp_link` | 是 | 模型 TCP 所在 link；`robot-descriptor` 的 `model_semantics.tcp_candidates` 必须有该 link 的候选，否则报错 |
@@ -95,8 +96,21 @@
 | `tool_approach_axis` | 是 | 工具系里指向接近方向的轴，`x` / `y` / `z` |
 | `limit_margin_rad` | 否 | IK 关节限位余量，rad，默认 0.05 |
 
-无 `base_pose` 时，基座高度让基座刚体碰撞体底面贴在支撑顶面：`z = 支撑顶面 + SUPPORT_CLEARANCE_M − collision.base_bbox_min_m[2]`。
-AssetRecord 没有 `collision.base_bbox_min_m` 时报错，不假设基座原点就是底面。
+无 `base_pose` 时，摆位读 Robot AssetRecord 里的安装标定（来源 `configs/robot-mounts.json`，`prepare` 用实测碰撞包围盒复核后写进 Record）：
+
+| 字段 | 含义 |
+| --- | --- |
+| `collision.base_support_z_m` | 压在支撑面上的那块板的下表面，基座坐标系 z |
+| `collision.base_footprint_min_m` / `_max_m` | 同一块板的 xy 占地矩形 |
+| `collision.base_mount` | `{"kind": "surface"}` 或 `{"kind": "edge_clamp", "axis", "edge_plane_m", "overhang_m"}` |
+| `collision.base_bbox_min_m` / `_max_m` | 基座刚体**全部**碰撞体的实测包围盒（含 C 型夹），只作证据 |
+
+高度永远是 `z = 支撑顶面 + SUPPORT_CLEARANCE_M − collision.base_support_z_m`；用碰撞包围盒底面会让带 C 型夹的基座悬空约 10 cm。
+
+- `surface`：要求 `xy_m`（+可选 `yaw_deg`），板必须整块落在支撑顶面内。
+- `edge_clamp`：要求 `mount`。偏航由 `base_mount.axis`（夹具朝外的基座轴）与支撑边法向对齐决定；基座 xy 让 `edge_plane_m` 那条平面与支撑边重合——夹具竖臂在支撑外、板压在支撑顶面上。占地检查允许板越过夹持边 `overhang_m`（模型里板比竖臂内侧多伸出的那点），其余三边以及沿边方向仍必须落在支撑顶面内。支撑是 `"floor"` 时直接报错：地板没有边。
+
+Record 缺这些字段时 `plan` 报错（提示重跑 `prepare`），不会退回用碰撞包围盒底面蒙一个高度。
 
 ### `reach_targets[i]`
 

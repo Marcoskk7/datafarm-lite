@@ -31,10 +31,10 @@ python tools/scene_assemble.py plan  --spec ... --work WORK          # 只需 nu
 python tools/scene_assemble.py check --spec ... --work WORK --headless  # Isaac Lab 3.0 Python
 ```
 
-- `prepare`（需要 pxr + coacd）：给每个 SimReady 资产写碰撞包装层。上游碰撞网格换成 CoACD 凸包（参数见 `DEFAULT_COACD`，结果按网格内容和参数缓存），原网格上的质量移到刚体上，Newton variant 选中。铰接资产在 `anchor_body` 上加固定关节锚到世界。AssetRecord 的 `collision.bbox_*` 记录凸包的包围盒；机器人记录 `collision.base_bbox_*`，即基座刚体碰撞体的包围盒。
-- `plan`：节点按支撑面顶面（有凸包包围盒时用凸包）加 `SUPPORT_CLEARANCE_M` 放置；机器人让基座碰撞体底面贴到支撑面上。占地检查用按偏航旋转的包围盒底面矩形：越出支撑面，或与同一支撑面上的其他东西重叠，都判失败。可达性对每个目标用多起点阻尼最小二乘 IK，作用在模型 TCP 上，自上而下接近，留关节限位余量；不做碰撞感知规划。
+- `prepare`（需要 pxr + coacd）：给每个 SimReady 资产写碰撞包装层。上游碰撞网格换成 CoACD 凸包（参数见 `DEFAULT_COACD`，结果按网格内容和参数缓存），原网格上的质量移到刚体上，Newton variant 选中。铰接资产在 `anchor_body` 上加固定关节锚到世界；源资产没有 `ArticulationRootAPI` 时（实测 `cabinet_file_d04` 只有刚体和 prismatic 关节）在同一个基座刚体上补 `PhysicsArticulationRootAPI` + `NewtonArticulationRootAPI`，补过的 prim 记进碰撞预处理报告 `authored_articulation_root`。AssetRecord 的 `collision.bbox_*` 记录凸包的包围盒。机器人额外读安装标定 `configs/robot-mounts.json`（按 `package_asset` 查），用 `fixed_base_collision_bbox` 实测的基座刚体碰撞包围盒复核，再写进 Record 的 `collision.base_support_z_m` / `base_footprint_*` / `base_mount`；`base_bbox_*` 保留为实测证据。标定与包不匹配（支撑面不在实测包围盒里、占地超出、C 型夹标定却找不到支撑面以下的五金）时 `prepare` 直接失败，不写 Record。
+- `plan`：节点按支撑面顶面（有凸包包围盒时用凸包）加 `SUPPORT_CLEARANCE_M` 放置；机器人让标定的安装面贴到支撑面上：平放读 `xy_m`/`yaw_deg`，桌沿夹装读 `mount.edge`/`mount.along_m` 并推导基座 xy 与偏航（夹具竖臂内侧那条平面钉在支撑边上），见 `docs/ir/scene-layout.md`。占地检查用按偏航旋转的包围盒底面矩形：越出支撑面，或与同一支撑面上的其他东西重叠，都判失败。可达性对每个目标用多起点阻尼最小二乘 IK，作用在模型 TCP 上，自上而下接近，留关节限位余量；不做碰撞感知规划。
 - `check`：加载场景，显式写入 `joint_state`（Isaac Lab 3.0 + Newton 下 `scene.reset()` 不会把它写回仿真；写入后读回值和目标不一致就报错），然后静置并检查穿透，再把物体放进打开的抽屉做探针，最后写出 SceneGraph。铰接家具关闭自碰撞：相邻抽屉的凸包互相外扩，会在初始时互相顶住。
-- 关节分**主动**（机器人关节，以及 `active_joints` 里列出的驱动关节）和**被动**（其余铰接关节）。主动关节漂移上限 `--joint-tol-active`（`--joint-tol` 是同一参数的别名）；被动关节没有固定漂移上限，只要求静置后测量值仍在关节限位内、且该节点没有新增接触对（`added_contacts`），`--joint-tol-passive` 只决定什么时候报告"动了"。`check.json` 的 `settle.measured_joint_state` 是按节点、按关节名的静置后测量值，`settle.new_contacts` 是相对初始状态新增的接触对及其深度；顶层 `initial_joint_state` 是声明的意图。下游 episode 的初始状态取测量值。
+- 关节分**主动**（机器人关节，以及 `active_joints` 里列出的驱动关节）和**被动**（其余铰接关节）。主动关节漂移上限 `--joint-tol-active`（`--joint-tol` 是同一参数的别名，默认 0.02 rad：桌面上的单臂在零位被 500 N·m/rad 的位置驱动保持，实测重力下沉 0.0127 rad）；被动关节没有固定漂移上限，只要求静置后测量值仍在关节限位内、且该节点没有新增接触对（`added_contacts`），`--joint-tol-passive` 只决定什么时候报告"动了"。`check.json` 的 `settle.measured_joint_state` 是按节点、按关节名的静置后测量值，`settle.new_contacts` 是相对初始状态新增的接触对及其深度；顶层 `initial_joint_state` 是声明的意图。下游 episode 的初始状态取测量值。
 
 退出码为 0 当且仅当静置稳定（含主动/被动关节规则）、穿透、探针、可达性、占地全部通过。`WORK/store/` 是内容寻址的证据；主机路径只出现在 `prepared.json`，不会进入 IR。
 

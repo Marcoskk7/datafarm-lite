@@ -12,7 +12,7 @@
 | `source` | 是 | 检索来源，见下 |
 | `files` | 是 | `[{artifact: ArtifactRef, format}]`，`format` 取 `usd` / `urdf` / `mjcf` / `glb` / `obj` |
 | `bbox_m` | 是 | 静止姿态下 AABB `[x, y, z]`，米 |
-| `collision` | 是 | `{kind: "mesh" / "convex_hull" / "primitive", artifact?: ArtifactRef}`；没有单独碰撞网格时 `kind` 指主文件里的碰撞几何 |
+| `collision` | 是 | `{kind: "mesh" / "convex_hull" / "primitive", artifact?: ArtifactRef}`；没有单独碰撞网格时 `kind` 指主文件里的碰撞几何。机器人额外带摆位标定，见下 |
 | `joints` | 是 | 关节数组，刚体写 `[]`，见下 |
 | `frames` | 是 | `{up_axis: "Z", root_frame_id, link_frame_ids: {...}}`；导入需要旋转或缩放时在 `notes` 写明 |
 | `physical_quantities` | 是 | 复用 `datafarm.grounding/1` 的 physical_quantities 列表，见下 |
@@ -116,5 +116,16 @@ MassAPI（老资产是 Isaac 的 `pxr:usd:physics_*`），刚体没有时按平�
   ]
 }
 ```
+
+机器人（`role: "robot"`）的 `collision` 必须带摆位标定，否则 `plan` 拒绝把它放到支撑面上：
+
+| 字段 | 含义 |
+| --- | --- |
+| `base_support_z_m` | 压在支撑面上的安装板下表面，基座坐标系 z |
+| `base_footprint_min_m` / `base_footprint_max_m` | 安装板 xy 占地矩形 `[x, y]` |
+| `base_mount` | `{"kind": "surface"}` 或 `{"kind": "edge_clamp", "axis": "+x/-x/+y/-y", "edge_plane_m", "overhang_m"}` |
+| `base_bbox_min_m` / `base_bbox_max_m` | 基座刚体全部碰撞体的实测包围盒，只作证据 |
+
+来源是 `configs/robot-mounts.json` 的显式标定，`prepare` 用实测包围盒复核后写入；不能让消费方用 `base_bbox_min_m` 推高度——AIRBOT 的 C 型夹在安装面以下约 10 cm，拿包围盒底面会把整机抬成悬空。
 
 抽屉必须带 `prismatic`（或 `revolute`）关节；没有关节的柜子只能当背景，不能当 receptacle。MVP 要求抽屉**预先拉开**，初值写在 SceneGraph 的 `joint_state` 里。

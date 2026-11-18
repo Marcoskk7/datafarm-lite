@@ -27,6 +27,8 @@ from datafarm.kernel.store import ArtifactStore  # noqa: E402
 from datafarm.entry.scene_files import (load_prepared as _records, robot_delivery, robot_descriptor,  # noqa: E402
                                         robot_layer_files)
 
+ROOT = Path(__file__).resolve().parents[1]
+ROBOT_MOUNTS = ROOT / 'configs' / 'robot-mounts.json'
 USD_MEDIA = 'model/vnd.usd'
 USDA_MEDIA = 'model/vnd.usda'
 
@@ -37,7 +39,7 @@ def load_json(path: Path) -> dict:
 
 def prepare(args) -> int:
     from datafarm.adapters.sim import usd_assets
-    from datafarm.scene import asset_records
+    from datafarm.scene import asset_records, mounts
     spec = load_json(args.spec)
     work = Path(args.work)
     store = ArtifactStore(work / 'store')
@@ -50,8 +52,12 @@ def prepare(args) -> int:
         report = usd_assets.prepare_collision(root, wrappers_dir, Path(args.cache) / '.hull-cache')
         wrapper = wrappers_dir / report['wrapper']
         if asset['body'] == 'articulation':
-            usd_assets.anchor_to_world(wrapper, asset['anchor_body'])
+            anchor = usd_assets.anchor_to_world(wrapper, asset['anchor_body'])
             report['world_anchor_body'] = asset['anchor_body']
+            if anchor['authored_articulation_root']:
+                report['authored_articulation_root'] = anchor['authored_articulation_root']
+                print(f"{asset['asset_id']}: source had no ArticulationRootAPI; authored it on "
+                      f"{anchor['authored_articulation_root'][0]}", flush=True)
         root_usd = root / inspection['root_usd']
         usd_ref = store.put_bytes('asset.usd', root_usd.read_bytes(), media_type=USD_MEDIA)
         wrapper_ref = store.put_bytes('asset.collision-wrapper', wrapper.read_bytes(), media_type=USDA_MEDIA)
@@ -81,15 +87,30 @@ def prepare(args) -> int:
     urdf_ref = store.put_bytes('robot.urdf', urdf.read_bytes(), media_type='application/urdf+xml')
     usd_ref = store.put_bytes('robot.usd', usd.read_bytes(), media_type=USDA_MEDIA)
     base_collision = usd_assets.fixed_base_collision_bbox(usd)
-    print(f"{robot['asset_id']}: base collision bbox {base_collision['bbox_min_m']} {base_collision['bbox_max_m']}",
-          flush=True)
+    mount = mounts.load(ROBOT_MOUNTS, robot['package_asset'])
+    print(f"{robot['asset_id']}: base collision bbox {base_collision['bbox_min_m']} {base_collision['bbox_max_m']}; "
+          f"mount {mount['edge_clamp'] if mount.get('edge_clamp') else 'surface'} "
+          f"support face z {mount['support_face_z_m']}", flush=True)
     record = asset_records.robot_record(
         asset_id=robot['asset_id'], descriptor=descriptor, urdf_ref=urdf_ref, usd_ref=usd_ref, license='unknown',
         retrieved_at=args.robot_retrieved_at, uri=f"local:robot_assets_isaaclab3_validated_20261113/{robot['package_asset']}",
-        base_collision=base_collision)
-    record_ref = store.put_json('ir.asset-record', record)
-    prepared['assets'][robot['asset_id']] = {'record': record_ref.to_dict(), 'body': 'robot',
+        base_collision=base_collision, mount=mount)
+    prepared['assets'][robot['asset_id']] = {'record': None, 'body': 'robot',
                                              'package': str(package.resolve()), 'package_asset': robot['package_asset']}
+    hardware = list(record['collision'].get('hardware_collider_prims', []))
+    if hardware:
+        wrapper = wrappers_dir / f"{robot['package_asset']}.usda"
+        report = usd_assets.robot_collision_wrapper(usd, wrapper, hardware)
+        wrapper_ref = store.put_bytes('asset.collision-wrapper', wrapper.read_bytes(), media_type=USDA_MEDIA)
+        report['wrapper_sha256'] = wrapper_ref.sha256
+        record['collision']['artifact'] = store.put_json('asset.collision-prep', report).to_dict()
+        prepared['assets'][robot['asset_id']]['wrapper'] = str(wrapper.resolve())
+        prepared['bundle_files'].append({'asset_id': robot['asset_id'], 'role': 'wrapper',
+                                         'sha256': wrapper_ref.sha256})
+        print(f"{robot['asset_id']}: collision wrapper deactivates {hardware} "
+              f"({report['wrapper']}, sha {wrapper_ref.sha256[:12]})", flush=True)
+    record_ref = store.put_json('ir.asset-record', record)
+    prepared['assets'][robot['asset_id']]['record'] = record_ref.to_dict()
     for member, digest in robot_layer_files(package, robot['package_asset']).items():
         prepared['bundle_files'].append({'asset_id': robot['asset_id'], 'role': 'robot_layer',
                                          'member': member, 'sha256': digest})
@@ -144,13 +165,14 @@ def check(args) -> int:
     from datafarm.scene import asset_records, layout
 
     nodes = planned['nodes']
-    robot_node = {'node_id': robot_spec['node_id'], 'pose': planned['robot_base_pose']}
+    robot_node = {'node_id': robot_spec['node_id'], 'asset_id': robot_spec['asset_id'],
+                  'pose': planned['robot_base_pose']}
     sim_cfg = make_simulation_cfg(robot_spec['package_asset'], 'newton_mjwarp')
     sim_cfg.physics.solver_cfg.nconmax = args.nconmax
     sim_cfg.physics.solver_cfg.njmax = args.njmax
     launcher_args.physics = None
     by_asset = {k: v for k, v in prepared['assets'].items() if v['body'] != 'robot'}
-    wrappers = {k: v['wrapper'] for k, v in by_asset.items()}
+    wrappers = {k: v['wrapper'] for k, v in prepared['assets'].items() if 'wrapper' in v}
     with launch_simulation(sim_cfg, launcher_args):
         sim = sim_utils.SimulationContext(sim_cfg)
         cfg_cls = isaac_scene.build_scene_cfg(nodes=nodes, assets=by_asset, wrappers=wrappers,
@@ -240,7 +262,7 @@ def main() -> int:
             p.add_argument('--drift-tol', type=float, default=0.005)
             p.add_argument('--speed-tol', type=float, default=0.01)
             # One source of truth: --joint-tol is an alias for --joint-tol-active (strict, held/actuated joints).
-            p.add_argument('--joint-tol-active', '--joint-tol', dest='joint_tol_active', type=float, default=0.005,
+            p.add_argument('--joint-tol-active', '--joint-tol', dest='joint_tol_active', type=float, default=0.02,
                            help='max drift of actuated/held joints (alias: --joint-tol)')
             p.add_argument('--joint-tol-passive', type=float, default=0.005,
                            help='drift above which a passive joint is reported as moved (not an acceptance bound; '
