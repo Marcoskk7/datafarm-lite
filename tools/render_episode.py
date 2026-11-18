@@ -1,7 +1,10 @@
 """用 Isaac RTX 渲染一条 episode：request 的 `render` 段 + SceneGraph → RenderSpec → 回放 state_trace 出图。
 
-    python tools/render_episode.py spec   --work W --episode EP.json [--render JSON] --out spec.json
+    python tools/render_episode.py spec   --work W --episode EP.json --variants VARIANTS.json [--render JSON] --out spec.json
     python tools/render_episode.py render --work W --spec spec.json --out manifest.json [--headless]
+
+`VARIANTS.json` 是任务自己的外观表（`datafarm.isaac-render-variants/1`），例：
+`examples/render/plate-drawer-airbot.v1.json`。材质槽和虚拟视角属于任务，所以没有默认表。
 
 `W` 是 `tools/scene_assemble.py` 的工作目录：`store/`、`prepared.json`（主机路径索引）、`check.json`（只取其中的
 SceneGraph 引用）。`render` 经共享的 `scene_runtime.load_scene` 按 SceneGraph 加载场景，与 B 录制 episode 时是同一份，
@@ -27,7 +30,6 @@ from datafarm.kernel.io import atomic_write_json, sha256_file  # noqa: E402
 from datafarm.kernel.store import ArtifactStore  # noqa: E402
 
 DEFAULT_RENDER = '{"engine": "isaac_rtx", "views": ["head", "left_wrist", "third_person"], "materials": 2, "lights": 2}'
-DEFAULT_VARIANTS = ROOT / 'configs/render/isaac-variants.v1.json'
 
 
 def load_json(path: Path) -> dict:
@@ -199,7 +201,8 @@ def main() -> int:
     p.add_argument('--work', type=Path, required=True)
     p.add_argument('--episode', type=Path, required=True, help='JSON {"episode": ArtifactRef}')
     p.add_argument('--render', default=DEFAULT_RENDER, help="request render section as JSON")
-    p.add_argument('--variants', type=Path, default=DEFAULT_VARIANTS)
+    p.add_argument('--variants', type=Path, required=True,
+                   help="task appearance table (datafarm.isaac-render-variants/1)")
     p.add_argument('--out', type=Path, required=True)
     p = sub.add_parser('render')
     p.add_argument('--work', type=Path, required=True)

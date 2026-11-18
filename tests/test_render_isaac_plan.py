@@ -12,7 +12,7 @@ from datafarm.ir.common import IRError
 from datafarm.render import plan
 
 REF = {"kind": "x", "sha256": "a" * 64, "media_type": "application/json"}
-CONFIG = json.loads((repository_root() / "configs/render/isaac-variants.v1.json").read_text())
+CONFIG = json.loads((repository_root() / "examples/render/plate-drawer-airbot.v1.json").read_text())
 IDENTITY = {"frame_id": "world", "position_m": [0.0, 0.0, 0.0], "quaternion_xyzw": [0.0, 0.0, 0.0, 1.0]}
 INTRINSICS = {"fx": 600.0, "fy": 600.0, "cx": 320.0, "cy": 240.0, "width": 640, "height": 480}
 
@@ -66,7 +66,7 @@ class RenderSpecTest(unittest.TestCase):
         self.assertEqual(base["material_set"], [], "m0 keeps the asset materials")
 
     def test_request_cannot_ask_for_more_variants_or_unknown_views_than_exist(self):
-        with self.assertRaisesRegex(IRError, "3 material variants"):
+        with self.assertRaisesRegex(IRError, "3 material variants.*--variants"):
             spec(materials=3)
         with self.assertRaisesRegex(IRError, "neither a scene graph camera"):
             spec(views=["right_wrist"])
