@@ -16,7 +16,8 @@ specification, SceneGraph, AssetRecords, runtime/expert sources, control profile
 implementation hashes, initialized state provenance and complete node IDs.
 Caller must use a fresh attempt ID for a fresh attempt; prior artifacts are not
 rewritten. A script executed as expert must match the pinned source bytes.
-Optional future TaskContract authority is not guessed or attached by this recorder.
+An explicitly supplied current /1 TaskContract is verified before recording and
+its immutable ref is retained as evidence; this recorder never invents authority.
 
 ## Cycle semantics
 
@@ -49,7 +50,8 @@ unavailable unless separately supported; missing values are never invented as ze
 readings support later playback/replay work, but reset + seed does not prove
 restoration of hidden solver state or bitwise determinism.
 
-Judge and replay evidence must later bind the immutable recorded Episode ref and
+Judge evaluation and action replay bind the immutable recorded Episode ref and
 create separate receipts/new enriched revisions. Neither producer may overwrite
-old episode bytes or certify its own acceptance. Full action replay and rendering
-remain separate subsequent features.
+old episode bytes or certify its own acceptance. See
+[judge-episode-contract](judge-episode-contract.md) and [action-replay](action-replay.md).
+Software fixtures do not qualify live physics or rendering.

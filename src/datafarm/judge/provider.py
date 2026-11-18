@@ -22,7 +22,12 @@ Methods: get,items,keys,values,append,extend,copy,count,index. Math attributes o
 numeric functions (sqrt/sin/cos/acos/atan2/hypot/isfinite/isclose/pi etc).
 Use task_contract['thresholds'][threshold_id]['value']; never duplicate threshold
 numbers in source. scene_metadata contains only supplied model/scene data.
-episode is judge-episode/1: units={length:m,angle:rad,time:s}, frame_id=world,
+episode is the current source-bound judge-episode/1.
+All evidence_fields are JSON-encoded arrays of exact key segments, NOT dot
+paths: ["states","entities","object.a","position_m"] keeps object.a intact.
+States retain all entities and links, robot TCP/gripper and contact availability.
+Use available_fields exactly; unavailable contact force/coverage is never zero.
+Required /1 clock/frame: units={length:m,angle:rad,time:s}, frame_id=world,
 positive control_dt_s, measured states with contiguous control_step starting
 at 0, N actions (each with its control_step) and N+1 states, events, termination. Never score requested targets
 as achieved. The host validates missing evidence, finite data and frame coverage.
@@ -50,16 +55,15 @@ api/program_contract metadata describes future expert execution, not additional
 physical predicates. Host-enforced restrictions must not be claimed as verified
 by a state-only judge. If an explicit requirement itself asks for program-access
 or state-write verification, demand its evidence or return missing_inputs.
-Preserve upstream goals, hard constraints, threshold IDs/values/units exactly.
+Preserve upstream goals, hard constraints, threshold IDs/values/units, bases and
+requirement bindings exactly.
 You may derive missing task-level thresholds from supplied dimensions, clock and
 explicit rules. Mark them derived, give units and a reproducible basis. Do not
 invent measured calibration, unavailable contacts or missing physical facts.
 List missing intent/data in missing_inputs; never weaken a gate to make it pass.
 Conditions need unique IDs, linked requirement_ids, measurement, units,
 threshold_ids and exact evidence_fields from observations.available_fields.
-If original Task IR predicates declare judge_criterion for terminal/transient
-predicates, the condition IDs MUST be exactly that declared set; preserve those
-stage-graph references and cover other relevant requirements inside those conditions.
+Use the current request-task/1 requirement IDs; it does not prescribe a stage graph.
 Judge from complete measured trajectories, not targets or success labels.
 Return only the structured candidate. ''' + RUNTIME_CONTRACT
 

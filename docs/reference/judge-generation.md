@@ -1,13 +1,13 @@
 # Model-generated judge and automatic freeze
 
-Inputs are published by orchestration from request.yaml, and the A line delivers them through the existing task/scene
-interfaces. The B line has no built-in registry of tasks such as "grasp the plate" or "push the plate". For each task
+The B planner derives request-task/1 Task IR from the original request.yaml and
+loads the A line scene/task-table through their existing query interfaces. The B line has no built-in registry of tasks such as "grasp the plate" or "push the plate". For each task
 it generates Python judge source, a SHA-256 and a condition list; after host checks, positive/negative cases and an
 independent model review, these are written into the TaskContract and frozen.
 
 ## Generation flow
 
-`A-line task/scene + actual observation spec → JudgeAuthor → host tests → JudgeReviewer → independent case tests → freeze`
+`Request-derived Task IR + A-line scene + actual observation spec → JudgeAuthor → host tests → JudgeReviewer → independent case tests → freeze`
 
 The author and the reviewer use the Codex structured call in
 `adapters/agent_harness/codex/structured.py`, injected by the composition root `entry/judge_cli.py`; every call is a
@@ -41,7 +41,7 @@ rlimit on POSIX and a Job Object on Windows. Execution is refused if the resourc
 restricted Python subset, not a general sandbox for arbitrary Python.
 
 Missing data, non-finite values, clock inconsistencies and execution exceptions produce `error` / `success=null`;
-cancellation produces `aborted` / `success=null`; a motion timeout is `failure` with `truncated=true`. The host checks
+cancellation produces `aborted` / `success=null`; execution timeout/errors are not ordinary judged task failures. The host checks
 condition coverage and result consistency, and runs every test case twice to confirm determinism. Every condition
 needs a failure case that actually triggers it, and the independent review must supply its own positive and negative
 cases rather than repeating the author's claim of success.
@@ -49,8 +49,8 @@ cases rather than repeating the author's claim of success.
 The normalized requirements define what is judged. The original `api` / `program_contract` constrain the expert's
 execution interface; they are enforced by host auditing and isolated execution, and compliance must not be claimed
 from state alone. If a task explicitly lists such proof as a requirement, the corresponding evidence must be supplied;
-otherwise the task stays not ready. Existing stage-graph `judge_criterion` IDs must be preserved so that a renamed
-condition does not break upstream stage references.
+otherwise the task stays not ready. The current request-task/1 has no prescribed
+stage graph; every original requirement ID must remain covered.
 
 ## CLI
 
@@ -61,14 +61,22 @@ python -m datafarm.entry.judge_cli evaluate --bundle <frozen-dir> --freeze-sha25
 python -m datafarm.entry.judge_cli attach --bundle <frozen-dir> --freeze-sha256 <sha256> --adapter adapter.json --episode-relative episode.json --output new-adapter.json --public-task-output public-task.json
 ```
 
-`task.json` may be an existing instruction/demand, a Task IR payload, or a task dict containing requirements;
-`provided_thresholds` (or `thresholds`) maps id → {value, unit}. The scene is metadata supplied by the A line. The
-observation spec contains at least `capabilities` and `available_fields`, for example `states.q`. These are internal
-B-line build adapters and add no new A-line handoff fields.
+`task.json` is the request-derived `request-task/1` Task IR. The current
+`judge-build-input/1`, `task-contract/1` and `judge-freeze/1` directly carry
+source-bound full-scene semantics; there is no Judge /2 compatibility branch.
+The observations spec requires `profile=judge-episode/1`, exact `source_binding`,
+validated `public_task`, `capabilities` and `available_fields`. Evidence paths are
+JSON-encoded arrays such as `["states","entities","object.a","position_m"]`,
+not ambiguous dotted strings. See [Judge Episode contract](judge-episode-contract.md).
+Older /1 layouts are not silently converted. Keeping the name /1 does not
+preserve old frozen source hashes; build/review/freeze again with a new identity.
 
 The provider config accepts the same keys as the CaP Codex config (`work_root`, `executable`, `model`,
-`reasoning_effort`, `timeout_s`); unknown keys are rejected. The CLI has no gateway option: a loopback gateway can only
-be injected programmatically through `datafarm.entry.judge_cli.build_provider(config, gateway=...)`.
+`reasoning_effort`, `timeout_s`); the composition root additionally accepts an explicit `gateway` environment-name
+binding as documented in [FYP gateway](fyp-gateway.md). Unknown keys and embedded credentials are rejected. Existing
+programmatic injection through `datafarm.entry.judge_cli.build_provider(config, gateway=...)` remains available.
+Each configured author/reviewer uses a separate transport scope and CLI session; transport/source/model/config
+fingerprints enter the build identity, while private keys and endpoint strings do not enter task artifacts.
 
 Development case format: `{id, episode, expected_outcome, violates: [condition_id...]}`. Host cases must come from the
 development partition or be explicitly labelled synthetic counterexamples; hidden seeds and hidden trajectories must
@@ -82,7 +90,8 @@ The frozen directory holds `judge.py`, conditions, thresholds, the TaskContract,
 reports and both model execution receipts. The source SHA-256 is in `TaskContract.judge_ref`; other artifacts are
 linked through ArtifactRef. `freeze.json` reuses the existing `build_manifest` / `diff_manifests` to protect the
 content and the judge's code dependencies, including `kernel/`, `cap/io.py`, the Codex structured-call adapter,
-`expert/manifest.py` and its imports, and `entry/judge_cli.py`. Production use requires an external SHA-256 anchor;
+`expert/manifest.py` and its imports, `entry/judge_cli.py`, `entry/codex_gateway.py` and the FYP adapter. These
+additional dependencies apply to newly built bundles only; preserve old records and build a new version. Production use requires an external SHA-256 anchor;
 changing only the digest reported inside the bundle does not pass this check. Because the dependency set follows the
 current package layout, bundles frozen before this layout are not migrated; build them again in a new work directory.
 
@@ -103,7 +112,7 @@ task projection, never the full private contract. CaP search runs after the judg
 allowed only after the expert program is finally frozen. Any change to criteria, thresholds or protected dependencies
 requires a new task version and a new build directory; old records are kept.
 
-The public task projection keeps the requirements and `provided_thresholds` stated explicitly upstream, so the expert
+The public task projection keeps the goals, constraints and `parameters` stated explicitly upstream, so the expert
 can still read the task's target parameters; it never includes the private judge source, internal review records or
 hidden evaluation data.
 

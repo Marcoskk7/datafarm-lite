@@ -30,7 +30,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
-from datafarm.expert.adapter import TaskAdapter
+from datafarm.expert.adapter import TaskAdapter, validate_proot_rollout
 from datafarm.adapters.sandbox.isolation import PROBE_SCRIPT, job_wrapper_bash, make_empty_file
 from datafarm.expert.util import ConfigError, HarnessError, get_dotted
 from datafarm.kernel.io import read_json, sha256_bytes, sha256_text
@@ -205,18 +205,31 @@ def build_job_script(adapter: TaskAdapter, spec: AttemptSpec, *, masked: Sequenc
     writable = [str(spec.run_dir / d) for d in sim.get("writable_run_subdirs", ["native", "native_workdir"])]
     writable += adapter.shell_paths(iso.get("writable", []))
     mode = isolation_override or iso.get("mode", "bwrap")
+    if mode == 'proot':
+        validate_proot_rollout(adapter.raw)
+        if isolation_override not in (None, 'proot'):
+            raise ConfigError('PRoot rollout cannot override its boundary')
+    elif iso.get('mode') == 'proot':
+        raise ConfigError('PRoot rollout cannot downgrade its explicit boundary')
     fallback = None if isolation_override else iso.get("fallback")
     run_as = iso.get("run_as")
-    wrapper = job_wrapper_bash(mode=mode, fallback=fallback, base=iso.get("base", "root_ro"),
-                               dev=iso.get("dev", "host"),
-                               ro=[str(spec.run_dir), *adapter.shell_paths(iso.get("readable", []))],
-                               rw=writable,
-                               masked=list(masked),
-                               tmpfs=adapter.shell_paths(iso.get("tmpfs", [])),
-                               run_as=(run_as["uid"], run_as["gid"]) if run_as else None,
-                               share_net=bool(iso.get("share_net", True)),
-                               private_tmp=bool(iso.get("private_tmp", True)),
-                               keep_caps=tuple(iso.get("keep_caps", ())))
+    if mode == 'proot':
+        # The trusted scene host owns physics/Judge. Only its expert enters PRoot.
+        # No mask probe is claimed for this explicitly acknowledged weak boundary.
+        wrapper = """xh_pick_backend() { XH_BACKEND=proot; return 0; }
+xh_sandboxed() { local cwd="$1"; shift; (cd "$cwd" && "$@"); }
+"""
+    else:
+        wrapper = job_wrapper_bash(mode=mode, fallback=fallback, base=iso.get("base", "root_ro"),
+                                   dev=iso.get("dev", "host"),
+                                   ro=[str(spec.run_dir), *adapter.shell_paths(iso.get("readable", []))],
+                                   rw=writable,
+                                   masked=list(masked),
+                                   tmpfs=adapter.shell_paths(iso.get("tmpfs", [])),
+                                   run_as=(run_as["uid"], run_as["gid"]) if run_as else None,
+                                   share_net=bool(iso.get("share_net", True)),
+                                   private_tmp=bool(iso.get("private_tmp", True)),
+                                   keep_caps=tuple(iso.get("keep_caps", ())))
     probe_args = " ".join(_q("m:" + p) for p in masked)
     record = " ".join(_q(p) for p in adapter.shell_paths(cfg.get("record_digests", [])))
     judge_lines = []
@@ -272,15 +285,16 @@ def build_job_script(adapter: TaskAdapter, spec: AttemptSpec, *, masked: Sequenc
         wrapper,
         "XH_BACKEND=",
         "XH_J=()",
-        "ISO=ok; SIM_EXIT=null; SIM_WALL=null",
+        "ISO=ok; SECURITY_BOUNDARY=null; SIM_EXIT=null; SIM_WALL=null",
         "if ! xh_pick_backend; then ISO=unavailable; fi",
         'if [ "$ISO" = ok ] && [ "$XH_BACKEND" = none ]; then ISO=none; fi',
-        'if [ "$ISO" = ok ]; then',
+        'if [ "$ISO" = ok ] && [ "$XH_BACKEND" != proot ]; then',
         f"  xh_sandboxed \"$RUN_DIR\" /bin/sh -c {shlex.quote(PROBE_SCRIPT)} xh-probe {probe_args} "
         '> "$RUN_DIR/isolation-probe.txt" 2>&1',
         '  if grep -qE "^(LEAK|UMOUNTED) " "$RUN_DIR/isolation-probe.txt"; then ISO=failed; fi',
         "fi",
-        'if [ "$ISO" = ok ] || [ "$ISO" = none ]; then',
+        'if [ "$ISO" = ok ] && [ "$XH_BACKEND" = proot ]; then ISO=weak; SECURITY_BOUNDARY=false; fi',
+        'if [ "$ISO" = ok ] || [ "$ISO" = none ] || [ "$ISO" = weak ]; then',
         "  START=$(date +%s)",
         f"  xh_sandboxed {_q(sim_cwd)} timeout --kill-after=30 {timeout_s} "
         + " ".join(_q(a) for a in sim_argv) + f' > "$RUN_DIR/{log}" 2>&1',
@@ -295,8 +309,8 @@ def build_job_script(adapter: TaskAdapter, spec: AttemptSpec, *, masked: Sequenc
         'JUDGE=$(IFS=,; echo "${XH_J[*]}")',
         f'printf \'{{"schema": "{JOB_SCHEMA}", "attempt_id": "{spec.attempt_id}", "purpose": '
         f'"{spec.purpose}", "seed": {spec.seed}, "isolation": "%s", "isolation_backend": "%s", '
-        '"sim_exit": %s, "sim_wall_s": %s, "judge_exits": [%s], "host": "%s", "ended_at": "%s"}\\n\' '
-        '"$ISO" "$XH_BACKEND" "$SIM_EXIT" "$SIM_WALL" "$JUDGE" "$(hostname)" '
+        '"security_boundary": %s, "sim_exit": %s, "sim_wall_s": %s, "judge_exits": [%s], "host": "%s", "ended_at": "%s"}\\n\' '
+        '"$ISO" "$XH_BACKEND" "$SECURITY_BOUNDARY" "$SIM_EXIT" "$SIM_WALL" "$JUDGE" "$(hostname)" '
         '"$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RUN_DIR/.harness-job.json.tmp" && '
         'mv -f "$RUN_DIR/.harness-job.json.tmp" "$RUN_DIR/harness-job.json"',
         'if [ "$ISO" = unavailable ]; then exit 97; fi',
