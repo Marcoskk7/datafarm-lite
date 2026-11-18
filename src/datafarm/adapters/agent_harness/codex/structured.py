@@ -1,7 +1,7 @@
 """通用 Codex CLI 结构化调用：每次全新会话、schema 约束输出、调用前持久化凭据，不自动重发。
 
 调用方（CaP、Judge 等业务角色）负责输入白名单、系统提示与结果校验；本模块只负责可追溯地执行一次
-``codex exec``。可选 ``gateway`` 是部署或本地工具注入的回环 Responses 网关，主流程不内置任何特定网关。
+``codex exec``。可选 ``gateway`` 是部署或本地工具注入的回环 Responses 网关，正式 FYP 适配由 entry 组合层显式配置。
 """
 from __future__ import annotations
 
@@ -63,19 +63,20 @@ def _gateway_env(gateway: Any) -> dict[str, str]:
     """子进程只拿到网关的临时回环凭据；剥离代理与其他模型凭据。"""
     env = {k: v for k, v in os.environ.items()
            if k.lower() not in ('http_proxy', 'https_proxy', 'all_proxy')
-           and not (k.startswith(('OPENAI_', 'ANTHROPIC_', 'CODEX_')) and k != 'CODEX_HOME')}
+           and not (k.startswith(('OPENAI_', 'ANTHROPIC_', 'CODEX_', 'FYP_')) and k != 'CODEX_HOME')
+           and v != getattr(getattr(gateway, 'owner', None), '_key', None)}
     env.update(OPENAI_API_KEY=gateway.client_key, OPENAI_BASE_URL=gateway.base)
     return env
 
 
-def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], system: str,
+def _structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], system: str,
                     schema: Mapping[str, Any], validator: Callable[[Any, Any], Any],
                     role: str, output_tokens: int = 5000, source_digest: str | None = None,
-                    gateway: Any = None, with_folder: bool = False) -> Any:
+                    gateway: Any = None, with_folder: bool = False, transport_fingerprint: str | None = None) -> Any:
     """执行一次可复用、可追溯的结构化 Codex 调用。
 
     身份绑定请求、schema、系统提示、token 预算、配置和调用方/本模块源码；已完成结果经摘要核对后复用，
-    pending 或失败目录不会自动重发。``gateway`` 不参与身份，以便同一请求在不同网关下复用已完成结果；
+    pending 或失败目录不会自动重发。非秘密传输指纹纳入身份，禁止跨通道复用旧结果；
     若提供 ``max_output_tokens`` 属性，则按本次预算设置。``with_folder`` 为真时返回
     ``(结果, 调用目录)``，供需要绑定回执与事件流的调用方（如 Judge 冻结）使用。
     """
@@ -87,7 +88,7 @@ def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], sy
         raise ValueError(f'Provider context exceeds {MAX_CONTEXT_CHARS} characters; inspect smaller state evidence')
     sources = {'structured': sha256_json(Path(__file__).read_text(encoding='utf-8')), 'caller': source_digest}
     identity = sha256_json({'request': request, 'schema': schema, 'system': system, 'output_tokens': output_tokens,
-                            'config': config, 'provider_source': sources})
+                            'config': config, 'provider_source': sources, 'role': role, 'transport_fingerprint': transport_fingerprint})
     root = Path(config['work_root']).resolve()
     root.mkdir(parents=True, exist_ok=True)
     folder = root / identity
@@ -95,7 +96,7 @@ def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], sy
     if result.exists():
         saved = read_json(folder / 'receipt.json')
         value = read_json(result)
-        if saved.get('identity') != identity or saved.get('decision_sha256') != sha256_json(value):
+        if saved.get('status') != 'complete' or saved.get('identity') != identity or saved.get('decision_sha256') != sha256_json(value):
             raise ValueError('Changed provider receipt or decision')
         value = validator(value, request)
         return (value, folder) if with_folder else value
@@ -121,6 +122,7 @@ def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], sy
     receipt = dict(identity=identity, status='starting', role=role, output_token_budget=output_tokens,
                    request_sha256=sha256_json(request), prompt_sha256=sha256_json(prompt),
                    cost_usd=None, cost_status='unknown', usage=None, usage_events=[], sessions=[],
+                   transport_fingerprint=transport_fingerprint,
                    isolation='fresh CLI session; read-only sandbox; not same-user read isolation')
     _write_json(folder / 'receipt.json', receipt)
     timed_out = threading.Event()
@@ -185,6 +187,12 @@ def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], sy
         receipt['exit_code'] = code
         if timed_out.is_set() or code or receipt.get('event_error') or len(receipt['sessions']) != 1:
             raise RuntimeError('Codex failed or timed out; request identity retained')
+        if gateway is not None and hasattr(gateway, 'records'):
+            if callable(getattr(gateway, 'wait_finished', None)):
+                gateway.wait_finished()
+            records = deepcopy(gateway.records)
+            if not records or any(r.get('status') != 'complete' for r in records):
+                raise RuntimeError('CLI completion lacks completed upstream transport evidence')
         value = validator(read_json(folder / 'answer.json'), request)
         # 先提交回执：崩溃只会阻止复用，不会导致新的调用。
         receipt.update(status='complete', decision_sha256=sha256_json(value))
@@ -203,5 +211,29 @@ def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], sy
             receipt['transport'] = {'upstream_requests': getattr(gateway, 'calls', 0) - calls_before,
                                     'actual_model': getattr(gateway, 'upstream_model', None),
                                     'request_shape': getattr(gateway, 'request_shape', None),
-                                    'adaptation': 'injected loopback Responses gateway'}
+                                    'adaptation': 'injected loopback Responses gateway',
+                                    'records': deepcopy(getattr(gateway, 'records', []))}
             _write_json(folder / 'receipt.json', receipt)
+
+
+def structured_call(request: Mapping[str, Any], *, config: Mapping[str, Any], system: str,
+                    schema: Mapping[str, Any], validator: Callable[[Any, Any], Any],
+                    role: str, output_tokens: int = 5000, source_digest: str | None = None,
+                    gateway: Any = None, with_folder: bool = False) -> Any:
+    """Bind transport identity and serialize a fresh per-role gateway scope."""
+    config = validate_config(config)
+    fingerprint = getattr(gateway, 'fingerprint', None)
+    if gateway is not None and fingerprint is None:
+        # Legacy injected gateways remain supported, but cannot reuse across endpoints.
+        fingerprint = sha256_json({'base': gateway.base,
+                                   'class': type(gateway).__module__ + '.' + type(gateway).__qualname__})
+    args = dict(config=config, system=system, schema=schema, validator=validator, role=role,
+                output_tokens=output_tokens, source_digest=source_digest, with_folder=with_folder,
+                transport_fingerprint=fingerprint)
+    if gateway is not None and callable(getattr(gateway, 'scope', None)):
+        identity = sha256_json(dict(request=request, schema=schema, system=system,
+            output_tokens=output_tokens, config=config, source_digest=source_digest, role=role,
+            adapter_source=sha256_json(Path(__file__).read_text(encoding='utf-8')), transport=fingerprint))
+        with gateway.scope(output_tokens, identity) as scoped:
+            return _structured_call(request, gateway=scoped, **args)
+    return _structured_call(request, gateway=gateway, **args)

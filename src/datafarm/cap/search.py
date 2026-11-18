@@ -127,13 +127,9 @@ class SearchRunner:
     def execute(self, code, seeds, phase):
         result = checked_result(self.engine.evaluate(code,seeds,phase),seeds,phase)
         if self.config.observation_mode == 'privileged_state':
-            from .state_feedback import validate_state
+            from .state_feedback import validate_feedback
             for episode in result['episodes']:
-                state = episode.get('privileged_state', {})
-                if state.get('availability') == 'available':
-                    validate_state(state.get('initial'));validate_state(state.get('final'))
-                elif state != {'availability':'unavailable','reason':'expert_error_before_first_primitive'}:
-                    raise ValueError('Executor did not provide privileged state feedback')
+                validate_feedback(episode.get('privileged_state'))
         return result
 
     def run(self, task, directory, initial_program=None):

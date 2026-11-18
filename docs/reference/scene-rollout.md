@@ -75,12 +75,15 @@ expert returning normally. Task judgement stays unverified.
 
 This trusted in-process API is **not** a malicious-code sandbox. Python private
 attributes do not isolate untrusted experts; use the existing broker/OS boundary.
-PRoot is a separate opt-in path-translation runner and grants no production Judge
-secrecy/readonly guarantee or automatic sandbox bypass.
+PRoot is an explicit opt-in expert execution path through `scene_job`; it grants
+no Judge secrecy/readonly guarantee or automatic Codex sandbox bypass. The
+trusted host keeps scene/Judge out of IPC, verifies the live freeze before and
+after execution, and records `security_boundary=false`. See [scene harness](scene-harness.md).
 
-TaskContract/frozen-Judge binding and full Episode-to-Judge projection belong to
-the next Judge/Episode-contract feature. This entry rejects a supplied contract
-rather than claiming an unimplemented binding. No generic stage-graph executor,
+The recorder verifies an explicitly supplied source-bound Judge /1 contract
+before execution, keeps its ref in the Episode, and leaves judgement unverified.
+The separate Judge entry verifies the live frozen bundle and complete measured
+Episode projection before producing a receipt; it never rewrites the trace. No generic stage-graph executor,
 rendering, action replay verification, dataset export or training is added here.
 ## Local validation boundary
 
@@ -88,3 +91,10 @@ The public production functions were exercised with local software fixtures and
 the installed native Newton controller using synthetic articulation data. This
 is not live physics qualification. Full scene assets, contact correctness,
 physical task success, replay and rendering still require separate acceptance.
+
+## State and runtime identity
+
+Measured states use `datafarm.ir.episode_state`; observations use `robot.tcp`.
+Shared validator and sandbox package source hashes enter the recording source pin.
+Request-format bridging remains independent work and is not normalized here.
+A render-tool adaptation remains outstanding and is not evidence of action replay.

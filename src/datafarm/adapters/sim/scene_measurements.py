@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import math
 from datafarm.adapters.sim import isaac_scene
-from datafarm.expert.episode import UNITS, validate_state
+from datafarm.ir.episode_state import UNITS, validate_state
 
 
 def array(value):
@@ -77,7 +77,7 @@ class SceneMeasurements:
         value = {"control_step": step, "time_s": step*dt, "units": UNITS, "frame_id": "world",
                  "entities": entities, "robot": robot, "contacts": contact}
         try:
-            return validate_state(value, self.nodes, step, dt)
+            return validate_state(value, node_ids=self.nodes, step=step, dt=dt)
         except ValueError:
             if self.rejected_sink is not None:
                 self.rejected_sink(value)
@@ -88,9 +88,9 @@ class SceneMeasurements:
         from datafarm.simulation.robot_semantics import compose
         state = self.snapshot(step, dt)
         if frame_id == self.graph["robot"]["tcp"]["frame_id"]:
-            if "tcp_pose" not in state["robot"]:
+            if "tcp" not in state["robot"]:
                 raise ValueError("TCP observation unavailable")
-            return deepcopy(state["robot"]["tcp_pose"])
+            return deepcopy(state["robot"]["tcp"])
         frames = {f["frame_id"]: f for f in self.graph["frames"]}
         def resolve(name, seen):
             if name == "world":
