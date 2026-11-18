@@ -71,7 +71,6 @@ def render(args) -> int:
     render_spec.validate(spec_doc, graph)
     episode = store.load(ArtifactRef.from_dict(spec_doc['episode']))['payload']
     trace = episode['state_trace']
-    joint_names = episode['setup']['joint_names']
     package = Path(prepared['assets'][graph['robot']['asset_id']]['package'])
     runtime = store.load(ArtifactRef.from_dict(graph['runtime_profile']))
     profile = runtime['robot_profile']
@@ -128,7 +127,7 @@ def render(args) -> int:
             for index, step in enumerate(wanted):
                 state = trace[step]
                 if state.get('valid', True):
-                    player.write_state(state, joint_names)
+                    player.write_state(state, state['control_step'])
                     position_error, joint_error = player.readback_error()
                     worst['position_m'] = max(worst['position_m'], position_error)
                     worst['joint'] = max(worst['joint'], joint_error)
