@@ -13,7 +13,7 @@
       "status": "PASS"
     },
     {
-      "detail": "table_metal_stainless_a03 ok; fixture_cabinet_b01 ok; dishware_plastic_bigPlate_a01 ok",
+      "detail": "table_metal_stainless_a03 ok; cabinet_file_d04 ok; dishware_plastic_bigPlate_a01 ok",
       "evidence": {
         "assets": [
           {
@@ -26,13 +26,13 @@
             "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
           },
           {
-            "asset": "fixture_cabinet_b01",
-            "files": 46,
+            "asset": "cabinet_file_d04",
+            "files": 40,
             "license": "CC-BY-4.0",
             "ok": true,
-            "package_id": "simready.hf.nvidia.simready-assets.fixture_cabinet_b01.2026.10.09_230820079872",
-            "retrieved_at": "2026-11-15T09:03:16Z",
-            "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+            "package_id": "simready.hf.nvidia.simready-assets.cabinet_file_d04.2026.10.08_230905372596",
+            "retrieved_at": "2026-11-18T16:16:17Z",
+            "revision": "21b045a878e13d4ca922f0f8ebc2ff1e84bb06d4"
           },
           {
             "asset": "dishware_plastic_bigPlate_a01",
@@ -49,7 +49,7 @@
       "status": "PASS"
     },
     {
-      "detail": "revision 7879e0e50423; table_metal_stainless_a03 0j CC-BY-4.0; fixture_cabinet_b01 2j CC-BY-4.0; dishware_plastic_bigPlate_a01 0j CC-BY-4.0",
+      "detail": "revision 21b045a878e1; table_metal_stainless_a03 0j CC-BY-4.0; cabinet_file_d04 2j CC-BY-4.0; dishware_plastic_bigPlate_a01 0j CC-BY-4.0",
       "evidence": {
         "assets": [
           {
@@ -59,8 +59,8 @@
             "license": "CC-BY-4.0"
           },
           {
-            "asset": "fixture_cabinet_b01",
-            "collection": "props_endeavor_kitchen",
+            "asset": "cabinet_file_d04",
+            "collection": "props_hospital",
             "joints": 2,
             "license": "CC-BY-4.0"
           },
@@ -72,13 +72,13 @@
           }
         ],
         "endpoint": "https://hf-mirror.com",
-        "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+        "revision": "21b045a878e13d4ca922f0f8ebc2ff1e84bb06d4"
       },
       "gate": "index",
       "status": "PASS"
     },
     {
-      "detail": "object.cabinet_drawer=articulation, object.plate=rigid, object.table_stainless=kinematic, robot.airbot_g2_left=robot; records reload from store; 111 bundle files",
+      "detail": "object.cabinet_drawer=articulation, object.plate=rigid, object.table_stainless=kinematic, robot.airbot_g2_left=robot; records reload from store; 106 bundle files",
       "evidence": {
         "bodies": {
           "object.cabinet_drawer": "articulation",
@@ -88,24 +88,28 @@
         },
         "records": {
           "object.cabinet_drawer": {
-            "collision": false,
-            "joints": 2
+            "base_mount": null,
+            "joints": 2,
+            "support_z_m": null
           },
           "object.plate": {
-            "collision": false,
-            "joints": 0
+            "base_mount": null,
+            "joints": 0,
+            "support_z_m": null
           },
           "object.table_stainless": {
-            "collision": false,
-            "joints": 0
+            "base_mount": null,
+            "joints": 0,
+            "support_z_m": null
           },
           "robot.airbot_g2_left": {
-            "collision": true,
-            "joints": 9
+            "base_mount": "edge_clamp",
+            "joints": 9,
+            "support_z_m": -0.0049
           }
         },
         "robot": "robot.airbot_g2_left",
-        "spec_sha256": "4cf26c28b5c0bf30a18ead5da13a5c664f558aed9199a111625c6a185bb750be"
+        "spec_sha256": "f1123a2164b450388db45bb78eb79a483ad22b48da7aec7907c24338d47504f0"
       },
       "gate": "prepare",
       "status": "PASS"
@@ -116,55 +120,72 @@
         "base_pose": {
           "frame_id": "world",
           "position_m": [
-            0.84,
-            -0.1,
-            0.97835
+            0.78831,
+            -0.2,
+            0.87525
           ],
           "quaternion_xyzw": [
             0.0,
             0.0,
-            0.0,
-            1.0
+            -1.0,
+            0.0
           ]
         },
         "footprint": {
+          "edge_clamp": {
+            "robot.airbot": {
+              "edge": "+x",
+              "overhang_m": 0.01225
+            }
+          },
+          "joint_sweep": {
+            "checked": [
+              {
+                "joint": "joint_drawer_01_joint_01",
+                "node": "object.cabinet",
+                "travel_m": 0.268
+              }
+            ],
+            "ok": true,
+            "skipped": []
+          },
           "ok": true,
           "problems": [],
           "xy_corners_m": {
             "object.cabinet": [
               [
-                0.9139,
-                0.5594
+                1.1521,
+                -0.3605
               ],
               [
-                0.9139,
-                -0.128
+                0.7705,
+                -0.3605
               ],
               [
-                1.6861,
-                -0.128
+                0.7705,
+                -0.8995
               ],
               [
-                1.6861,
-                0.5594
+                1.1521,
+                -0.8995
               ]
             ],
             "object.plate": [
               [
-                0.433,
-                -0.2895
+                0.513,
+                -0.1895
               ],
               [
-                0.607,
-                -0.2895
+                0.687,
+                -0.1895
               ],
               [
-                0.607,
-                -0.1105
+                0.687,
+                -0.0105
               ],
               [
-                0.433,
-                -0.1105
+                0.513,
+                -0.0105
               ]
             ],
             "object.table": [
@@ -187,112 +208,112 @@
             ],
             "robot.airbot": [
               [
-                0.7068,
-                -0.2385
+                0.9216,
+                -0.0615
               ],
               [
-                0.8962,
-                -0.2385
+                0.7321,
+                -0.0615
               ],
               [
-                0.8962,
-                0.0385
+                0.7321,
+                -0.3385
               ],
               [
-                0.7068,
-                0.0385
+                0.9216,
+                -0.3385
               ]
             ]
           }
         },
         "targets": [
           {
-            "iterations": 11,
+            "iterations": 13,
             "name": "plate_center_above",
             "ok": true,
-            "position_error_m": 9.9e-05,
+            "position_error_m": 7e-05,
             "q": [
-              -2.839032,
-              -1.473399,
-              0.999773,
-              -1.57074,
-              1.097152,
-              1.873313
+              -0.488289,
+              -0.90096,
+              0.79814,
+              -1.570795,
+              1.467961,
+              1.082511
             ],
-            "rotation_error_rad": 6e-05,
-            "seed_index": 4,
+            "rotation_error_rad": 1.5e-05,
+            "seed_index": 0,
             "world_m": [
-              0.52,
-              -0.2,
+              0.6,
+              -0.1,
               0.97095
             ],
             "yaw_rad": 0.0,
             "yaw_samples_tried": 1
           },
           {
-            "iterations": 10,
+            "iterations": 14,
             "name": "plate_rim_near",
             "ok": true,
-            "position_error_m": 0.00079,
+            "position_error_m": 0.000762,
             "q": [
-              -2.644869,
-              -1.729969,
-              1.043496,
-              -1.567121,
-              0.88379,
-              2.064802
+              -0.133963,
+              -0.885975,
+              0.500551,
+              -1.570829,
+              1.185347,
+              1.436581
             ],
-            "rotation_error_rad": 0.002921,
-            "seed_index": 4,
+            "rotation_error_rad": 0.000275,
+            "seed_index": 0,
             "world_m": [
-              0.52,
-              -0.275,
+              0.6,
+              -0.175,
               0.89095
             ],
             "yaw_rad": 0.0,
             "yaw_samples_tried": 1
           },
           {
-            "iterations": 10,
+            "iterations": 12,
             "name": "plate_rim_far",
             "ok": true,
-            "position_error_m": 0.000373,
+            "position_error_m": 8.4e-05,
             "q": [
-              -3.064698,
-              -1.606321,
-              0.847251,
-              -1.570302,
-              0.811706,
-              1.647212
+              -0.748825,
+              -1.158227,
+              0.730199,
+              -1.570799,
+              1.142742,
+              0.821977
             ],
-            "rotation_error_rad": 0.000391,
-            "seed_index": 4,
+            "rotation_error_rad": 2.4e-05,
+            "seed_index": 0,
             "world_m": [
-              0.52,
-              -0.125,
+              0.6,
+              -0.025,
               0.89095
             ],
             "yaw_rad": 0.0,
             "yaw_samples_tried": 1
           },
           {
-            "iterations": 11,
+            "iterations": 13,
             "name": "plate_rim_left",
             "ok": true,
-            "position_error_m": 0.000189,
+            "position_error_m": 0.000116,
             "q": [
-              -2.89415,
-              -1.857723,
-              1.254927,
-              -1.570516,
-              0.967889,
-              1.817973
+              -0.362939,
+              -1.248432,
+              0.822123,
+              -1.570802,
+              1.144452,
+              1.207864
             ],
-            "rotation_error_rad": 0.000283,
-            "seed_index": 4,
+            "rotation_error_rad": 3.4e-05,
+            "seed_index": 0,
             "world_m": [
-              0.445,
-              -0.2,
+              0.525,
+              -0.1,
               0.89095
             ],
             "yaw_rad": 0.0,
@@ -302,67 +323,67 @@
             "iterations": 20,
             "name": "drawer_center_release",
             "ok": true,
-            "position_error_m": 0.00029,
+            "position_error_m": 0.000437,
             "q": [
-              -0.214126,
-              -2.199069,
-              1.608476,
-              -1.570783,
-              0.980116,
-              -1.784924
+              1.282079,
+              -2.520307,
+              1.642821,
+              1.570793,
+              -0.693194,
+              -0.288712
             ],
-            "rotation_error_rad": 8.9e-05,
+            "rotation_error_rad": 0.000119,
             "seed_index": 0,
             "world_m": [
-              1.3,
-              -0.2,
-              0.82537
+              0.6606,
+              -0.63,
+              0.58082
             ],
             "yaw_rad": 0.0,
             "yaw_samples_tried": 1
           },
           {
-            "iterations": 19,
+            "iterations": 18,
             "name": "drawer_center_above",
             "ok": true,
-            "position_error_m": 0.000113,
+            "position_error_m": 0.000427,
             "q": [
-              -0.21414,
-              -2.059663,
-              1.625512,
-              -1.570768,
-              1.136617,
-              -1.784973
+              1.282056,
+              -2.298006,
+              1.515338,
+              1.570794,
+              -0.788007,
+              -0.28873
             ],
-            "rotation_error_rad": 4.7e-05,
+            "rotation_error_rad": 0.000125,
             "seed_index": 0,
             "world_m": [
-              1.3,
-              -0.2,
-              0.89537
+              0.6606,
+              -0.63,
+              0.65582
             ],
             "yaw_rad": 0.0,
             "yaw_samples_tried": 1
           },
           {
-            "iterations": 21,
+            "iterations": 20,
             "name": "drawer_front_release",
             "ok": true,
-            "position_error_m": 0.000311,
+            "position_error_m": 0.000571,
             "q": [
-              -0.437258,
-              -2.339267,
-              1.881985,
-              -1.570782,
-              1.113432,
-              -2.008056
+              1.198907,
+              -2.555859,
+              1.727716,
+              1.570792,
+              -0.742503,
+              -0.371883
             ],
-            "rotation_error_rad": 8.4e-05,
+            "rotation_error_rad": 0.000154,
             "seed_index": 0,
             "world_m": [
-              1.3,
-              -0.315,
-              0.82537
+              0.6206,
+              -0.63,
+              0.58082
             ],
             "yaw_rad": 0.0,
             "yaw_samples_tried": 1
@@ -371,21 +392,21 @@
             "iterations": 20,
             "name": "drawer_back_release",
             "ok": true,
-            "position_error_m": 0.000226,
+            "position_error_m": 0.000459,
             "q": [
-              0.032595,
-              -2.164779,
-              1.541483,
-              -1.570792,
-              0.947433,
-              -1.538197
+              1.391963,
+              -2.490903,
+              1.570862,
+              1.570795,
+              -0.650632,
+              -0.178823
             ],
-            "rotation_error_rad": 6.7e-05,
+            "rotation_error_rad": 0.000128,
             "seed_index": 0,
             "world_m": [
-              1.3,
-              -0.085,
-              0.82537
+              0.7106,
+              -0.63,
+              0.58082
             ],
             "yaw_rad": 0.0,
             "yaw_samples_tried": 1
@@ -394,44 +415,44 @@
             "iterations": 19,
             "name": "drawer_side_near_release",
             "ok": true,
-            "position_error_m": 0.000508,
+            "position_error_m": 0.000561,
             "q": [
-              -0.246059,
-              -2.022886,
-              1.26611,
-              -1.569949,
-              0.812794,
-              -1.818148
+              1.246228,
+              -2.413258,
+              1.36913,
+              1.570698,
+              -0.526459,
+              -0.324406
             ],
-            "rotation_error_rad": 0.001547,
+            "rotation_error_rad": 0.00023,
             "seed_index": 0,
             "world_m": [
-              1.24,
-              -0.2,
-              0.82537
+              0.6606,
+              -0.58,
+              0.58082
             ],
             "yaw_rad": 0.0,
             "yaw_samples_tried": 1
           },
           {
-            "iterations": 22,
+            "iterations": 21,
             "name": "drawer_side_far_release",
             "ok": true,
-            "position_error_m": 0.000449,
+            "position_error_m": 0.000933,
             "q": [
-              -0.189996,
-              -2.444892,
-              2.087671,
-              -1.57079,
-              1.213453,
-              -1.760787
+              1.310752,
+              -2.676648,
+              2.001464,
+              1.570793,
+              -0.895376,
+              -0.260042
             ],
-            "rotation_error_rad": 0.000122,
+            "rotation_error_rad": 0.000241,
             "seed_index": 0,
             "world_m": [
-              1.36,
-              -0.2,
-              0.82537
+              0.6606,
+              -0.68,
+              0.58082
             ],
             "yaw_rad": 0.0,
             "yaw_samples_tried": 1
@@ -442,90 +463,126 @@
       "status": "PASS"
     },
     {
-      "detail": "drift 0.001037 m, penetration 4.7e-05 m, probes ok",
+      "detail": "drift 0.001109 m, penetration 0.00018 m, probes ok",
       "evidence": {
         "initial_joint_state": {
           "object.cabinet": [
-            0.4,
+            0.268,
             0.0
           ]
         },
         "penetration": {
-          "contact_count": 69,
+          "contact_count": 53,
           "initial": {
-            "contact_count": 57,
+            "contact_count": 44,
             "max_depth_m": 0.0,
             "ok": true,
             "pairs": {
               "None | object.table": {
+                "a": null,
+                "b": "object.table",
                 "bodies": [
                   "sm_table_metal_stainless_a03_obj_00",
                   "world"
                 ],
+                "body_a": "world",
+                "body_b": "sm_table_metal_stainless_a03_obj_00",
                 "depth_m": -0.001
               },
               "object.cabinet | object.table": {
+                "a": "object.table",
+                "b": "object.cabinet",
                 "bodies": [
                   "body_01_obj_00",
                   "sm_table_metal_stainless_a03_obj_00"
                 ],
-                "depth_m": -0.004587
+                "body_a": "sm_table_metal_stainless_a03_obj_00",
+                "body_b": "body_01_obj_00",
+                "depth_m": -0.004346
               },
               "object.plate | object.table": {
+                "a": "object.table",
+                "b": "object.plate",
                 "bodies": [
                   "body_01_obj_00",
                   "sm_table_metal_stainless_a03_obj_00"
                 ],
-                "depth_m": -0.001002
+                "body_a": "sm_table_metal_stainless_a03_obj_00",
+                "body_b": "body_01_obj_00",
+                "depth_m": -0.001009
               },
               "object.table | robot.airbot": {
+                "a": "object.table",
+                "b": "robot.airbot",
                 "bodies": [
                   "left_base_link",
                   "sm_table_metal_stainless_a03_obj_00"
                 ],
-                "depth_m": -0.00101
+                "body_a": "sm_table_metal_stainless_a03_obj_00",
+                "body_b": "left_base_link",
+                "depth_m": -0.00591
               }
             },
             "ran": true,
             "tolerance_m": 0.003
           },
-          "max_depth_m": 4.7e-05,
+          "max_depth_m": 0.00018,
           "ok": true,
           "pairs": {
             "None | object.cabinet": {
+              "a": null,
+              "b": "object.cabinet",
               "bodies": [
                 "body_01_obj_00",
                 "world"
               ],
-              "depth_m": -0.000303
+              "body_a": "world",
+              "body_b": "body_01_obj_00",
+              "depth_m": -0.000998
             },
             "None | object.table": {
+              "a": null,
+              "b": "object.table",
               "bodies": [
                 "sm_table_metal_stainless_a03_obj_00",
                 "world"
               ],
+              "body_a": "world",
+              "body_b": "sm_table_metal_stainless_a03_obj_00",
               "depth_m": -0.001
             },
             "object.cabinet | object.table": {
+              "a": "object.table",
+              "b": "object.cabinet",
               "bodies": [
                 "body_01_obj_00",
                 "sm_table_metal_stainless_a03_obj_00"
               ],
-              "depth_m": -0.004587
+              "body_a": "sm_table_metal_stainless_a03_obj_00",
+              "body_b": "body_01_obj_00",
+              "depth_m": -0.004346
             },
             "object.plate | object.table": {
+              "a": "object.table",
+              "b": "object.plate",
               "bodies": [
                 "body_01_obj_00",
                 "sm_table_metal_stainless_a03_obj_00"
               ],
-              "depth_m": 4.7e-05
+              "body_a": "sm_table_metal_stainless_a03_obj_00",
+              "body_b": "body_01_obj_00",
+              "depth_m": 0.00018
             },
             "object.table | robot.airbot": {
+              "a": "object.table",
+              "b": "robot.airbot",
               "bodies": [
                 "left_base_link",
                 "sm_table_metal_stainless_a03_obj_00"
               ],
-              "depth_m": -0.00101
+              "body_a": "sm_table_metal_stainless_a03_obj_00",
+              "body_b": "left_base_link",
+              "depth_m": -0.00591
             }
           },
           "ran": true,
@@ -533,23 +590,23 @@
         },
         "probes": [
           {
-            "end_speed_mps": 0.000531,
+            "end_speed_mps": 0.001427,
             "expected_rest_z_m": [
-              0.74,
-              0.8
+              0.45,
+              0.52
             ],
             "name": "plate_in_drawer",
             "node": "object.plate",
             "ok": true,
             "released_at_m": [
-              1.3,
-              -0.2,
-              0.80537
+              0.6606,
+              -0.63,
+              0.62582
             ],
             "rest_m": [
-              1.300068,
-              -0.200124,
-              0.759293
+              0.659296,
+              -0.629684,
+              0.472346
             ],
             "support_node": "object.cabinet",
             "touching": [
@@ -558,47 +615,149 @@
           }
         ],
         "settle": {
-          "max_drift_m": 0.001037,
-          "max_end_speed_mps": 0.000674,
-          "max_joint_drift": 0.0,
+          "max_drift_m": 0.001109,
+          "max_end_speed_mps": 0.001506,
+          "max_joint_drift": 0.012745,
+          "max_passive_joint_drift": 0.0,
+          "measured_joint_state": {
+            "object.cabinet": {
+              "joint_drawer_01_joint_01": 0.268,
+              "joint_drawer_02_joint_00": 0.0
+            },
+            "robot.airbot": {
+              "left_g2_joint": 0.0,
+              "left_g2_left_joint": 0.0,
+              "left_g2_right_joint": 0.0,
+              "left_joint1": 0.0,
+              "left_joint2": 0.000879,
+              "left_joint3": -0.012745,
+              "left_joint4": -2e-06,
+              "left_joint5": -0.0,
+              "left_joint6": -1e-06
+            }
+          },
+          "new_contacts": {
+            "None | object.cabinet": {
+              "a": null,
+              "b": "object.cabinet",
+              "bodies": [
+                "body_01_obj_00",
+                "world"
+              ],
+              "body_a": "world",
+              "body_b": "body_01_obj_00",
+              "depth_m": -0.000998
+            }
+          },
           "nodes": {
             "object.cabinet": {
               "drift_m": 0.0,
               "end_m": [
-                1.3,
-                0.215,
-                0.00537
+                0.96,
+                -0.63,
+                0.00582
+              ],
+              "joint_checks": [
+                {
+                  "actuated": false,
+                  "declared": 0.268,
+                  "drift_m": 0.0,
+                  "limits": [
+                    -0.001,
+                    0.268579
+                  ],
+                  "measured": 0.268,
+                  "moved": false,
+                  "name": "joint_drawer_01_joint_01",
+                  "new_contacts": {
+                    "None | object.cabinet": {
+                      "a": null,
+                      "b": "object.cabinet",
+                      "bodies": [
+                        "body_01_obj_00",
+                        "world"
+                      ],
+                      "body_a": "world",
+                      "body_b": "body_01_obj_00",
+                      "depth_m": -0.000998
+                    }
+                  },
+                  "ok": true,
+                  "start": 0.268,
+                  "within_limits": true
+                },
+                {
+                  "actuated": false,
+                  "declared": 0.0,
+                  "drift_m": 0.0,
+                  "limits": [
+                    -0.001,
+                    0.270346
+                  ],
+                  "measured": 0.0,
+                  "moved": false,
+                  "name": "joint_drawer_02_joint_00",
+                  "new_contacts": {
+                    "None | object.cabinet": {
+                      "a": null,
+                      "b": "object.cabinet",
+                      "bodies": [
+                        "body_01_obj_00",
+                        "world"
+                      ],
+                      "body_a": "world",
+                      "body_b": "body_01_obj_00",
+                      "depth_m": -0.000998
+                    }
+                  },
+                  "ok": true,
+                  "start": 0.0,
+                  "within_limits": true
+                }
               ],
               "joint_drift": 0.0,
               "joint_end": [
-                0.4,
+                0.268,
                 0.0
               ],
               "joint_names": [
-                "joint_part_01_joint_00",
-                "joint_part_02_joint_00"
+                "joint_drawer_01_joint_01",
+                "joint_drawer_02_joint_00"
               ],
               "joint_start": [
-                0.4,
+                0.268,
                 0.0
               ],
+              "new_contacts": {
+                "None | object.cabinet": {
+                  "a": null,
+                  "b": "object.cabinet",
+                  "bodies": [
+                    "body_01_obj_00",
+                    "world"
+                  ],
+                  "body_a": "world",
+                  "body_b": "body_01_obj_00",
+                  "depth_m": -0.000998
+                }
+              },
               "start_m": [
-                1.3,
-                0.215,
-                0.00537
+                0.96,
+                -0.63,
+                0.00582
               ]
             },
             "object.plate": {
-              "drift_m": 0.001037,
+              "drift_m": 0.001109,
               "end_m": [
-                0.51999,
-                -0.200008,
-                0.870001
+                0.599995,
+                -0.099992,
+                0.869929
               ],
-              "end_speed_mps": 0.000674,
+              "end_speed_mps": 0.001506,
               "start_m": [
-                0.52,
-                -0.2,
+                0.6,
+                -0.1,
                 0.871038
               ]
             },
@@ -616,6 +775,98 @@
               ]
             },
             "robot.airbot": {
+              "joint_checks": [
+                {
+                  "actuated": true,
+                  "declared": null,
+                  "drift_m": 0.0,
+                  "measured": 0.0,
+                  "name": "left_joint1",
+                  "ok": true,
+                  "start": 0.0,
+                  "tolerance_m": 0.02
+                },
+                {
+                  "actuated": true,
+                  "declared": null,
+                  "drift_m": 0.000879,
+                  "measured": 0.000879,
+                  "name": "left_joint2",
+                  "ok": true,
+                  "start": 0.0,
+                  "tolerance_m": 0.02
+                },
+                {
+                  "actuated": true,
+                  "declared": null,
+                  "drift_m": 0.012745,
+                  "measured": -0.012745,
+                  "name": "left_joint3",
+                  "ok": true,
+                  "start": 0.0,
+                  "tolerance_m": 0.02
+                },
+                {
+                  "actuated": true,
+                  "declared": null,
+                  "drift_m": 2e-06,
+                  "measured": -2e-06,
+                  "name": "left_joint4",
+                  "ok": true,
+                  "start": 0.0,
+                  "tolerance_m": 0.02
+                },
+                {
+                  "actuated": true,
+                  "declared": null,
+                  "drift_m": 0.0,
+                  "measured": -0.0,
+                  "name": "left_joint5",
+                  "ok": true,
+                  "start": 0.0,
+                  "tolerance_m": 0.02
+                },
+                {
+                  "actuated": true,
+                  "declared": null,
+                  "drift_m": 1e-06,
+                  "measured": -1e-06,
+                  "name": "left_joint6",
+                  "ok": true,
+                  "start": 0.0,
+                  "tolerance_m": 0.02
+                },
+                {
+                  "actuated": true,
+                  "declared": null,
+                  "drift_m": 0.0,
+                  "measured": 0.0,
+                  "name": "left_g2_joint",
+                  "ok": true,
+                  "start": 0.0,
+                  "tolerance_m": 0.02
+                },
+                {
+                  "actuated": true,
+                  "declared": null,
+                  "drift_m": 0.0,
+                  "measured": 0.0,
+                  "name": "left_g2_left_joint",
+                  "ok": true,
+                  "start": 0.0,
+                  "tolerance_m": 0.02
+                },
+                {
+                  "actuated": true,
+                  "declared": null,
+                  "drift_m": 0.0,
+                  "measured": 0.0,
+                  "name": "left_g2_right_joint",
+                  "ok": true,
+                  "start": 0.0,
+                  "tolerance_m": 0.02
+                }
+              ],
               "joint_drift": 0.012745,
               "joint_end": [
                 0.0,
@@ -649,18 +900,19 @@
                 0.0,
                 0.0,
                 0.0
-              ]
+              ],
+              "new_contacts": {}
             }
           },
           "physics_dt_s": 0.008333333333333333,
           "ran": true,
-          "robot_joint_drift_rad": 0.012745,
           "seconds": 2.0,
           "stable": true,
           "steps": 240,
           "tolerances": {
             "drift_m": 0.005,
-            "joint": 0.005,
+            "joint_active": 0.02,
+            "joint_passive": 0.005,
             "speed_mps": 0.01
           }
         }
@@ -673,7 +925,7 @@
       "evidence": {
         "checks": {
           "penetration": {
-            "max_depth_m": 4.7e-05,
+            "max_depth_m": 0.00018,
             "ok": true,
             "ran": true
           },
@@ -683,19 +935,19 @@
             "ok": true
           },
           "settle": {
-            "max_drift_m": 0.001037,
+            "max_drift_m": 0.001109,
             "ran": true,
             "stable": true,
             "steps": 240
           }
         },
-        "sha256": "04ce05182d6de6adc79a86d89336256c3811bc102b6f799ebd0af46a17427c5f"
+        "sha256": "760c5f2284625309bd06a588e46232789ec98e510b3307d5ea3d9e99265af3c1"
       },
       "gate": "graph",
       "status": "PASS"
     },
     {
-      "detail": "table_metal_stainless_a03 ok; fixture_cabinet_b01 ok; dishware_plastic_bigPlate_a01 ok",
+      "detail": "table_metal_stainless_a03 ok; cabinet_file_d04 ok; dishware_plastic_bigPlate_a01 ok",
       "evidence": {
         "assets": [
           {
@@ -708,13 +960,13 @@
             "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
           },
           {
-            "asset": "fixture_cabinet_b01",
-            "files": 46,
+            "asset": "cabinet_file_d04",
+            "files": 40,
             "license": "CC-BY-4.0",
             "ok": true,
-            "package_id": "simready.hf.nvidia.simready-assets.fixture_cabinet_b01.2026.10.09_230820079872",
-            "retrieved_at": "2026-11-15T09:03:16Z",
-            "revision": "7879e0e50423290300ac20ecd6e727325f680b60"
+            "package_id": "simready.hf.nvidia.simready-assets.cabinet_file_d04.2026.10.08_230905372596",
+            "retrieved_at": "2026-11-18T16:16:17Z",
+            "revision": "21b045a878e13d4ca922f0f8ebc2ff1e84bb06d4"
           },
           {
             "asset": "dishware_plastic_bigPlate_a01",
@@ -731,16 +983,16 @@
       "status": "PASS"
     },
     {
-      "detail": "/opt/data/private/isaaclab/datafarm-lite/.venv/bin/python: 6s; ..................                                                       [100%] | 18 passed in 5.42s",
+      "detail": "--skip-tests",
       "evidence": {},
       "gate": "tests",
-      "status": "PASS"
+      "status": "SKIP"
     }
   ],
   "offline": false,
   "passed": true,
   "schema": "datafarm.a-line-verification/1",
   "spec": "examples/scene/plate-drawer-airbot.json",
-  "spec_sha256": "4cf26c28b5c0bf30a18ead5da13a5c664f558aed9199a111625c6a185bb750be",
-  "work": "/opt/data/private/isaaclab/a-scene/work-verify"
+  "spec_sha256": "f1123a2164b450388db45bb78eb79a483ad22b48da7aec7907c24338d47504f0",
+  "work": "/opt/data/private/isaaclab/a-scene/work-verify-mounts"
 }

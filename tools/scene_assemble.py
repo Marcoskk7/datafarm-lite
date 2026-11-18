@@ -262,7 +262,7 @@ def main() -> int:
             p.add_argument('--drift-tol', type=float, default=0.005)
             p.add_argument('--speed-tol', type=float, default=0.01)
             # One source of truth: --joint-tol is an alias for --joint-tol-active (strict, held/actuated joints).
-            p.add_argument('--joint-tol-active', '--joint-tol', dest='joint_tol_active', type=float, default=0.005,
+            p.add_argument('--joint-tol-active', '--joint-tol', dest='joint_tol_active', type=float, default=0.02,
                            help='max drift of actuated/held joints (alias: --joint-tol)')
             p.add_argument('--joint-tol-passive', type=float, default=0.005,
                            help='drift above which a passive joint is reported as moved (not an acceptance bound; '

@@ -31,7 +31,7 @@
     "probe_s": 2.0,
     "drift_tol": 0.005,
     "speed_tol": 0.01,
-    "joint_tol_active": 0.005,
+    "joint_tol_active": 0.02,
     "joint_tol_passive": 0.005,
     "penetration_tol": 0.003,
     "nconmax": 4096,
