@@ -9,7 +9,8 @@ from datafarm.kernel.io import is_finite_number
 
 SCHEMA = "datafarm.scene-graph/1"
 CONTROL_HZ = 120
-SEMANTIC_TAGS = ("table", "drawer", "plate", "background", "robot")
+# 唯一保留的 semantic_tag；其余是任意小写类别标识符，渲染按它分组材质。
+ROBOT_TAG = "robot"
 BACKEND = {"name": "isaaclab", "version": "3.0.0", "physics": "newton_mjwarp"}
 REQUIRED = ("schema", "scene_id", "units", "frame", "asset_bundle", "assets", "nodes", "frames", "cameras",
             "robot", "collision_groups", "physics_parameter_ledger", "runtime_profile", "backend", "checks")
@@ -77,7 +78,7 @@ def validate(document: Any) -> None:
         check(node_id not in node_parents and node_id not in frame_parents, f"duplicate node/frame id {node_id!r}")
         node_parents[node_id] = node.get("parent")
         check(node["asset_id"] in asset_ids, f"{where}.asset_id {node['asset_id']!r} is not in assets")
-        check(node["semantic_tag"] in SEMANTIC_TAGS, f"{where}.semantic_tag must be one of {list(SEMANTIC_TAGS)}")
+        identifier(node["semantic_tag"], f"{where}.semantic_tag")
         pose(node["pose"], f"{where}.pose")
         joint_state = node.get("joint_state", {})
         check(isinstance(joint_state, Mapping) and all(is_finite_number(v) for v in joint_state.values()),
@@ -118,11 +119,15 @@ def validate(document: Any) -> None:
     pose(tcp["T_link_tcp"], "robot.tcp.T_link_tcp")
     check(tcp["T_link_tcp"]["frame_id"] == tcp["link"], "robot.tcp.T_link_tcp.frame_id must equal robot.tcp.link")
     _reachability(robot["reachability"], "robot.reachability")
+    for node in nodes:
+        check(node["semantic_tag"] != ROBOT_TAG or node["asset_id"] == robot["asset_id"],
+              f"node {node['node_id']!r}: only the robot asset may use semantic_tag {ROBOT_TAG!r}")
+    robot_nodes = {n["node_id"] for n in nodes if n["semantic_tag"] == ROBOT_TAG}
+    check(robot_nodes, f"scene graph needs a node with semantic_tag {ROBOT_TAG!r} for robot.asset_id")
 
     cameras = document["cameras"]
     check(isinstance(cameras, list), "cameras must be a list")
     camera_ids = set()
-    robot_nodes = {n["node_id"] for n in nodes if n["semantic_tag"] == "robot" and n["asset_id"] == robot["asset_id"]}
     for index, camera in enumerate(cameras):
         where = f"cameras[{index}]"
         check(isinstance(camera, Mapping), f"{where} must be an object")

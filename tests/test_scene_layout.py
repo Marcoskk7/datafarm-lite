@@ -274,18 +274,22 @@ class LayoutTests(unittest.TestCase):
         with self.assertRaisesRegex(IRError, "no TCP candidate"):
             layout.model_tcp(self.descriptor, "l3")
 
-    def test_scene_graph_validates_and_rejects_inconsistent_checks(self):
+    def graph_from_spec(self):
         nodes = layout.resolve_nodes(SPEC, self.records)
         reach = layout.reachability(SPEC, nodes, self.records, self.descriptor)
         refs = {k: ref("ir.asset-record", c).to_dict() for k, c in zip(self.records, "abc")}
         refs["robot.toy"] = ref("ir.asset-record", "d").to_dict()
-        kwargs = dict(spec=SPEC, nodes=nodes, records=self.records, record_refs=refs, descriptor=self.descriptor,
-                      asset_bundle=ref("scene.asset-bundle", "e").to_dict(),
-                      ledger=ref("ir.physics-ledger", "f").to_dict(),
-                      runtime_profile=ref("sim.runtime-profile", "0").to_dict(), reach=reach,
-                      settle={"ran": True, "steps": 240, "max_drift_m": 0.0004, "stable": True},
-                      penetration={"ran": True, "max_depth_m": 0.0, "ok": True})
-        graph = layout.build_scene_graph(**kwargs)
+        graph = layout.build_scene_graph(
+            spec=SPEC, nodes=nodes, records=self.records, record_refs=refs, descriptor=self.descriptor,
+            asset_bundle=ref("scene.asset-bundle", "e").to_dict(),
+            ledger=ref("ir.physics-ledger", "f").to_dict(),
+            runtime_profile=ref("sim.runtime-profile", "0").to_dict(), reach=reach,
+            settle={"ran": True, "steps": 240, "max_drift_m": 0.0004, "stable": True},
+            penetration={"ran": True, "max_depth_m": 0.0, "ok": True})
+        return graph, reach
+
+    def test_scene_graph_validates_and_rejects_inconsistent_checks(self):
+        graph, reach = self.graph_from_spec()
         self.assertEqual(graph["robot"]["controlled_joints"], ["j1", "j2", "j3", "j4", "j5", "j6"])
         self.assertEqual(graph["robot"]["tcp"]["T_link_tcp"]["frame_id"], "end_link")
         self.assertEqual(graph["nodes"][0]["pose"], graph["robot"]["base_pose"])
@@ -297,6 +301,29 @@ class LayoutTests(unittest.TestCase):
         broken["checks"]["reachability"] = {**broken["checks"]["reachability"], "ok": not reach["ok"]}
         with self.assertRaisesRegex(IRError, "must equal robot.reachability"):
             scene_graph.validate(broken)
+
+    def test_semantic_tag_is_a_validated_identifier_and_robot_is_reserved(self):
+        graph, _ = self.graph_from_spec()
+        tagged = deepcopy(graph)
+        tagged["nodes"][1]["semantic_tag"] = "block"
+        scene_graph.validate(tagged)
+        for bad in ("Block", "hello world", ""):
+            broken = deepcopy(graph)
+            broken["nodes"][1]["semantic_tag"] = bad
+            with self.assertRaisesRegex(IRError, "semantic_tag must match"):
+                scene_graph.validate(broken)
+        leaked = deepcopy(graph)
+        leaked["nodes"][1]["semantic_tag"] = "/World/env_0/x"
+        with self.assertRaisesRegex(IRError, "absolute filesystem path"):
+            scene_graph.validate(leaked)
+        reserved = deepcopy(graph)
+        reserved["nodes"][1]["semantic_tag"] = "robot"
+        with self.assertRaisesRegex(IRError, "only the robot asset"):
+            scene_graph.validate(reserved)
+        missing = deepcopy(graph)
+        missing["nodes"][0]["semantic_tag"] = "base"
+        with self.assertRaisesRegex(IRError, "needs a node with semantic_tag 'robot'"):
+            scene_graph.validate(missing)
 
     def test_physical_quantities_are_assumed_with_ranges_and_evidence(self):
         table = self.records["object.table_a"]
