@@ -24,7 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
 from datafarm.kernel.io import atomic_write_json, sha256_file  # noqa: E402
 from datafarm.kernel.store import ArtifactStore  # noqa: E402
-from datafarm.entry.scene_files import load_prepared as _records, robot_descriptor  # noqa: E402
+from datafarm.entry.scene_files import (load_prepared as _records, robot_delivery, robot_descriptor,  # noqa: E402
+                                        robot_layer_files)
 
 USD_MEDIA = 'model/vnd.usd'
 USDA_MEDIA = 'model/vnd.usda'
@@ -75,8 +76,8 @@ def prepare(args) -> int:
     robot = spec['robot']
     package = Path(args.robot_package)
     descriptor, urdf = robot_descriptor(package, robot['package_asset'])
-    delivery = load_json(package / 'delivery_manifest.json')
-    usd = package / delivery['assets'][robot['package_asset']]['usd']
+    delivery = robot_delivery(package, robot['package_asset'])
+    usd = package / delivery['usd']
     urdf_ref = store.put_bytes('robot.urdf', urdf.read_bytes(), media_type='application/urdf+xml')
     usd_ref = store.put_bytes('robot.usd', usd.read_bytes(), media_type=USDA_MEDIA)
     base_collision = usd_assets.fixed_base_collision_bbox(usd)
@@ -89,10 +90,9 @@ def prepare(args) -> int:
     record_ref = store.put_json('ir.asset-record', record)
     prepared['assets'][robot['asset_id']] = {'record': record_ref.to_dict(), 'body': 'robot',
                                              'package': str(package.resolve()), 'package_asset': robot['package_asset']}
-    for layer, digest in delivery.get('layer_sha256', {}).items():
-        if f"/{robot['package_asset']}/" in layer:
-            prepared['bundle_files'].append({'asset_id': robot['asset_id'], 'role': 'robot_layer',
-                                             'member': layer, 'sha256': digest})
+    for member, digest in robot_layer_files(package, robot['package_asset']).items():
+        prepared['bundle_files'].append({'asset_id': robot['asset_id'], 'role': 'robot_layer',
+                                         'member': member, 'sha256': digest})
     atomic_write_json(work / 'prepared.json', prepared)
     print(f"prepared {len(prepared['assets'])} assets -> {work / 'prepared.json'}")
     return 0
